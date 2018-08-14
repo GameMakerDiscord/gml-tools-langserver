@@ -19,10 +19,10 @@
 		"editor",
 		"GML-Tools"
 	],
-	"bugs": "INSERT BUGS HERE",
+	"bugs": "https://github.com/GameMakerDiscord/gml-tools-langserver/issues",
 	"repository": {
 		"type": "git",
-		"url": "INSERT BUGS HERE"
+		"url": "https://github.com/GameMakerDiscord/gml-tools-langserver"
 	},
 	"dependencies": {
 		"@types/node": "^10.7.0",
