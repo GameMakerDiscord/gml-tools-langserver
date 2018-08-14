@@ -1,0 +1,45 @@
+{
+	"name": "gml-tools",
+	"displayName": "GML-Tools, Intellisense for GameMaker Studio 2 Project.",
+	"description": "GML Intellisense through the GML-Tools Language Server.",
+	"publisher": "Jonathan Spira (sanbox)",
+	"author": "Jonathan Spira",
+	"preview": true,
+	"version": "0.7.0",
+	"license": "MIT",
+	"engines": {
+		"node": "^8.0.0"
+	},
+	"keywords": [
+		"LSP",
+		"compile",
+		"language",
+		"GML",
+		"GMS2",
+		"editor",
+		"GML-Tools"
+	],
+	"bugs": "INSERT BUGS HERE",
+	"repository": {
+		"type": "git",
+		"url": "INSERT BUGS HERE"
+	},
+	"dependencies": {
+		"@types/node": "^10.7.0",
+		"child_process": "^1.0.2",
+		"chokidar": "^2.0.4",
+		"fs-extra": "^7.0.0",
+		"node": "^8.8.0",
+		"ohm-js": "^0.14.0",
+		"path": "^0.12.7",
+		"upath": "^1.1.0",
+		"uuid": "^3.3.2",
+		"vscode-languageserver": "^4.1.2"
+	},
+	"scripts": {
+		"build": "tsc"
+	},
+	"files": [
+		"./out"
+	]
+}
