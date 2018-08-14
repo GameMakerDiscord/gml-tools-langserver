@@ -1,5 +1,5 @@
 {
-	"name": "gml-tools",
+	"name": "gml-tools-langserver",
 	"displayName": "GML-Tools, Intellisense for GameMaker Studio 2 Project.",
 	"description": "GML Intellisense through the GML-Tools Language Server.",
 	"publisher": "Jonathan Spira (sanbox)",
