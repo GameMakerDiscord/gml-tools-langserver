@@ -1,7 +1,7 @@
 import { MacroPackage } from "./diagnostic";
 import { CompletionItemKind } from "vscode-languageserver";
 
-export declare const enum ResourceType {
+export const enum ResourceType {
     Object = 0,
     Script = 1,
     Sprite = 2
@@ -13,20 +13,20 @@ export interface Token {
     length: number
 }
 
-export declare const enum SignatureWalkState {
+export const enum SignatureWalkState {
     FINAL_OPEN = 0,
     FINAL_FUNC = 1,
     INTERMEDIARY_OPEN = 2
 }
 
-export declare const enum TokenNames {
+export const enum TokenNames {
     comma = "comma",
     oParens = "oParens",
     cParens = "cParens",
     funcIdentifier = "funcIdentifier"
 }
 
-export declare const enum LanguageService {
+export const enum LanguageService {
     GMLDefinitionProvider = 0,
     GMLSignatureProvider = 1,
     GMLCompletionProvider = 2,
@@ -35,7 +35,7 @@ export declare const enum LanguageService {
     Reference = 5
 }
 
-export declare const enum SemanticsOption {
+export const enum SemanticsOption {
     Function = 1,
     Variable = 2,
     EnumsAndMacros = 4,
@@ -55,13 +55,13 @@ export interface IGMLDoc {
     return: string;
 }
 
-interface IParameter {
+export interface IParameter {
     label: string;
     documentation: string;
     type: null;
 }
 
-interface IExample {
+export interface IExample {
     code: string;
     description: string;
 }
@@ -77,6 +77,6 @@ export interface AddEventsPackage {
     events: string[];
 }
 
-export declare type enumsMacros = [string[], MacroPackage[]];
+export type enumsMacros = [string[], MacroPackage[]];
 
-export declare type OtherResources = [string[], CompletionItemKind];
+export type OtherResources = [string[], CompletionItemKind];

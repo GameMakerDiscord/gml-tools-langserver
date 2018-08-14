@@ -1,15 +1,18 @@
 {
 	"compilerOptions": {
-		"noUnusedLocals": true,
 		"noImplicitReturns": true,		
-		"target": "es2016" ,
+		"target": "es2018",
 		"module": "commonjs",
 		"moduleResolution": "node",
-		"sourceMap": false,
-		"lib" : [ "es2016" ],
-		"outDir": "./out",
-		"declaration": true
+		"outDir": "out",
+		"lib": [ "es2018" ],
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
+		"preserveConstEnums": true,
+		"declaration": true,
+		"declarationDir": "./out/declarations/"
 	},
+
 	"include": [
 		"./src/**/*.ts"
 	]

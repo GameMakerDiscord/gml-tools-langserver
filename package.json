@@ -5,7 +5,7 @@
 	"publisher": "Jonathan Spira (sanbox)",
 	"author": "Jonathan Spira",
 	"preview": true,
-	"version": "0.7.11",
+	"version": "0.7.13",
 	"license": "MIT",
 	"engines": {
 		"node": "^8.0.0"
@@ -29,6 +29,7 @@
 		"child_process": "^1.0.2",
 		"chokidar": "^2.0.4",
 		"fs-extra": "^7.0.0",
+		"intellisense": "0.0.1",
 		"node": "^8.8.0",
 		"ohm-js": "^0.14.0",
 		"path": "^0.12.7",
@@ -41,9 +42,12 @@
 	},
 	"files": [
 		"/out",
-		"/src",
+		"/docs",
 		"License.txt",
-		"README.md"
+		"README.md",
+		"CODE_OF_CONDUCT.md"
 	],
-	"types": "./out/main.d.ts"
+	"devDependencies": {
+		"typescript": "^2.9.2"
+	}
 }

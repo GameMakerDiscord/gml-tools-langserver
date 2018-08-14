@@ -1,6 +1,6 @@
 import { grammar, Grammar } from "ohm-js";
-import { readFileSync } from "fs";
-import { join } from "path";
+import * as fse from "fs-extra";
+import * as path from "path";
 import { FileSystem, DocumentFolder } from "./fileSystem";
 import { GMLHoverProvider } from "./hover";
 import { timeUtil } from "./utils";
@@ -16,6 +16,7 @@ import { GMLSignatureProvider } from "./signature";
 import { GMLCompletionProvider } from "./completion";
 import { IGMLDocumentation, SemanticsOption, CreateObjPackage, LanguageService, ResourceType } from "./declarations";
 
+
 export class LSP {
     readonly gmlGrammar: Grammar;
     readonly gmlDocumentation: IGMLDocumentation;
@@ -30,8 +31,8 @@ export class LSP {
 
     constructor(public connection: IConnection) {
         this.connection = connection;
-        this.gmlGrammar = grammar(readFileSync(join(__dirname, "docs/gmlGrammar.ohm"), "utf-8"));
-        this.gmlDocumentation = JSON.parse(readFileSync(join(__dirname, "docs/gmlDocs.json"), "utf-8"));
+        this.gmlGrammar = grammar(fse.readFileSync(path.normalize("../docs/gmlDocs.json"), "utf-8"));
+        this.gmlDocumentation = JSON.parse(fse.readFileSync(path.normalize("../docs/gmlDocs.json"), "utf-8"));
 
         // Create our tools:
         this.reference = new Reference(this.gmlDocumentation);

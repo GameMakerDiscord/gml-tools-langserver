@@ -620,7 +620,7 @@ export class DiagnosticHandler {
     /**
      * Returns a diagnostic from the current failure.
      */
-    private getDiagnosticAtFailure(textDoc: string, currentFailure): Diagnostic {
+    private getDiagnosticAtFailure(textDoc: string, currentFailure: number): Diagnostic {
         let pos = getPositionFromIndex(textDoc, currentFailure);
 
         // Initial result TODO: make this a little recursive

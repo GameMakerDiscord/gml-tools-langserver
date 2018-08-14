@@ -1,160 +1,160 @@
 /** Namespace describing each ShaderLanguage type option in a ShaderYY file */
-export declare namespace ShaderLanguageType {
-    const GLSLES: 0;
-    const GLSL: 2;
-    const HLSL: 4;
+export namespace ShaderLanguageType {
+    export const GLSLES: 0 = 0;
+    export const GLSL: 2 = 2;
+    export const HLSL: 4 = 4;
 }
-export declare type ShaderLanguageType = 0 | 2 | 4;
+export type ShaderLanguageType = 0 | 2 | 4;
 
 /** Unknown purpose, as opposed to true boolean. Used in Rooms */
-export declare namespace PseudoBoolean {
-    const False: 0;
-    const True: 1;
+export namespace PseudoBoolean {
+    export const False: 0 = 0;
+    export const True: 1 = 1;
 }
-export declare type PseudoBoolean = 0 | 1;
+export type PseudoBoolean = 0 | 1;
 
 /** Sound 'kind' used in a SoundYY file */
-export declare namespace SoundKind {
-    const UncompressedNotStreamed: 0;
-    const CompressedNotStreamed: 1;
-    const UncompressOnLoad: 2;
-    const CompressedStreamed: 3;
+export namespace SoundKind {
+    export const UncompressedNotStreamed: 0 = 0;
+    export const CompressedNotStreamed: 1 = 1;
+    export const UncompressOnLoad: 2 = 2;
+    export const CompressedStreamed: 3 = 3;
 }
-export declare type SoundKind = 0 | 1 | 2 | 3;
+export type SoundKind = 0 | 1 | 2 | 3;
 
 /** Sound 'type' used in a SoundYY file */
-export declare namespace SoundType {
-    const Mono: 0;
-    const Stereo: 1;
-    const ThreeDee: 2;
+export namespace SoundType {
+    export const Mono: 0 = 0;
+    export const Stereo: 1 = 1;
+    export const ThreeDee: 2 = 2;
 }
-export declare type SoundType = 0 | 1 | 2;
+export type SoundType = 0 | 1 | 2;
 
 /** Path 'kind' used in a PathYY file */
-export declare namespace PathKind {
-    const Straight: 0;
-    const Smooth: 1;
+export namespace PathKind {
+    export const Straight: 0 = 0;
+    export const Smooth: 1 = 1;
 }
-export declare type PathKind = 0 | 1;
+export type PathKind = 0 | 1;
 
 /** Event 'type' used in  Events inside ObjectYY files. Within each 'type'
  *  there is also a `number` which describes a "sub-type" of the event.
  *  Use `EventNumber` for that subtype.
  */
-export declare namespace EventType {
-    const Create: 0;
-    const Alarm: 1;
-    const Destroy: 2;
-    const Step: 3;
-    const Collision: 4;
-    const Keyboard: 5;
-    const Mouse: 6;
-    const Other: 7;
-    const Draw: 8;
-    const KeyPress: 9;
-    const KeyRelease: 10;
-    const Trigger: 11;
-    const CleanUp: 12;
-    const Gesture: 13;
+export namespace EventType {
+    export const Create: 0 = 0;
+    export const Alarm: 1 = 1;
+    export const Destroy: 2 = 2;
+    export const Step: 3 = 3;
+    export const Collision: 4 = 4;
+    export const Keyboard: 5 = 5;
+    export const Mouse: 6 = 6;
+    export const Other: 7 = 7;
+    export const Draw: 8 = 8;
+    export const KeyPress: 9 = 9;
+    export const KeyRelease: 10 = 10;
+    export const Trigger: 11 = 11;
+    export const CleanUp: 12 = 12;
+    export const Gesture: 13 = 13;
 }
-export declare type EventType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+export type EventType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
 
 /**
  * Event `number` used in Events in ObjectYY files. Each
  * `EventType` only has some of these members.
  */
-export declare namespace EventNumber {
-    const Create: 0;
-    const DrawNormal: 0;
-    const DrawBegin: 72;
-    const DrawEnd: 73;
-    const DrawPre: 76;
-    const DrawPost: 77;
-    const LeftButton: 0;
-    const RightButton: 1;
-    const MiddleButton: 2;
-    const NoButton: 3;
-    const LeftPress: 4;
-    const RightPress: 5;
-    const MiddlePress: 6;
-    const LeftRelease: 7;
-    const RightRelease: 8;
-    const MiddleRelease: 9;
-    const MouseEnter: 10;
-    const MouseLeave: 11;
-    const MouseWheelUp: 60;
-    const MouseWheelDown: 61;
-    const GlobalLeftButton: 50;
-    const GlobalRightButton: 51;
-    const GlobalMiddleButton: 52;
-    const GlobalLeftPress: 53;
-    const GlobalRightPress: 54;
-    const GlobalMiddlePress: 55;
-    const GlobalLeftRelease: 56;
-    const GlobalRightRelease: 57;
-    const GlobalMiddleRelease: 58;
-    const Joystick1Left: 16;
-    const Joystick1Right: 17;
-    const Joystick1Up: 18;
-    const Joystick1Down: 19;
-    const Joystick1Button1: 21;
-    const Joystick1Button2: 22;
-    const Joystick1Button3: 23;
-    const Joystick1Button4: 24;
-    const Joystick1Button5: 25;
-    const Joystick1Button6: 26;
-    const Joystick1Button7: 27;
-    const Joystick1Button8: 28;
-    const Joystick2Left: 31;
-    const Joystick2Right: 32;
-    const Joystick2Up: 33;
-    const Joystick2Down: 34;
-    const Joystick2Button1: 36;
-    const Joystick2Button2: 37;
-    const Joystick2Button3: 38;
-    const Joystick2Button4: 39;
-    const Joystick2Button5: 40;
-    const Joystick2Button6: 41;
-    const Joystick2Button7: 42;
-    const Joystick2Button8: 43;
-    const Outside: 0;
-    const Boundary: 1;
-    const GameStart: 2;
-    const GameEnd: 3;
-    const RoomStart: 4;
-    const RoomEnd: 5;
-    const NoMoreLives: 6;
-    const AnimationEnd: 7;
-    const EndOfPath: 8;
-    const NoMoreHealth: 9;
-    const CloseButton: 30;
-    const User0: 10;
-    const User1: 11;
-    const User2: 12;
-    const User3: 13;
-    const User4: 14;
-    const User5: 15;
-    const User6: 16;
-    const User7: 17;
-    const User8: 18;
-    const User9: 19;
-    const User10: 20;
-    const User11: 21;
-    const User12: 22;
-    const User13: 23;
-    const User14: 24;
-    const User15: 25;
-    const StepNormal: 0;
-    const StepBegin: 1;
-    const StepEnd: 2;
-    const Gui: 64;
-    const GuiBegin: 74;
-    const GuiEnd: 7;
+export namespace EventNumber {
+    export const Create: 0 = 0;
+    export const DrawNormal: 0 = 0;
+    export const DrawBegin: 72 = 72;
+    export const DrawEnd: 73 = 73;
+    export const DrawPre: 76 = 76;
+    export const DrawPost: 77 = 77;
+    export const LeftButton: 0 = 0;
+    export const RightButton: 1 = 1;
+    export const MiddleButton: 2 = 2;
+    export const NoButton: 3 = 3;
+    export const LeftPress: 4 = 4;
+    export const RightPress: 5 = 5;
+    export const MiddlePress: 6 = 6;
+    export const LeftRelease: 7 = 7;
+    export const RightRelease: 8 = 8;
+    export const MiddleRelease: 9 = 9;
+    export const MouseEnter: 10 = 10;
+    export const MouseLeave: 11 = 11;
+    export const MouseWheelUp: 60 = 60;
+    export const MouseWheelDown: 61 = 61;
+    export const GlobalLeftButton: 50 = 50;
+    export const GlobalRightButton: 51 = 51;
+    export const GlobalMiddleButton: 52 = 52;
+    export const GlobalLeftPress: 53 = 53;
+    export const GlobalRightPress: 54 = 54;
+    export const GlobalMiddlePress: 55 = 55;
+    export const GlobalLeftRelease: 56 = 56;
+    export const GlobalRightRelease: 57 = 57;
+    export const GlobalMiddleRelease: 58 = 58;
+    export const Joystick1Left: 16 = 16;
+    export const Joystick1Right: 17 = 17;
+    export const Joystick1Up: 18 = 18;
+    export const Joystick1Down: 19 = 19;
+    export const Joystick1Button1: 21 = 21;
+    export const Joystick1Button2: 22 = 22;
+    export const Joystick1Button3: 23 = 23;
+    export const Joystick1Button4: 24 = 24;
+    export const Joystick1Button5: 25 = 25;
+    export const Joystick1Button6: 26 = 26;
+    export const Joystick1Button7: 27 = 27;
+    export const Joystick1Button8: 28 = 28;
+    export const Joystick2Left: 31 = 31;
+    export const Joystick2Right: 32 = 32;
+    export const Joystick2Up: 33 = 33;
+    export const Joystick2Down: 34 = 34;
+    export const Joystick2Button1: 36 = 36;
+    export const Joystick2Button2: 37 = 37;
+    export const Joystick2Button3: 38 = 38;
+    export const Joystick2Button4: 39 = 39;
+    export const Joystick2Button5: 40 = 40;
+    export const Joystick2Button6: 41 = 41;
+    export const Joystick2Button7: 42 = 42;
+    export const Joystick2Button8: 43 = 43;
+    export const Outside: 0 = 0;
+    export const Boundary: 1 = 1;
+    export const GameStart: 2 = 2;
+    export const GameEnd: 3 = 3;
+    export const RoomStart: 4 = 4;
+    export const RoomEnd: 5 = 5;
+    export const NoMoreLives: 6 = 6;
+    export const AnimationEnd: 7 = 7;
+    export const EndOfPath: 8 = 8;
+    export const NoMoreHealth: 9 = 9;
+    export const CloseButton: 30 = 30;
+    export const User0: 10 = 10;
+    export const User1: 11 = 11;
+    export const User2: 12 = 12;
+    export const User3: 13 = 13;
+    export const User4: 14 = 14;
+    export const User5: 15 = 15;
+    export const User6: 16 = 16;
+    export const User7: 17 = 17;
+    export const User8: 18 = 18;
+    export const User9: 19 = 19;
+    export const User10: 20 = 20;
+    export const User11: 21 = 21;
+    export const User12: 22 = 22;
+    export const User13: 23 = 23;
+    export const User14: 24 = 24;
+    export const User15: 25 = 25;
+    export const StepNormal: 0 = 0;
+    export const StepBegin: 1 = 1;
+    export const StepEnd: 2 = 2;
+    export const Gui: 64 = 64;
+    export const GuiBegin: 74 = 74;
+    export const GuiEnd: 7 = 7;
 }
-export declare type EventNumber = 72 | 73 | 76 | 77 | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 60 | 61 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 16 | 17 | 18 | 19 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 31 | 32 | 33 | 34 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 64 | 74 | 7; 
+export type EventNumber = 72 | 73 | 76 | 77 | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 60 | 61 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 16 | 17 | 18 | 19 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 31 | 32 | 33 | 34 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 64 | 74 | 7; 
 
 /** Resource file namespace */
-export declare namespace Resource {
+export namespace Resource {
     export interface ObjectEvent {
         /** Event GUID */
         id: string;
