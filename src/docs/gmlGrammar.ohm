@@ -1,0 +1,472 @@
+//credit to Tony Garnock-Jones' ES5 Grammar
+gml {
+    Program     = Statement<#sc>*
+    
+    // #region General Defintion
+    sourceCharacter = any
+
+    // override Ohm's built-in space definition (for complete control):
+    space       := whitespace | lineTerminator | comment
+    whitespace  
+            = "\t"
+            | "\x0B"    -- verticalTab
+            | "\x0C"    -- formFeed
+            | " "
+            | "\u00A0"  -- noBreakSpace
+            | "\uFEFF"  -- byteOrderMark
+            | unicodeSpaceSeparator
+
+    lineTerminator = "\n" | "\r" | "\u2028" | "\u2029"
+    lineTerminatorSequence = "\n" | "\r" ~"\n" | "\u2028" | "\u2029" | "\r\n"
+    unicodeSpaceSeparator = "\u2000".."\u200B" | "\u3000"
+    // #endregion
+
+    // #region Parsing Expressions
+    Statement<endSemiColon>
+        =   Block
+        |   FunctionCall<#endSemiColon>
+        |   VariableStatement<varDec?,#endSemiColon>
+        |   EmptyStatement
+        |   IfStatement
+        |   ForStatement
+        |   RepeatStatement
+        |   WhileStatement
+        |   DoUntilStatement
+        |   SwitchStatement
+        |   BreakStatement
+        |   ContinueStatement
+        |   ExitStatement
+        |   ReturnStatement
+        |   WithStatement
+        |   IncrementStatement<#endSemiColon>
+        |   lspPreCompileDirective
+        |   jsdoc
+        |   MacroDeclaration
+        |   EnumDeclaration
+    StatementList
+        =   Statement<#sc>*
+
+    Block 
+        =   oCurly StatementList cCurly
+    FunctionCall<endSemiColon>
+        =   Function #endSemiColon
+    Function
+        = funcIdentifier Arguments
+
+    VariableStatement<canReDec,endSemiColon>
+        =   DeclarationAndDefinition #endSemiColon
+        |   LocalDeclarationType<canReDec> #endSemiColon
+    EmptyStatement = ";"
+    IfStatement
+        =   if oParens? ConditionalExpression cParens? Statement<#sc> (else Statement<#sc>)?
+    ForStatement
+        =   for oParens VariableStatement<noReDec,empty> #sc ConditionalExpression #sc Statement<empty> #sc? cParens Statement<#sc>
+    RepeatStatement
+        =   repeat oParens ConditionalExpression cParens Statement<#sc>
+    WhileStatement
+        =   while oParens ConditionalExpression cParens Statement<#sc>
+    DoUntilStatement
+        =   do Statement<#sc> until oParens ConditionalExpression cParens #sc
+    SwitchStatement
+        =   switch oParens ConditionalExpression cParens CaseBlock
+    CaseBlock
+        =   oCurly CaseClause* DefaultClause? CaseClause* cCurly
+    CaseClause
+        =   case oParens? ConditionalExpression cParens? ":" Statement<#sc>*
+    DefaultClause
+        =   default ":" Statement<#sc>*
+    BreakStatement  
+        =   break #sc
+    ContinueStatement
+        =   continue #sc
+    ExitStatement
+        =   exit #sc
+    ReturnStatement
+        =   StandardReturn
+        |   VariableReturn
+    StandardReturn
+        =   return (oParens? Statement<empty> cParens?)? #sc
+    VariableReturn
+        =   return oParens? identifier cParens? #sc
+    WithStatement
+        =   with oParens ConditionalExpression cParens Statement<#sc>
+    IncrementStatement<endSemiColon>
+        =   PreIncrementStatement #endSemiColon
+        |   PostIncrementStatment #endSemiColon
+    PreIncrementStatement
+        =   incrementers ~literal ~ArrayLiteral unaryNots? IncrementVariable
+    PostIncrementStatment
+        =   ~literal ~ArrayLiteral unaryNots? IncrementVariable incrementers
+    IncrementVariable
+        =   MembDataLiteral
+        |   MembObjectVarRef
+        |   identifier
+    MacroDeclaration
+        =   macroWord identifier macroValue
+    macroWord = "#macro"
+    macroValue = identifier | numericLiteral
+    EnumDeclaration
+        =   enumDeclararer enumName oCurly ListOf<EnumEntries,comma> cCurly
+    EnumEntries
+        =   EnumPlain EnumEnumerated?
+    EnumPlain
+        =   identifier
+    EnumEnumerated
+        =   "=" EnumElement (expressionSign EnumElement)*
+    EnumElement
+        =   integerNumber | EnumCall
+    EnumCall
+        =   identifier "." identifier
+    
+
+    // #region VariableStatement
+    DeclarationAndDefinition
+        =   ObjectDeclaration Initialiser
+    ObjectDeclaration
+        =   ObjDataLiteral
+        |   ObjDotVar
+        |   variable
+    ObjDataLiteral
+        =   ObjectDeclaration DSLiteral
+        |   ObjectDeclaration ArrayEntryLiteral
+    ObjDotVar   
+        = ObjectDeclaration dot variable
+        | global dot globalVariable   
+    LocalDeclarationType<canReDec>     
+        =   LocalDeclarationList<canReDec>
+        |   LocalDeclarationSimple
+    LocalDeclarationSimple
+        =   varDec localVariable Initialiser?
+    LocalDeclarationList<canReDec>
+        =   varDec ~varDec ListOf<LocalDeclarationEntry<canReDec>,comma>
+    LocalDeclarationEntry<canReDec>
+        =   canReDec localVariable Initialiser?
+    Initialiser (an assignment operator)
+        =   assignmentOperator ConditionalExpression
+    // #endregion
+
+    // #region Expressions Chart
+    ConditionalExpression (A CONDITIONAL COMMENT)
+        =   LOR
+        |   LogicalANDExpression
+    LOR
+        =   ConditionalExpression "||" LogicalANDExpression
+    
+    LogicalANDExpression
+        =   LAND
+        |   BitwiseORExpression
+    LAND
+        =   LogicalANDExpression "&&" BitwiseORExpression
+
+    BitwiseORExpression
+        =   BOR
+        |   BitwiseXORExpression
+    BOR
+        =   BitwiseORExpression "|" BitwiseXORExpression
+    
+    BitwiseXORExpression
+        =   BXOR
+        |   BitwiseANDExpression
+    BXOR
+        =   BitwiseXORExpression "^" BitwiseANDExpression
+    
+    BitwiseANDExpression
+        =   BAND
+        |   EqualityExpression
+    BAND
+        =   BitwiseANDExpression "&" EqualityExpression
+    
+    EqualityExpression
+        =   Equal
+        |   NotEqual
+        |   RelationalExpression
+    Equal
+        =   EqualityExpression "==" RelationalExpression
+    NotEqual
+        =   EqualityExpression "!=" RelationalExpression
+    
+    RelationalExpression
+        =   LT | GT 
+        |   LE | GE
+        |   ShiftExpression
+    LT  =   RelationalExpression "<" ShiftExpression
+    GT  =   RelationalExpression ">" ShiftExpression
+    LE  =   RelationalExpression "<=" ShiftExpression
+    GE  =   RelationalExpression ">=" ShiftExpression
+
+    ShiftExpression
+        =   SL | SR
+        |   AdditiveExpression
+    SL  =   ShiftExpression "<<" AdditiveExpression
+    SR  =   ShiftExpression ">>" AdditiveExpression
+
+    AdditiveExpression
+        =   ADD | SUB
+        |   MultiplicativeExpression
+    ADD =   AdditiveExpression "+" MultiplicativeExpression
+    SUB =   AdditiveExpression "-" MultiplicativeExpression
+
+    MultiplicativeExpression
+        =   MUL | DIV
+        |   UnaryExpression
+    MUL = MultiplicativeExpression "*" UnaryExpression
+    DIV = MultiplicativeExpression "/" UnaryExpression
+
+    UnaryExpression
+        =   PreIncrement | UnaryNegative
+        |   UnaryBitNot  | UnaryLogNot
+        |   PostExpression
+    PreIncrement
+        =   incrementers ~literal UnaryExpression 
+    UnaryNegative
+        =   "-" UnaryExpression
+    UnaryBitNot
+        =   "~" UnaryExpression
+    UnaryLogNot
+        =   "!" UnaryExpression
+
+    PostExpression
+        =   PostIncrement
+        |   ComplexExpression
+    PostIncrement
+        =   ~literal MemberExpression incrementers
+    
+    ComplexExpression
+        =   FunctionCall<empty>
+        |   MemberExpression
+
+    MemberExpression
+        =   MembDataLiteral
+        |   MembObjectVarRef
+        |   PrimaryExpression
+        |   ArrayLiteral
+    MembDataLiteral = ~literal ~ParentExpression MemberExpression AccessorCall
+    MembObjectVarRef= ~literal ~ParentExpression MemberExpression "." identifier
+                    | ~literal ~ParentExpression global "." MemberExpression
+    
+    Arguments
+        =   oParens ListOf<ArgumentOrEmpty,comma> cParens
+    
+    ArgumentOrEmpty
+        = ConditionalExpression | empty
+
+    PrimaryExpression
+        =   identifier
+        |   literal
+        |   ParentExpression
+    
+    AccessorCall
+        =   DSLiteral
+        |   ArrayEntryLiteral
+    
+    DSLiteral
+        =   (mapAccessor | listAccessor | gridAccessor | arrayAccessor) ConditionalExpression "]"
+    ArrayEntryLiteral
+        =   "[" NonemptyListOf<ConditionalExpression,comma> "]"
+
+
+    ArrayLiteral
+        =   "[" ListOf<ConditionalExpression,comma> "]"
+        |   "[" empty "]"
+    
+
+
+    ParentExpression
+        =   oParens ConditionalExpression cParens
+    // #endregion
+
+
+
+    //#endregion
+
+
+
+    // #region Lexical
+    comment = ~lspPreCompileDirective ~jsdoc (multiLineComment | singleLineComment)
+    lspPreCompileDirective = "// #" (~lineTerminator sourceCharacter)*
+    multiLineComment = "/*" (~"*/" sourceCharacter)* "*/"
+    singleLineComment = "//" (~lineTerminator sourceCharacter)*
+
+    //#region JSDOC
+    jsdoc   = jsdocHeader jsdocCommand --standardJSDOC
+            | jsdocGMS1
+    jsdocHeader = "///@" 
+                | "/// @"
+    jsdocCommand= jsdocFunction
+                | jsdocDescription
+                | jsdocParam
+                | jsdocReturns
+    jsdocFunction= jsdocFunctionDecl ps jsdocFunctionName
+    jsdocFunctionName = (~lineTerminator sourceCharacter)*
+    jsdocFunctionDecl = "function" | "func"
+
+    jsdocDescription = jsdocDescriptionName ps (~lineTerminator sourceCharacter)*
+    jsdocDescriptionName = "description" | "desc"
+
+    jsdocParam = jsdocParamDecl ps type? ps jsdocParamName
+    jsdocParamDecl = "param" | "arg" | "argument"
+    jsdocParamName =(~lineTerminator sourceCharacter)*
+
+    jsdocReturns = jsdocReturnsDecl ps (~lineTerminator sourceCharacter)*
+    jsdocReturnsDecl = "returns" | "return"
+
+    jsdocGMS1 = "///" ps jsdocGMS1funcName ps oParens listOf<jsdocGMS1paramName, comma> cParens jsdocGMS1desc
+    jsdocGMS1funcName = (~at ~forwardSlash ~oParens ~lineTerminator sourceCharacter)* 
+    jsdocGMS1paramName = ps (~cParens ~lineTerminator sourceCharacter)* ps
+    jsdocGMS1desc = (~lineTerminator sourceCharacter)*
+
+    at = "@"
+    forwardSlash = "/"
+
+    
+    type = "{" (~lineTerminator ~endCurlyPlain sourceCharacter)* "}"
+    ps = (~lineTerminator space*)
+    endCurlyPlain = "}"
+    //#endregion
+
+    for     =   "for" ~identifierPart
+    varDec  =   "var" ~identifierPart
+    global  =   "global" ~identifierPart
+    if      =   "if" ~identifierPart
+    else    =   "else" ~identifierPart
+    repeat  =   "repeat" ~identifierPart
+    while   =   "while" ~identifierPart
+    do      =   "do"    ~identifierPart
+    until   =   "until" ~identifierPart
+    switch  =   "switch" ~identifierPart
+    case    =   "case"  ~identifierPart
+    default =   "default" ~identifierPart
+    break   =   "break"   ~identifierPart
+    continue=   "continue" ~identifierPart
+    exit    =   "exit"      ~identifierPart
+    return  =   "return" ~identifierPart
+    with    =   "with"  ~identifierPart
+    enumDeclararer    =   "enum"  ~identifierPart
+
+    keyword = 
+            | varDec    | global    | if    | for   | repeat
+            | while     | do        | until | switch| case
+            | default   | break     | continue      | exit
+            | return    | with      | enumDeclararer 
+
+    reservedPattern = keyword | undefinedLiteral | booleanLiteral
+
+    // literals:
+    literal =   undefinedLiteral | booleanLiteral | numericLiteral
+            |   stringLiteral
+    undefinedLiteral    = "undefined" ~identifierPart
+    booleanLiteral      = ("true" | "false") ~identifierPart  
+    
+    
+    numericLiteral      = octalIntegerLiteral | hexIntegerLiteral | decimalLiteral
+    decimalLiteral      = fullNumber
+                        | fractionNumber
+                        | integerNumber
+    fullNumber          = decimalIntegerLiteral "." decimalDigit*
+    fractionNumber      =                       "." decimalDigit+
+    integerNumber       = decimalIntegerLiteral
+    
+    decimalIntegerLiteral
+                        = nonZero
+                        | "0"
+    nonZero             = nonZeroDigit decimalDigit*
+    decimalDigit        = "0" .. "9"
+    nonZeroDigit        = "1" .. "9"
+
+    hexIntegerLiteral   = "$" hexDigit+
+                        | "0x" hexDigit+
+
+    octalIntegerLiteral = "0" octalDigit+
+    octalDigit          = "0" .. "7"
+     
+    stringLiteral       = "\"" doubleStringCharacter* "\""
+                        | "'" singleStringCharacter* "'"
+    doubleStringCharacter
+                        = nonEscapedDoubleStringChar
+                        | escaped
+                        | lineContinuation
+    singleStringCharacter
+                        = nonEscapedSingleStringChar
+                        | escaped
+                        | lineContinuation
+    nonEscapedDoubleStringChar
+                        = ~("\"" | "\\" | lineTerminator) sourceCharacter
+    nonEscapedSingleStringChar
+                        = ~("'" | "\\" | lineTerminator) sourceCharacter
+    lineContinuation    = "\\" lineTerminatorSequence
+    escaped             = "\\" escapeSequence
+    escapeSequence      = unicodeEscapeSequence
+                        | hexEscapeSequence
+                        | octalEscapeSequence
+                        | characterEscapeSequence //must be last
+    characterEscapeSequence
+                        = singleEscapeCharacter
+                        | nonEscapeCharacter
+    singleEscapeCharacter
+                        = "'" | "\"" | "\\" | "b" | "f" | "n" | "r" | "t" | "v"
+    nonEscapeCharacter  = ~(escapeCharacter | lineTerminator) sourceCharacter
+    escapeCharacter     = singleEscapeCharacter | decimalDigit | "x" | "u"
+    octalEscapeSequence = whole
+                        | eightTimesFourToSeven
+                        | eightTimesZeroToThree
+                        | octal
+    whole               = zeroToThree octalDigit octalDigit
+    eightTimesFourToSeven = fourToSeven octalDigit
+    eightTimesZeroToThree = zeroToThree octalDigit ~decimalDigit
+    octal               = octalDigit ~decimalDigit
+
+
+    hexEscapeSequence   = "x" hexDigit hexDigit
+    unicodeEscapeSequence = "u" hexDigit hexDigit hexDigit hexDigit
+
+    zeroToThree = "0" .. "3"
+    fourToSeven = "4" .. "7"
+
+    multiLineCommentNoNL = "/*" (~("*/" | lineTerminator) sourceCharacter)* "*/"
+    spacesNoNL = (whitespace | singleLineComment | multiLineCommentNoNL)*
+
+    sc  = space* (";" | end )
+        | spacesNoNL (lineTerminator | ~multiLineCommentNoNL multiLineComment | &"}")
+
+    // accessors
+    mapAccessor = "[?"
+    listAccessor= "[|"
+    gridAccessor= "[#"
+    arrayAccessor="[@"
+    
+
+    // variable tokens
+    enumName            = identifier
+    variable            = identifier
+    localVariable       = identifier
+    globalVariable      = identifierName  
+    funcIdentifier      = identifier
+
+
+    identifier          = ~reservedPattern identifierName
+    identifierName      = identifierStart identifierPart*
+    identifierPart      = identifierStart | digit
+    identifierStart (a variable)    = letter | "_"
+
+    // signs
+    incrementers        =   "++" | "--"
+    assignmentOperator   =   "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "&=" | "^=" | "|="
+    expressionSign           =         "*"  | "/"  | "%"  | "+"  | "-"  | "&"  | "^"  | "|" 
+    setSign             =   "="
+    
+
+    // bits and bobs
+    unaryNots   =   "!" | "~" | "-"
+    comma       =   ","
+    dot         =   "."
+    parens      =   oParens | cParens
+    oParens     =   "("
+    cParens     =   ")"
+    curlys      =   oCurly | cCurly
+    oCurly      =   "{" | "begin"
+    cCurly      =   "}" | "end"
+    noReDec     =   ~varDec
+    empty       =
+
+    // #endregion
+}
