@@ -44,5 +44,6 @@
 		"/src",
 		"License.txt",
 		"README.md"
-	]
+	],
+	"types": "./out/main.d.ts"
 }
