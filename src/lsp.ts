@@ -31,8 +31,8 @@ export class LSP {
 
     constructor(public connection: IConnection) {
         this.connection = connection;
-        this.gmlGrammar = grammar(fse.readFileSync(path.normalize("../docs/gmlDocs.json"), "utf-8"));
-        this.gmlDocumentation = JSON.parse(fse.readFileSync(path.normalize("../docs/gmlDocs.json"), "utf-8"));
+        this.gmlGrammar = grammar(fse.readFileSync(path.join(__dirname, path.normalize("../docs/gmlDocs.json")), "utf-8"));
+        this.gmlDocumentation = JSON.parse(fse.readFileSync(path.join(__dirname, path.normalize("../docs/gmlDocs.json")), "utf-8"));
 
         // Create our tools:
         this.reference = new Reference(this.gmlDocumentation);
