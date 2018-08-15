@@ -8,7 +8,7 @@
 	"version": "0.7.16",
 	"license": "MIT",
 	"engines": {
-		"node": "^8.0.0"
+		"node": "^8.11.3"
 	},
 	"keywords": [
 		"LSP",
@@ -25,7 +25,6 @@
 		"url": "https://github.com/GameMakerDiscord/gml-tools-langserver"
 	},
 	"dependencies": {
-		"@types/node": "^10.7.0",
 		"child_process": "^1.0.2",
 		"chokidar": "^2.0.4",
 		"fs-extra": "^7.0.0",
@@ -38,7 +37,8 @@
 		"vscode-languageserver": "^4.4.2"
 	},
 	"scripts": {
-		"build": "tsc"
+		"build": "tsc",
+		"watch": "tsc --watch"
 	},
 	"files": [
 		"/out",
@@ -48,6 +48,7 @@
 		"CODE_OF_CONDUCT.md"
 	],
 	"devDependencies": {
+		"@types/node": "^10.7.0",
 		"typescript": "^2.9.2"
 	}
 }

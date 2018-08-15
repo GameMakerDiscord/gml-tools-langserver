@@ -506,11 +506,8 @@ export class DiagnosticHandler {
         }
 
         // Add our memoTable to the DiagnosticTable:
-        const testTimer = new timeUtil();
-        testTimer.setTimeFast();
         this.tokenList = [];
         this.tokenList = await this.createSignatureTokenList(this.matcher.memoTable);
-        console.log(testTimer.timeDifferenceNowNice());
 
 
         // Initialize loop variables
@@ -844,8 +841,6 @@ export class DiagnosticHandler {
             }
             i++;
         }
-
-        console.log("HELLO??")
         return ourTokens;
     }
 

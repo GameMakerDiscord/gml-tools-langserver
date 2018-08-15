@@ -54,6 +54,7 @@ export class LSP {
 
     private isServerReady() {
         return this.fsManager.indexComplete;
+        
     }
 
     //#endregion
