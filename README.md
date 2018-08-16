@@ -65,4 +65,45 @@ If the issue is a grammar issue, please flag such an issue with [GRAMMAR] at the
     npm install
     ```
 
-5. Compile the Language Server
+5. Compile the Language Server with the Task: `"Language Server -- Build"`:
+
+    *Tip: Use `"Language Server -- Watch"` to write Typescript and have it transpiled in realtime for you.*
+
+    You may run into an error here in the Ohm-JS library regarding the "Node-List" typing. You can safely comment that out in the Ohm-JS typings until they have resolved the error -- we do not use that typing.
+
+6. Compile the Client with the Task: `"Client -- Watch"`:
+
+    *Tip: We compile it in Watch here because we will be doing some initial set up in the Client*
+
+7. Edit the Client `launch.json` and `extension.ts` files:
+
+    1. Find the absolute path to the Language Server's root folder. Examples of such a path are: `C:\myProjects\gml-tools-langserver` or `/Users/Mario/gml-tools-langserver`.
+
+        Change the Configuration `Attach To Server` to this:
+        ```json
+        {
+            "type": "node",
+            "request": "attach",
+            "name": "Attach to Server",
+            "address": "localhost",
+            "protocol": "inspector",
+            "port": 6009,
+            "sourceMaps": true,
+            "outFiles": ["ABSOLUTE_FILEPATH_TO_LANGUAGE_SERVER/out/**/*.js"]
+        }
+        ```
+        where "ABSOLUTE_FILEPATH_TO_LANGUAGE_SERVER" has been replaced with the absolute filepath to the language server retrieved previously.
+
+    2. In your client folder, open `/src/extension.ts`. Comment out this line:
+        ```ts
+        let serverModule = context.asAbsolutePath(path.join("node_modules", "gml-tools-langserver", 'out', "server.js" ));
+        ```
+        and instead add in this line:
+        ```ts
+        let serverModule = "ABSOLUTE_FILEPATH_TO_LANGUAGE_SERVER/out/server.js";
+        ```
+        where "ABSOLUTE_FILEPATH_TO_LANGUAGE_SERVER" has been replaced with the absolute filepath to the language server retrieved previously.
+
+8. Begin the Extension by pressing `F5`. To place breakpoints in the Typescript of the language server, once the client is running, launch the "Attach to Server" process from the debug menu, or use the Client/Server option to launch both at once.
+
+9. Happy coding! If any problems occur, please add an issue.

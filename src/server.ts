@@ -65,9 +65,6 @@ connection.onInitialize(
 
 //#region Commands
 connection.onExecuteCommand((params) => {
-    if (params.command == "GMLTools.createObject") {
-        connection.sendNotification("createObject");
-    }
 
     switch (params.command) {
         case "GMLTools.createObject":
