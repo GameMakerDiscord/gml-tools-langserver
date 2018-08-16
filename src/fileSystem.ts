@@ -390,7 +390,6 @@ export class FileSystem {
                     // Add to our Reference
                     this.reference.addObject(objYY.name);
                     
-                    
                     // Figure out our events
                     let ourEvents: Array<EventInterface> = [];
                     for (const thisEvent of objYY.eventList) {

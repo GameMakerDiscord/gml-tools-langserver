@@ -50,6 +50,7 @@ export class GMLCompletionProvider {
 
     private async nonPeriodCompletion(params: CompletionParams) {
         const thisWord = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
+        const thisRange = Range.create(params.position, params.position);
 
         let workingArray: CompletionItem[] = [];
         const rx = new RegExp("^" + thisWord);
@@ -57,7 +58,7 @@ export class GMLCompletionProvider {
         // All our variables in this object:
         const docInformation = await this.fs.getDocumentFolder(params.textDocument.uri);
 
-        // Iterate on the Variables
+        // Iterate on the Instance Variables:
         if (docInformation.type == ResourceType.Object) {
             const variableList = this.reference.getAllObjectVariables(docInformation.name);
 
@@ -68,12 +69,30 @@ export class GMLCompletionProvider {
                         kind: CompletionItemKind.Variable,
                         textEdit: {
                             newText : thisVar.replace(thisWord, ""),
-                            range : Range.create(params.position, params.position)
+                            range : thisRange
                         },
                     })
                 }
             }
         }
+
+        // Iterate on the Local Variables:
+        const locals = this.reference.getAllLocalsAtURI(params.textDocument.uri);
+        if (locals) {
+            for (const thisVar of locals) {
+                if (thisVar.value.match(rx) !== null) {
+                    workingArray.push( {
+                        label: thisVar.value,
+                        kind: CompletionItemKind.Field,
+                        textEdit: {
+                            newText : thisVar.value.replace(thisWord, ""),
+                            range : thisRange
+                        },
+                    })
+                }
+            }
+        }
+
 
         // Functions/Scripts
         const functionList = this.reference.scriptGetScriptList();
@@ -84,11 +103,11 @@ export class GMLCompletionProvider {
                     kind: CompletionItemKind.Function,
                     textEdit: {
                         newText : item.replace(thisWord, ""),
-                        range : Range.create(params.position, params.position)
+                        range : thisRange
                     }
                 });
                 
-                if (total > 6) {
+                if (total > 16) {
                     break;
                 }
             }
@@ -103,7 +122,7 @@ export class GMLCompletionProvider {
                     kind: CompletionItemKind.Class,
                     textEdit: {
                         newText : obj.replace(thisWord, ""),
-                        range : Range.create(params.position, params.position)
+                        range : thisRange
                     }
                 });
             }
@@ -118,7 +137,7 @@ export class GMLCompletionProvider {
                     kind: CompletionItemKind.Enum,
                     textEdit: {
                         newText : thisEnum.replace(thisWord, ""),
-                        range : Range.create(params.position, params.position)
+                        range : thisRange
                     }
                 })
             }
@@ -133,7 +152,7 @@ export class GMLCompletionProvider {
                     kind: CompletionItemKind.Constant,
                     textEdit: {
                         newText : item.replace(thisWord, ""),
-                        range : Range.create(params.position, params.position)
+                        range : thisRange
                     }
                 });
             }
@@ -147,7 +166,7 @@ export class GMLCompletionProvider {
                     kind: CompletionItemKind.Color,
                     textEdit: {
                         newText : thisSprite.replace(thisWord, ""),
-                        range : Range.create(params.position, params.position)
+                        range : thisRange
                     }
                 })
             }
@@ -173,7 +192,7 @@ export class GMLCompletionProvider {
                         kind: thisResourceType[1],
                         textEdit: {
                             newText : thisResource.replace(thisWord, ""),
-                            range : Range.create(params.position, params.position)
+                            range : thisRange
                         } 
                     })
                 }

@@ -10,7 +10,8 @@
 		"emitDecoratorMetadata": true,
 		"preserveConstEnums": true,
 		"declaration": true,
-		"declarationDir": "./out/declarations/"
+		"declarationDir": "./out/declarations/",
+		"sourceMap": true
 	},
 
 	"include": [
