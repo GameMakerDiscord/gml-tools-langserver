@@ -56,7 +56,8 @@ export interface ohmLineAndColum {
 
 export interface VariablesPackage {
     variables: Array<GMLVariableLocation>,
-    globalVariables: Array<GMLVariableLocation>
+    globalVariables: Array<GMLVariableLocation>,
+    localVariables: Array<GMLVariableLocation>
 }
 
 export abstract class LintPackageFactory {
@@ -129,8 +130,9 @@ export class LintPackage {
 export class DiagnosticHandler {
     // Declarations:
     private uri: string;
-    private localVarDictionary: Array<string>;
+    private localVariables: Array<GMLVariableLocation>;
     private instanceVariables: Array<GMLVariableLocation>;
+    private localQuickCheck: Array<string>;
     private instanceQuickCheck: Array<string>;
     private globalVariables: Array<GMLVariableLocation>;
     private globalQuickCheck: Array<string>;
@@ -154,11 +156,9 @@ export class DiagnosticHandler {
 
     // Constructor:
     constructor(grammar: Grammar, uri: string, reference: Reference) {
-        this.localVarDictionary = [];
+        this.localVariables = [];
         this.instanceVariables = [];
         this.globalVariables = [];
-        this.instanceQuickCheck = [];
-        this.globalQuickCheck = [];
         this.functionStack = [];
         this.semanticDiagnostics = [];
         this.uri = uri;
@@ -178,20 +178,6 @@ export class DiagnosticHandler {
         this.actionDictionaries.push({ 
             name: "lint", 
             actionDict: {
-                // #TODO Add Color Coding local variables when added to LSP
-                // Handle local variable identification here
-                localVariable: (variable: Node) => {
-                    if (this.localVarDictionary.includes(variable.sourceString) == false) {
-                        this.localVarDictionary.push(variable.sourceString);
-                    }
-                },
-    
-                // Cycle through our Local Variable list...
-                identifier: (identifier: Node) => {
-                    if (this.localVarDictionary.includes(identifier.sourceString)) {
-                    }
-                },
-    
                 // Identify functions and get argument counts
                 funcIdentifier: (funcId: Node) => {
                     // Check if the function exists:
@@ -211,7 +197,7 @@ export class DiagnosticHandler {
                         // Push a real function stack:
                         this.functionStack.push(thisFunction);
                     } else {
-                        this.functionStack.push( {
+                        this.functionStack.push({
                             name: funcName,
                             interval: funcId.source,
                             params: 0,
@@ -282,9 +268,22 @@ export class DiagnosticHandler {
         this.actionDictionaries.push({
             name: "indexVariables",
             actionDict: {
+                // Handle local variable identification here
+                localVariable: (variable: Node) => {
+                    const varName = variable.sourceString;
+                    if (this.localQuickCheck.includes(variable.sourceString) == false) {
+                        this.localQuickCheck.push(varName);
+                        this.localVariables.push({
+                            name: varName,
+                            range: this.getVariableIndex(this.currentFullTextDocument, variable)
+                        });
+                    }
+                },
+
                 variable: (variable: Node) => {
                     const variableName = variable.sourceString;
-                    if (this.instanceQuickCheck.includes(variableName) == false) {
+
+                    if (this.instanceQuickCheck.includes(variableName) == false && this.localQuickCheck.includes(variableName) == false) {
                         // Add our new object
                         this.instanceVariables.push({
                             name: variableName,
@@ -334,9 +333,10 @@ export class DiagnosticHandler {
                     this.enumsAddedThisCycle.push(enumNameString);
                 },
 
-                MacroDeclaration: (hashtag: Node, macroName: Node, macroValue: Node) => {
+                MacroDeclaration: (hashtag: Node, macroName: Node, macroValue: Node, _) => {
                     const name = macroName.sourceString;
-                    const val = macroValue.sourceString;
+                    const val = macroValue.
+                    sourceString;
 
                     this.macrosAddedThisCycle.push({
                         macroName: macroName.sourceString,
@@ -506,11 +506,8 @@ export class DiagnosticHandler {
         }
 
         // Add our memoTable to the DiagnosticTable:
-        const testTimer = new timeUtil();
-        testTimer.setTimeFast();
         this.tokenList = [];
         this.tokenList = await this.createSignatureTokenList(this.matcher.memoTable);
-        console.log(testTimer.timeDifferenceNowNice());
 
 
         // Initialize loop variables
@@ -718,17 +715,19 @@ export class DiagnosticHandler {
     }
 
     public async runSemanticIndexVariableOperation(matchArray: MatchResultsPackage[]): Promise<VariablesPackage> {
+        // Clear the quick check
+        this.instanceQuickCheck = [];
+        this.globalQuickCheck = [];
+        this.localQuickCheck = [];
+
+        // Main loop
         for (const element of matchArray) {
             this.semanticIndex = element.indexRange.startIndex;
             await this.runIndexVariableOperation(element.matchResult);
         };
 
-        // Clear the quick check
-        this.instanceQuickCheck = [];
-        this.globalQuickCheck = [];
-        
-
         return {
+            localVariables: this.localVariables.splice(0),
             variables: this.instanceVariables.splice(0, this.instanceVariables.length),
             globalVariables: this.globalVariables.splice(0, this.globalVariables.length)
         }
@@ -844,8 +843,6 @@ export class DiagnosticHandler {
             }
             i++;
         }
-
-        console.log("HELLO??")
         return ourTokens;
     }
 

@@ -31,8 +31,8 @@ export class LSP {
 
     constructor(public connection: IConnection) {
         this.connection = connection;
-        this.gmlGrammar = grammar(fse.readFileSync(path.normalize("../docs/gmlDocs.json"), "utf-8"));
-        this.gmlDocumentation = JSON.parse(fse.readFileSync(path.normalize("../docs/gmlDocs.json"), "utf-8"));
+        this.gmlGrammar = grammar(fse.readFileSync(path.join(__dirname, path.normalize("../docs/gmlGrammar.ohm")), "utf-8"));
+        this.gmlDocumentation = JSON.parse(fse.readFileSync(path.join(__dirname, path.normalize("../docs/gmlDocs.json")), "utf-8"));
 
         // Create our tools:
         this.reference = new Reference(this.gmlDocumentation);
@@ -54,6 +54,7 @@ export class LSP {
 
     private isServerReady() {
         return this.fsManager.indexComplete;
+        
     }
 
     //#endregion
@@ -176,6 +177,7 @@ export class LSP {
         const varPackage = await thisDiagnostic.runSemanticIndexVariableOperation(lintPackage.getMatchResults());
         const URIInformation = await this.fsManager.getDocumentFolder(thisURI);
 
+        // Instance Variables
         if (URIInformation) {
             if (URIInformation.type == ResourceType.Object) {
                 // Figure out the missing Variables
@@ -203,6 +205,9 @@ export class LSP {
                 this.reference.addAllVariablesToObject(URIInformation.name, thisURI, varPackage);
             }
         }
+
+        // Local Variables
+        this.reference.localAddVariables(thisURI, varPackage.localVariables);
     }
 
     public async semanticEnumsAndMacros(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage) {
@@ -231,15 +236,20 @@ export class LSP {
             this.reference.clearTheseEnumsAtThisURI(enumsNotFound, ourURI);
         }
 
-
-
         // Macro Work
         const supposedMacros = this.reference.getAllMacrosAtURI(ourURI);
         let macrosNotFound = [];
 
         if (ourMacosThisCycle.length > 0) {
-            for (const thisMacro of ourMacosThisCycle) {
-                if (supposedMacros.includes(thisMacro.macroName) == false) {
+            for (const thisMacro of supposedMacros) {
+                let found = false;
+                for (const thisFoundMacro of ourMacosThisCycle) {
+                    if (thisFoundMacro.macroName == thisMacro) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found == false) {
                     macrosNotFound.push(thisMacro);
                 }
             }

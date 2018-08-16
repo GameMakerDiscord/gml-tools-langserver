@@ -5,10 +5,10 @@
 	"publisher": "Jonathan Spira (sanbox)",
 	"author": "Jonathan Spira",
 	"preview": true,
-	"version": "0.7.13",
+	"version": "0.7.19",
 	"license": "MIT",
 	"engines": {
-		"node": "^8.0.0"
+		"node": "^8.11.3"
 	},
 	"keywords": [
 		"LSP",
@@ -29,7 +29,7 @@
 		"chokidar": "^2.0.4",
 		"fs-extra": "^7.0.0",
 		"intellisense": "0.0.1",
-		"node": "^8.8.0",
+		"node": "^8.11.3",
 		"ohm-js": "^0.14.0",
 		"path": "^0.12.7",
 		"upath": "^1.1.0",

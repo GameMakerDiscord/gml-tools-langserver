@@ -45,10 +45,10 @@ export interface IMacros {
 }
 
 export interface URIMacros {
-    [thisMacro: string]: IMacro
+    [thisMacro: string]: GenericValueLocation
 }
 
-export interface IMacro {
+export interface GenericValueLocation {
     location: Location;
     value: string;
 }
@@ -71,6 +71,10 @@ export interface IObjVar {
     variable: string;
 }
 
+export interface ILocalDictionary {
+    [thisURI: string]: Array<GenericValueLocation>;
+}
+
 
 
 export class Reference {
@@ -87,6 +91,7 @@ export class Reference {
     private URI2ObjectVariables: IURI2ObjVariables;
     private sprites: Array<string>;
     private allResourceNames: Array<string>;
+    private localVariableDictionary: ILocalDictionary;
     public rooms : string[];
     public tilesets: string[];
     public fonts: string[];
@@ -95,11 +100,13 @@ export class Reference {
     public sounds: string[];
     public timeline: string[];
     public paths: string[];
+    
 
     constructor(gmlDocs: IGMLDocumentation) {
         this.gmlDocs = gmlDocs;
         this.objects = {};
         this.objectList = [];
+        this.localVariableDictionary = {};
         this.URI2ObjectVariables = {};
         this.scriptsAndFunctions = {};
         this.scriptsAndFunctionsList = [];
@@ -177,6 +184,55 @@ export class Reference {
         this.allResourceNames = [];
 
         this.indexGMLDocs();
+    }
+    //#endregion
+
+    //#region Local Variables
+    private localAddLocalURI(uri: string) {
+        this.localVariableDictionary[uri] = [];
+    }
+
+    public localAddVariables(uri: string, locals: GMLVariableLocation[]) {
+        this.localVariableDictionary[uri] = [];
+
+        for (const thisThing of locals) {
+            this.localVariableDictionary[uri].push({
+                value: thisThing.name,
+                location: Location.create(uri, thisThing.range)
+            });
+        }
+    }
+
+    public getAllLocalsAtURI(uri: string) {
+        if (this.localVariableDictionary[uri]) {
+            return this.localVariableDictionary[uri];
+        } else return null;
+    }
+
+    public localExists(uri: string, name: string) {
+        const allLocals =  this.getAllLocalsAtURI(uri);
+
+        let exists = false;
+
+        for (const thisLocal of allLocals) {
+            if (thisLocal.value == name) {
+                exists = true;
+                break;
+            }
+        }
+
+        return exists;
+    }
+
+    public localGetLocation(uri: string, name: string) {
+        const allLocals =  this.getAllLocalsAtURI(uri);
+
+        for (const thisLocal of allLocals) {
+            if (thisLocal.value == name) {
+                return thisLocal.location;
+            }
+        }
+        return null;
     }
     //#endregion
 

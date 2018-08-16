@@ -290,7 +290,8 @@ export class FileSystem {
     private preferences_cache: any;
     private workspaceFolder: WorkspaceFolder[];
     private yypWatcher: chokidar.FSWatcher;
-    private resourceKeys : Array<string>;
+    private resourceKeys: Array<string>;
+    private originalYYP: YYP; 
 
 
 
@@ -350,6 +351,8 @@ export class FileSystem {
 
             // basic set up:
             this.projectYYP = JSON.parse(await fse.readFile(this.projectYYPPath, "utf8"));
+            this.originalYYP = this.projectYYP;
+
             await this.indexYYP(this.projectYYP, true);
             this.lsp.connection.window.showInformationMessage("Index Complete. GML-Tools is in beta; always back up your project.");
             this.indexComplete = true;
@@ -386,7 +389,6 @@ export class FileSystem {
 
                     // Add to our Reference
                     this.reference.addObject(objYY.name);
-                    
                     
                     // Figure out our events
                     let ourEvents: Array<EventInterface> = [];
@@ -639,7 +641,12 @@ export class FileSystem {
         const thisDiagnostic = await this.getDiagnosticHandler(fileURI.toString());
         await thisDiagnostic.setInput(fileText);
         
-        await this.lsp.lint(thisDiagnostic, semanticsToRun);
+        try {
+            await this.lsp.lint(thisDiagnostic, semanticsToRun);
+        } catch (error) {
+            console.log("Error at " + fpath + ". Error: " + error);
+        }
+
 
         // Note: we calculate project diagnostics, but we do not currently send them anywhere. That will
         // be a future option. TODO.
@@ -1409,12 +1416,21 @@ export class FileSystem {
                         deletedResources.push(thisResource);
                     }
                 }
+                // Apply the function to everyone:
+                for (const thisResource of deletedResources) {
+                    this.deleteResources(thisResource);   
+                }
 
                 break;
         
             default:
                 break;
         }
+    }
+
+    public async deleteResources(resourceToDelete: YYPResource) {
+        // Clear the basic resource
+        
     }
 
     public async clearAllData() {

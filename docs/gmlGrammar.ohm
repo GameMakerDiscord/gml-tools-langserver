@@ -43,6 +43,7 @@ gml {
         |   jsdoc
         |   MacroDeclaration
         |   EnumDeclaration
+        |   RegionStatement
     StatementList
         =   Statement<#sc>*
 
@@ -102,9 +103,9 @@ gml {
         |   MembObjectVarRef
         |   identifier
     MacroDeclaration
-        =   macroWord identifier macroValue
+        =   macroWord identifier MacroValue #sc
     macroWord = "#macro"
-    macroValue = identifier | numericLiteral
+    MacroValue = identifier | numericLiteral | ConditionalExpression
     EnumDeclaration
         =   enumDeclararer enumName oCurly ListOf<EnumEntries,comma> cCurly
     EnumEntries
@@ -117,7 +118,8 @@ gml {
         =   integerNumber | EnumCall
     EnumCall
         =   identifier "." identifier
-    
+    RegionStatement
+        = "#region" | "#endregion"
 
     // #region VariableStatement
     DeclarationAndDefinition
