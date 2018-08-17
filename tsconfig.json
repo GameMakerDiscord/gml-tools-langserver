@@ -1,11 +1,13 @@
 {
 	"compilerOptions": {
-		"noImplicitReturns": true,		
+		"noImplicitReturns": true,
 		"target": "es2018",
 		"module": "commonjs",
 		"moduleResolution": "node",
 		"outDir": "out",
-		"lib": [ "es2018" ],
+		"lib": [
+			"es2018"
+		],
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": true,
 		"preserveConstEnums": true,
@@ -13,7 +15,6 @@
 		"declarationDir": "./out/declarations/",
 		"sourceMap": true
 	},
-
 	"include": [
 		"./src/**/*.ts"
 	]

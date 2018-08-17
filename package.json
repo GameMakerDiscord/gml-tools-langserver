@@ -34,7 +34,8 @@
 		"path": "^0.12.7",
 		"upath": "^1.1.0",
 		"uuid": "^3.3.2",
-		"vscode-languageserver": "^4.4.2"
+		"vscode-languageserver": "^4.4.2",
+		"yyp-typings": "^1.1.4"
 	},
 	"scripts": {
 		"build": "tsc",
@@ -49,6 +50,7 @@
 	],
 	"devDependencies": {
 		"typescript": "^3.0.1",
-		"@types/node": "^10.7.0"
+		"@types/node": "^10.7.0",
+		"@types/fs-extra": "^5.0.4"
 	}
 }
