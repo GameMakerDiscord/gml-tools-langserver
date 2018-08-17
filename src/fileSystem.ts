@@ -6,13 +6,14 @@ import { Grammar } from "ohm-js";
 import { DiagnosticHandler } from "./diagnostic";
 import { LSP } from "./lsp";
 import { Reference } from "./reference";
-import { YYP, Resource, EventType, EventNumber, YYPResource } from "./GMLtypings" ;
 import * as upath from "upath";
 import * as uuidv4 from "uuid/v4"
 import URI from "vscode-uri/lib/umd";
 import * as chokidar from "chokidar";
 import { SemanticsOption, CreateObjPackage, AddEventsPackage, ResourceType } from "./declarations";
 import * as rubber from "gamemaker-rubber";
+import { Resource, EventType, EventNumber, YYP, YYPResource } from "yyp-typings";
+
 
 export interface GMLScriptContainer {
     [propName: string]: GMLScript;
@@ -362,6 +363,7 @@ export class FileSystem {
     }
 
     private async indexYYP(thisYYP: YYP, reIndexViews?: boolean) {
+        this.lsp.connection.window.showInformationMessage("Indexing Project, please hold...");
         reIndexViews = reIndexViews || false;
         // views stuff
         let nonRootViews: Array<Resource.GMFolder> = [];
@@ -632,7 +634,7 @@ export class FileSystem {
         try {
             fileText = await fse.readFile(fpath, 'utf8');
         } catch (error) {
-            console.log("Attempted to read non-exist file from YYP. Skipping... \n" + fpath);
+            console.log("Could not find file + " + fpath + ". Skipping... \n");
             return;    
         }
 

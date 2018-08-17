@@ -33,7 +33,6 @@ connection.onInitialize(
         // shouldSendDiagnosticRelatedInformation = params.capabilities && params.capabilities.textDocument 
         // && params.capabilities.textDocument.publishDiagnostics 
         // && params.capabilities.textDocument.publishDiagnostics.relatedInformation;
-        connection.window.showInformationMessage("Indexing Project, please hold...");
         lsp.beginIndex(params.workspaceFolders);
         
         return {
@@ -67,9 +66,6 @@ connection.onInitialize(
 
 //#region Commands
 connection.onExecuteCommand((params) => {
-    if (params.command == "GMLTools.createObject") {
-        connection.sendNotification("createObject");
-    }
 
     switch (params.command) {
         case "GMLTools.createObject":

@@ -17,6 +17,8 @@ import { GMLCompletionProvider } from "./completion";
 import { IGMLDocumentation, SemanticsOption, CreateObjPackage, LanguageService, ResourceType } from "./declarations";
 
 
+
+
 export class LSP {
     readonly gmlGrammar: Grammar;
     readonly gmlDocumentation: IGMLDocumentation;

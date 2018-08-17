@@ -1,11 +1,14 @@
 {
 	"compilerOptions": {
-		"noImplicitReturns": true,		
+		"noImplicitReturns": true,
 		"target": "es2018",
 		"module": "commonjs",
 		"moduleResolution": "node",
 		"outDir": "out",
-		"lib": [ "es2018", "dom" ],
+		"lib": [
+			"es2018",
+			"dom" // dom is added due to ohm-js using dom.
+		],
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": true,
 		"preserveConstEnums": true,
@@ -13,7 +16,6 @@
 		"declarationDir": "./out/declarations/",
 		"sourceMap": true
 	},
-
 	"include": [
 		"./src/**/*.ts"
 	]
