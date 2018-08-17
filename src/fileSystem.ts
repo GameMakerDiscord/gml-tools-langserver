@@ -1,4 +1,4 @@
-import { WorkspaceFolder } from "vscode-languageserver/lib/main";
+import { WorkspaceFolder, Connection } from "vscode-languageserver/lib/main";
 import Uri from "vscode-uri/lib/umd";
 import * as fse from "fs-extra";
 import * as path from 'path';
@@ -10,10 +10,9 @@ import { YYP, Resource, EventType, EventNumber, YYPResource } from "./GMLtypings
 import * as upath from "upath";
 import * as uuidv4 from "uuid/v4"
 import URI from "vscode-uri/lib/umd";
-import * as childProcess from "child_process";
 import * as chokidar from "chokidar";
 import { SemanticsOption, CreateObjPackage, AddEventsPackage, ResourceType } from "./declarations";
-
+import * as rubber from "gamemaker-rubber";
 
 export interface GMLScriptContainer {
     [propName: string]: GMLScript;
@@ -1026,364 +1025,25 @@ export class FileSystem {
     //#endregion
 
     //#region Compile
-    public compile() {
-        this.compileVM();
+    public compile(type: "test" | "zip" | "installer", yyc: boolean, output: string = "") {
+        const build = rubber.windows({
+            projectPath: this.projectYYPPath,
+            build: type,
+            outputPath: output,
+            yyc,
+        });
+        this.lsp.connection.sendNotification("compile.started");
+        build.on("compileStatus", (data) => {
+            this.lsp.connection.sendNotification("compile.status", data);
+        });
+        build.on("gameStatus", (data) => {
+            this.lsp.connection.sendNotification("compile.status", data);
+        });
+        build.on("allFinished", () => {
+            this.lsp.connection.sendNotification("compile.finished");
+        });
     }
 
-    private compileVM() {
-        // Validate our Project
-        if (fse.existsSync(this.projectYYPPath)) {
-            console.log("Found a project at "+ this.projectName);
-        } else {
-            throw "File does not exist";
-            return;
-        }
-
-
-        const tempInfo = this.makeTempFolder();
-
-        if (tempInfo) {
-            const project: CompileProjInfo = {
-                project_dir: this.projectDirectory,
-                project_path: this.projectYYPPath,
-                project_name: this.projectName,
-                temp_id: tempInfo.tempID,
-                temp_path: tempInfo.tempPath
-            }
-            
-            this.windowsBuild(project);
-        }
-	}
-
-	private makeTempFolder(): TempFolder {
-        // Make our TempID
-        const tempID = "TEMP_"+ uuidv4().substr(0,8).toUpperCase();
-
-        const local = process.env.APPDATA;
-        const tempDir = path.join(local, "GameMakerStudio2", "Cache", "GMS2CACHE");
-
-        if (fse.existsSync(tempDir) == false) {
-            fse.mkdirpSync(tempDir);
-        }
-        fse.mkdir(path.join(tempDir, tempID));
-
-        return {
-            tempID: tempID,
-            tempPath: path.join(tempDir, tempID)
-        }
-    }
-    
-    private windowsBuild(thisProj: CompileProjInfo) {
-        const command = "Run";
-
-        // Make our options object:
-        const ourOptions: CompileOptions = {
-            yyc: false,
-            test: true,
-            debug: false,
-            verbose: false,
-            config: "default",
-            zip: undefined,
-            installer: undefined
-        }
-    
-        const runtime = this.makeBuildMeta(thisProj, ourOptions);
-        const runtimeName = `${runtime}\\bin\\Igor.exe -options="${thisProj.temp_path}\\build.bff" -- Windows ${command}`
-
-        // Execute:
-        const ls = childProcess.exec(runtimeName);
-
-        ls.stdout.on("data", function (data) {
-            if (typeof data == "string") {
-                console.log((data.trim()));
-            } else {
-                console.log((data.toString().trim()));
-            }
-        })
-
-        ls.stderr.on("data", function (data) {
-            if (data) {
-                console.log(data);
-            }
-        })
-
-        ls.on("exit", function(code) {
-            console.log("Compiler exited with code " + code.toString());
-            fse.removeSync(thisProj.temp_path);
-        })
-    }
-
-    private makeBuildMeta(project: CompileProjInfo, options) {
-        fse.mkdirSync(path.join(project.temp_path, "GMCache"));
-        fse.mkdirSync(path.join(project.temp_path, "GMTemp"));
-        fse.mkdirSync(path.join(project.temp_path, "Output"));
-
-        // Create our BFF (not sure why it's called that)
-        let bff: Build = {
-            assetCompiler: "",
-            debug: "",
-            compile_output_file_name: "",
-            useShaders: "",
-            steamOptions: "",
-            config: "",
-            outputFolder: "",
-            projectName: "",
-            projectDir: "",
-            preferences: "",
-            projectPath: "",
-            tempFolder: "",
-            userDir: "",
-            runtimeLocation: "",
-            applicationPath: "",
-            macros: "",
-            targetOptions: "",
-            targetMask: "",
-            verbose: "",
-            helpPort: "",
-            debuggerPort: ""
-        }
-
-        bff.assetCompiler = "";
-        bff.debug = options.debug ? "True" : "False";
-        bff.compile_output_file_name = project.temp_path+"\\Output\\"+project.project_name+".win";
-        bff.useShaders = "True";
-        bff.steamOptions = project.temp_path+"\\steam_options.yy";
-
-        this.makeSteamOptions(project, options);
-        bff.config = options.config;
-        bff.outputFolder = project.temp_path+"\\Output";
-        bff.projectName = project.project_name
-        bff.projectDir = project.project_dir;
-        bff.preferences = project.temp_path+"\\preferences.json";
-        this.makePreferencesJson(project, options);
-        bff.projectPath = project.project_path;
-        bff.tempFolder = project.temp_path+"\\GMTemp";
-        
-        const appData = process.env.APPDATA;
-        let umJson = JSON.parse(fse.readFileSync(appData +"\\GameMakerStudio2\\um.json", "utf8"))
-        let userID = umJson.username.substring(0,umJson.username.indexOf("@")) + "_" + umJson.userID;
-
-        bff.userDir = appData + "\\GameMakerStudio2\\" + userID;
-    
-        let runtimes = JSON.parse(fse.readFileSync("C:\\ProgramData\\GameMakerStudio2\\runtime.json", "utf8"))
-        bff.runtimeLocation = runtimes[runtimes.active];
-        bff.runtimeLocation = bff.runtimeLocation.substring(0, bff.runtimeLocation.indexOf('&'));
-    
-        bff.applicationPath = "C:\\Program Files\\GameMaker Studio 2\\GameMakerStudio.exe";
-    
-        bff.macros = project.temp_path+"\\macros.json";
-        this.makeMacros(project,options,bff.runtimeLocation);
-    
-        bff.targetOptions = project.temp_path+"\\targetoptions.json";
-        this.makeTargetOptions(project,options);
-    
-        bff.targetMask = "64";
-        bff.verbose = options.verbose ? "True" : "False";
-    
-        bff.helpPort = "51290"; // todo get these, but not too important
-        bff.debuggerPort = "6509"
-    
-        //Push
-        console.log("Writing " + "build.bff");
-        fse.writeFileSync(project.temp_path+"\\build.bff", JSON.stringify(bff,undefined,2), 'utf8');
-    
-        this.makeOptions(project,options,bff.runtimeLocation);
-    
-        return bff.runtimeLocation;
-    }
-
-    private makeSteamOptions(project, options) {
-        let steamOptions = {
-            "steamsdk_path": this.preferences_grab("machine.Platform Settings.Steam.steamsdk_path") || ""
-        }
-        //Push
-        console.log(("Writing "+"steam_options.yy"));
-        fse.writeFileSync(project.temp_path+"\\steam_options.yy", JSON.stringify(steamOptions,undefined,2), 'utf8');
-    }
-
-    private makePreferencesJson(project,options) {
-        let prefs = {
-            "default_packaging_choice": this.preferences_grab("machine.Platform Settings.Windows.choice"),
-            "visual_studio_path": this.preferences_grab("machine.Platform Settings.Windows.visual_studio_path")
-        }
-        //Push
-        console.log("Writing "+"preferences.json");
-        fse.writeFileSync(project.temp_path+"\\preferences.json", JSON.stringify(prefs,undefined,2), 'utf8');
-    }
-
-    private makeTargetOptions(project,options) {
-        let targetoptions = {
-            "runtime": options.yyc ? "YYC" : "VM"
-        }
-        //Push
-        console.log("Writing "+ "targetoptions.json");
-        fse.writeFileSync(project.temp_path+"\\targetoptions.json", JSON.stringify(targetoptions,undefined,2), 'utf8');
-    }
-    private makeMacros(project: CompileProjInfo, options: CompileOptions, runtimeLocation: string) {
-        let macros = {
-            // INPUTS
-            "daveead.cd": project.temp_path,
-            "daveead.tempID": project.temp_id,
-            "project_name": project.project_name,
-            "project_dir": project.project_dir,
-            "UserProfileName": process.env.username,
-            // END INPUTS
-    
-            "daveead.tempdir": "${daveead.cd}\\${daveead.tempID}",
-            "daveead.gm_cache": "${daveead.tempdir}\\GMCache",
-            "daveead.gm_temp": "${daveead.tempdir}\\GMTemp",
-            "daveead.output": "${daveead.tempdir}\\Output",
-    
-            "project_full_filename": "${project_dir}\\${project_name}.yyp",
-            "options_dir": "${project_dir}\\options",
-    
-            "project_cache_directory_name": "GMCache",
-            "asset_compiler_cache_directory": "${daveead.tempdir}",
-    
-            "project_dir_inherited_BaseProject": "${runtimeLocation}\\BaseProject",
-            "project_full_inherited_BaseProject": "${runtimeLocation}\\BaseProject\\BaseProject.yyp",
-            "base_project": "${runtimeLocation}\\BaseProject\\BaseProject.yyp",
-            "base_options_dir": "${runtimeLocation}\\BaseProject\\options",
-    
-            "local_directory": "${ApplicationData}\\${program_dir_name}",
-            "local_cache_directory": "${local_directory}\\Cache",
-            "temp_directory": "${daveead.gm_temp}",
-
-            "system_directory": "${CommonApplicationData}\\${program_dir_name}",
-            "system_cache_directory": "${system_directory}\\Cache",
-            "runtimeBaseLocation": "${system_cache_directory}\\runtimes",
-            "runtimeLocation": runtimeLocation,
-    
-            "igor_path": "${runtimeLocation}\\bin\\Igor.exe",
-            "asset_compiler_path": "${runtimeLocation}\\bin\\GMAssetCompiler.exe",
-            "lib_compatibility_path": "${runtimeLocation}\\lib\\compatibility.zip",
-            "runner_path": "${runtimeLocation}\\windows\\Runner.exe",
-            "webserver_path": "${runtimeLocation}\\bin\\GMWebServer.exe",
-            "html5_runner_path": "${runtimeLocation}\\html5\\scripts.html5.zip",
-            "adb_exe_path": "platform-tools\\adb.exe",
-            "java_exe_path": "bin\\java.exe",
-            "licenses_path": "${exe_path}\\Licenses",
-    
-            "keytool_exe_path": "bin\\keytool.exe",
-            "openssl_exe_path": "bin\\openssl.exe",
-    
-            "program_dir_name": "GameMakerStudio2",
-            "program_name": "GameMakerStudio2",
-            "program_name_pretty": "GameMaker Studio 2",
-    
-            "default_font": "Open Sans",
-            "default_style": "Regular",
-            "default_font_size": "9",
-    
-            "ApplicationData": "${UserProfile}\\AppData\\Roaming",
-            "CommonApplicationData": "C:\\ProgramData",
-            "ProgramFiles": "C:\\Program Files",
-            "ProgramFilesX86": "C:\\Program Files (x86)",
-            "CommonProgramFiles": "C:\\Program Files\\Common Files",
-            "CommonProgramFilesX86": "C:\\Program Files (x86)\\Common Files",
-            "UserProfile": "C:\\Users\\${UserProfileName}",
-            "TempPath": "${UserProfile}\\AppData\\Local",
-            "exe_path": "${ProgramFiles}\\GameMaker Studio 2",
-        }
-        //Push
-        console.log("Writing "+"macros.json");
-        fse.writeFileSync(project.temp_path+"\\macros.json", JSON.stringify(macros,undefined,2), 'utf8');
-    }
-
-    private makeOptions(project,options,runtimeLocation) {
-        console.log("Writing " + "MainOptions.json");
-        this.yy_inherit(
-            project.project_dir+"\\options\\main\\inherited\\options_main.inherited.yy",
-            runtimeLocation+"\\BaseProject\\options\\main\\options_main.yy",
-            project.temp_path+"\\GMCache\\MainOptions.json");
-    
-        console.log("Writing " + "PlatformOptions.json");
-        fse.copySync(project.project_dir+"\\options\\windows\\options_windows.yy",project.temp_path+"\\GMCache\\PlatformOptions.json");
-    }
-
-    private preferences_grab(option: string) {
-        if (this.preferences_cache==undefined) {
-            let um = JSON.parse(fse.readFileSync(`${process.env.APPDATA}\\GameMakerStudio2\\um.json`,"utf8"));
-            let preferences_location = `${process.env.APPDATA}\\GameMakerStudio2\\` + um.username.substring(0, um.username.indexOf('@')) + "_" + um.userID + `\\local_settings.json`;
-            this.preferences_cache = JSON.parse(fse.readFileSync(preferences_location, "utf8"));
-        }
-        return this.preferences_cache[option];
-    }
-
-    private yy_inherit(fp: string, parentFP: string, out_file: string) {
-        const CONTROL_INSERT_START_ID = "←"; // uh
-        const CONTROL_INSERT_END_ID = "|";
-        
-        let parent = JSON.parse(fse.readFileSync(parentFP, "utf8"));
-        let inherited = fse.readFileSync(fp).toString();
-    
-        let ins_id = "";
-        let ins_content = "";
-        let ins_state = "SEEK";
-        let bracked_count;
-    
-        let changes = [];
-    
-        for (var i = 0; i < inherited.length; i++) {
-            var char = inherited.charAt(i);
-            switch (ins_state) {
-                case "SEEK":
-                    ins_id = "";
-                    ins_content = "";
-                    if(char==CONTROL_INSERT_START_ID) {
-                        ins_state = "READ_ID";
-                    }
-                    break;
-                case "READ_ID":
-                    if(char!=CONTROL_INSERT_END_ID) {
-                        ins_id += char;
-                        if(char==CONTROL_INSERT_START_ID) {
-                            ins_id = "";
-                            ins_content = "";
-                        }
-                    } else {
-                        ins_state = "none";
-                        // parse json
-                        bracked_count = 1;
-                        i+=2;
-                        while(bracked_count!=0) {
-                            char = inherited.charAt(i);
-                            ins_content+=char;
-                            if(char=="{") {
-                                bracked_count++;
-                            } else if(char=="}") {
-                                bracked_count--;
-                            }
-                            i++;
-                        }
-                        i-=2;
-                        ins_state = "SEEK";
-                        changes.push({id:ins_id,changes:JSON.parse("{"+ins_content)});
-                    }
-                break;
-            }
-        }
-        let combine;
-        // recursive function for doing combine the parent object with the array
-        combine = function(object,changes) {
-            for(var attributename in object){
-                if(typeof object[attributename] === 'object') {
-                    object[attributename] = combine(object[attributename],changes);
-                }
-            }
-
-            if(object) {
-                for (var i = 0; i < changes.length; i++) {
-                    if(object.id == changes[i].id) {
-                        Object.assign(object, changes[i].changes);
-                    }
-                }
-            }
-            return object
-        }
-        parent = combine(parent,changes);
-        fse.writeFileSync(out_file,JSON.stringify(parent,undefined,2));
-    }
     // #endregion
 
     //#region Watcher

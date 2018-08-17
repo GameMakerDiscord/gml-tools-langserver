@@ -105,7 +105,7 @@ gml {
     MacroDeclaration
         =   macroWord identifier MacroValue #sc
     macroWord = "#macro"
-    MacroValue = identifier | numericLiteral | ConditionalExpression
+    MacroValue = identifier | PrimaryExpression | ConditionalExpression
     EnumDeclaration
         =   enumDeclararer enumName oCurly ListOf<EnumEntries,comma> cCurly
     EnumEntries

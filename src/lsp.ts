@@ -7,7 +7,7 @@ import { timeUtil } from "./utils";
 import {
     IConnection,
     Diagnostic, Hover, TextDocumentContentChangeEvent,
-    TextDocumentPositionParams, WorkspaceFolder
+    TextDocumentPositionParams, WorkspaceFolder, Connection
 } from "vscode-languageserver/lib/main";
 import { DiagnosticHandler, LintPackageFactory, DiagnosticsPackage, LintPackage } from "./diagnostic";
 import { Reference, IObjVar } from "./reference";
@@ -360,8 +360,8 @@ export class LSP {
 
     }
 
-    public beginCompile() {
-        this.fsManager.compile();
+    public beginCompile(type: "test" | "zip" | "installer", yyc: boolean, output?: string) {
+        return this.fsManager.compile(type, yyc, output);
     }
 
     public async forceReIndex() {

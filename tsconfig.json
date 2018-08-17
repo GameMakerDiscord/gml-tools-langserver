@@ -5,7 +5,7 @@
 		"module": "commonjs",
 		"moduleResolution": "node",
 		"outDir": "out",
-		"lib": [ "es2018" ],
+		"lib": [ "es2018", "dom" ],
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": true,
 		"preserveConstEnums": true,
