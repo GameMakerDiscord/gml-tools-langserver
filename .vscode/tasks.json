@@ -2,7 +2,7 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Language Server -- Build",
+			"label": "Server -- Build",
 			"type": "npm",
 			"script": "build",
 			"group": {
@@ -12,17 +12,12 @@
 			"problemMatcher": "$tsc"
 		},
 		{
-			"label": "Language Server -- Watch",
+			"label": "Server -- Watch",
 			"type": "npm",
 			"script": "watch",
 			"group": "build",
 			"isBackground": true,
 			"problemMatcher": "$tsc-watch"
-		},
-		{
-			"type": "npm",
-			"script": "install",
-			"problemMatcher": []
 		}
 	]
 }

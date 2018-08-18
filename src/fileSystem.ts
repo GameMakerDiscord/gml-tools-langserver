@@ -1,4 +1,4 @@
-import { WorkspaceFolder, Connection } from "vscode-languageserver/lib/main";
+import { WorkspaceFolder } from "vscode-languageserver/lib/main";
 import Uri from "vscode-uri/lib/umd";
 import * as fse from "fs-extra";
 import * as path from 'path';

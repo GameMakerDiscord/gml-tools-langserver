@@ -215,25 +215,29 @@ export class DiagnosticHandler {
                     // otherwise, we have a list.
                     let iterArray = list.children[0].children;
                     let providedNodeNumber = iterArray.length;
-                    let providedArgNumber = 0;
-                    if (providedNodeNumber != 0) {
-                        let isEmpty = iterArray[EIterArray.InitExpression].child(0).ctorName == "empty";
-                        if (isEmpty) {
-                            providedArgNumber = (iterArray[0].numChildren - 1) + iterArray[2].numChildren;
-                        } else {
-                            // Make sure Arguments aren't empty:
-                            providedArgNumber += iterArray[0].sourceString.trim() == "" ? 0 : 1;
+                    let providedArguments: string[] = [];
 
-                            for (const thisChild of iterArray[2].children) {
-                                providedArgNumber += thisChild.sourceString.trim() == "" ? 0 : 1;
-                            }
+                    // Convert our Arguments from a Node List to a simple Array of Strings:
+                    if (providedNodeNumber != 0) {
+                        // Is this necessary? TODO:
+                        providedArguments.push(iterArray[0].sourceString.trim());
+
+                        // Iterate through the Rest of the Arguments:
+                        for (const thisChild of iterArray[2].children) {
+                            providedArguments.push(thisChild.sourceString.trim());
                         }
+                    }
+
+                    // Special case for no-argument calls, since otherwise, we'll have an
+                    // array which looks like [""].
+                    if (providedArguments.length == 1 && providedArguments[0] == "") {
+                        providedArguments = [];
                     }
 
                     // Pop our function...
                     var currentFunc = this.functionStack.pop();
     
-                    // If our function doesn't exist, we call an error on the whole interval...
+                    // If our function doesn't exist, we call an error on the whole function...
                     if (currentFunc.exists == false) {
                         let eMessage = 'Unknown function/script "' + currentFunc.name + '".';
                         this.semanticDiagnostics.push(
@@ -241,13 +245,72 @@ export class DiagnosticHandler {
                         );
                     }
                     // Confirm we have the right number of arguments...
-                    else if (currentFunc.params != providedArgNumber) {
-                        let eMessage = "Expected " + currentFunc.params + " arguments, but got " + providedArgNumber + ".";
-    
-                        // Create our Diagnostic:
-                        this.semanticDiagnostics.push(
-                            this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
-                        );
+                    else {
+                        // First we push an error if the Array is longer than the number of arguments we want:
+                        // This is for the case of `two_arg_function(arg0, arg1,  )` where an extra comma/blank 
+                        // argument is present.
+                        if (providedArguments.length > currentFunc.params) {
+                            const eMessage = "Expected " + currentFunc.params + " arguments, but got " + providedArguments.length + ".";
+                            this.semanticDiagnostics.push(
+                                this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
+                            );
+                        }
+
+                        // Next, we find the number of empty arguments. We do this both so `two_arg_func(arg0, )`
+                        // correctly errors and `three_arg(arg0, , arg2)` errors.
+
+                        // Create an Array of boolean and a running total of non-empty arguments. Once we
+                        // encounter an empty argument, we stop counting arguments, and we check if we are at
+                        // a sufficient number of arguments.
+                        let argsAreEmpty: boolean[] = [], 
+                            nonEmptyArgs = 0,
+                            combo = true;
+
+                        for (const thisArg of providedArguments) {
+                            const check = thisArg == ""
+                            argsAreEmpty.push(check);
+
+                            // Increment or Break our Combo here:
+                            if (!check && combo) {
+                                nonEmptyArgs++;
+                            } else {
+                                combo = false;
+                            }
+                        }
+
+                        // Check how many nonEmptyArgs we have, and if it's enough (we don't check
+                        // for ">" because the first check should have caught it):
+                        if (nonEmptyArgs < currentFunc.params) {
+                            const eMessage = "Expected " + currentFunc.params + " arguments, but got " + nonEmptyArgs + ".";
+
+                            // Create our Diagnostic:
+                            this.semanticDiagnostics.push(
+                                this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
+                            );
+                        }
+                        
+                        // Finally, check if we've got a blank and send an "expression needed" error
+                        // to the sorry bastard
+                        const eMessage = "Argument expression expected."
+                        for (let i = 0, l = argsAreEmpty.length; i < l; i++) {
+                            const thisArgIsEmpty = argsAreEmpty[i];
+
+                            if (thisArgIsEmpty) {
+                                if (i == 0) {
+                                    this.semanticDiagnostics.push(
+                                        this.getFunctionDiagnostic(this.currentFullTextDocument, iterArray[0], currentFunc, eMessage)
+                                    ); 
+                                } else {
+                                    this.semanticDiagnostics.push(
+                                        this.getFunctionDiagnostic(this.currentFullTextDocument, iterArray[2].child(i - 1), currentFunc, eMessage)
+                                    ); 
+                                }
+                            }
+                            
+                        }
+                        
+
+
                     }
                     list.lint();
                 },

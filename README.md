@@ -37,7 +37,8 @@ GML-Tools is a language server, compliant with Microsoft's Language Server Proto
 
 ## Contributors
 
-This language server has been made by Jonathan Spira, @sanboxstudios or @sanbox anywhere people @ each other.
+Initial work on the Language Server was done by Jonathan Spira, @sanbox.
+Additional works creating and integrating GameMaker Rubber was done by @ImDaveead.
 
 ## Issue Reporting
 
