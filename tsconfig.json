@@ -6,7 +6,8 @@
 		"moduleResolution": "node",
 		"outDir": "out",
 		"lib": [
-			"es2018"
+			"es2018",
+			"dom" // dom is added due to ohm-js using dom.
 		],
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": true,

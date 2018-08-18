@@ -53,7 +53,9 @@ connection.onInitialize(
                         "GMLTools.createObject",
                         "GMLTools.createScript",
                         "GMLTools.addEvents",
-                        "GMLTools.compile",
+                        "GMLTools.compileTestVM",
+                        "GMLTools.compileTestYYC",
+                        "GMLTools.compileExport",
                         "GMLTools.forceReindex"
                     ]
                 }
@@ -80,8 +82,14 @@ connection.onExecuteCommand((params) => {
             connection.sendNotification("addEvents");
             break;
         
-        case "GMLTools.compile":
-            lsp.beginCompile();
+        case "GMLTools.compileTestVM":
+            lsp.beginCompile("test", false);
+            break;
+        case "GMLTools.compileTestYYC":
+            lsp.beginCompile("test", true);
+            break;
+        case "GMLTools.compileExport":
+            connection.sendNotification("compileExport");
             break;
         
         case "GMLTools.forceReindex":
@@ -91,7 +99,11 @@ connection.onExecuteCommand((params) => {
 
 connection.onNotification("createObject", (params: any) => {
     lsp.createObject(params);
-})
+});
+
+connection.onNotification("compileExport", (params: any) => {
+    lsp.beginCompile(params.type === "Zip" ? "zip" : "installer", params.yyc === "YYC", "project_name.zip");
+});
 
 connection.onNotification("createScript", async (params: string) => {
     await lsp.createScript(params);
@@ -99,7 +111,7 @@ connection.onNotification("createScript", async (params: string) => {
 
 connection.onNotification("addEvents", async (params: any) => {
     await lsp.addEvents(params);
-})
+});
 //#endregion
 
 

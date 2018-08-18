@@ -26,7 +26,7 @@ GML-Tools is a language server, compliant with Microsoft's Language Server Proto
 * Create Script
 * Create Object
 * Create Event
-* Compile to the VM (Windows only for now) -- *Note: other compiles could be supported if there is sufficient interest.*
+* Compile and test project. (Windows Only) -- *Note: other platforms could be supported if there is sufficient interest.*
 
 **GML-Tools will support the following GML-specific commands, if the client integrates them:**
 

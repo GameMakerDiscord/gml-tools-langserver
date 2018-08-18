@@ -28,6 +28,7 @@
 		"child_process": "^1.0.2",
 		"chokidar": "^2.0.4",
 		"fs-extra": "^7.0.0",
+		"gamemaker-rubber": "^2.0.3",
 		"intellisense": "0.0.1",
 		"node": "^8.11.3",
 		"ohm-js": "^0.14.0",
