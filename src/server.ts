@@ -4,13 +4,13 @@
  * ------------------------------------------------------------------------------------------ */
 "use strict";
 import {
-    IPCMessageReader,
-    IPCMessageWriter,
-    createConnection,
-    IConnection,
-    TextDocuments,
-    CompletionItem,
-    CompletionList
+	IPCMessageReader,
+	IPCMessageWriter,
+	createConnection,
+	IConnection,
+	TextDocuments,
+	CompletionItem,
+	CompletionList
 } from "vscode-languageserver/lib/main";
 import { LSP } from "./lsp";
 
@@ -23,135 +23,155 @@ documents.listen(connection);
 
 const lsp = new LSP(connection);
 
-
 // var shouldSendDiagnosticRelatedInformation: boolean = false;
 
 // After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
-connection.onInitialize(
-    (params) => {
-        // shouldSendDiagnosticRelatedInformation = params.capabilities && params.capabilities.textDocument 
-        // && params.capabilities.textDocument.publishDiagnostics 
-        // && params.capabilities.textDocument.publishDiagnostics.relatedInformation;
-        lsp.beginIndex(params.workspaceFolders);
-        
-        return {
-            capabilities: {
-                // Tell the client that the server works in FULL text document sync mode
-                textDocumentSync: documents.syncKind,
-                completionProvider: {
-                    resolveProvider: true,
-                    triggerCharacters: ["."]
-                },
-                definitionProvider: true,
-                hoverProvider: true,
-                signatureHelpProvider: {
-                    triggerCharacters: ["(",","]
-                },
-                executeCommandProvider: {
-                    commands: [
-                        "GMLTools.createObject",
-                        "GMLTools.createScript",
-                        "GMLTools.addEvents",
-                        "GMLTools.compile",
-                        "GMLTools.forceReindex"
-                    ]
-                }
-            }
-        };
-    }
-);
+connection.onInitialize((params) => {
+	// shouldSendDiagnosticRelatedInformation = params.capabilities && params.capabilities.textDocument
+	// && params.capabilities.textDocument.publishDiagnostics
+	// && params.capabilities.textDocument.publishDiagnostics.relatedInformation;
+	lsp.beginIndex(params.workspaceFolders);
+
+	return {
+		capabilities: {
+			// Tell the client that the server works in FULL text document sync mode
+			textDocumentSync: documents.syncKind,
+			completionProvider: {
+				resolveProvider: true,
+				triggerCharacters: ["."]
+			},
+			definitionProvider: true,
+			hoverProvider: true,
+			signatureHelpProvider: {
+				triggerCharacters: ["(", ","]
+			},
+			executeCommandProvider: {
+				commands: [
+					"GMLTools.createObject",
+					"GMLTools.createScript",
+					"GMLTools.addEvents",
+					"GMLTools.compileTestVM",
+					"GMLTools.compileTestYYC",
+					"GMLTools.compileExport",
+					"GMLTools.forceReindex",
+					"GMLTools.importManual"
+				]
+			}
+		}
+	};
+});
 
 //#region Commands
 connection.onExecuteCommand((params) => {
+	switch (params.command) {
+		case "GMLTools.createObject":
+			const ourSprites = lsp.reference.spriteGetAllSprites().slice();
+			ourSprites.push("No Sprite");
+			connection.sendNotification("createObject", { sprites: ourSprites });
+			break;
 
-    switch (params.command) {
-        case "GMLTools.createObject":
-            const ourSprites = lsp.reference.spriteGetAllSprites().slice();
-            ourSprites.push("No Sprite");
-            connection.sendNotification("createObject", { sprites: ourSprites });
-            break;
-        
-        case "GMLTools.createScript":
-            connection.sendNotification("createScript");
-            break;
-        
-        case "GMLTools.addEvents":
-            connection.sendNotification("addEvents");
-            break;
-        
-        case "GMLTools.compile":
-            lsp.beginCompile();
-            break;
-        
-        case "GMLTools.forceReindex":
-            lsp.forceReIndex();
-    }
-})
+		case "GMLTools.createScript":
+			connection.sendNotification("createScript");
+			break;
+
+		case "GMLTools.addEvents":
+			connection.sendNotification("addEvents");
+			break;
+
+		case "GMLTools.compileTestVM":
+			lsp.beginCompile("test", false);
+			break;
+		case "GMLTools.compileTestYYC":
+			lsp.beginCompile("test", true);
+			break;
+		case "GMLTools.compileExport":
+			connection.sendNotification("compileExport");
+			break;
+
+		case "GMLTools.forceReindex":
+			lsp.forceReIndex();
+			break;
+
+		case "GMLTools.importManual":
+			// connection.sendNotification("importManual");
+			break;
+	}
+});
 
 connection.onNotification("createObject", (params: any) => {
-    lsp.createObject(params);
-})
+	lsp.createObject(params);
+});
+
+connection.onNotification("compileExport", (params: any) => {
+	lsp.beginCompile(params.type === "Zip" ? "zip" : "installer", params.yyc === "YYC", "project_name.zip");
+});
 
 connection.onNotification("createScript", async (params: string) => {
-    await lsp.createScript(params);
+	await lsp.createScript(params);
 });
 
 connection.onNotification("addEvents", async (params: any) => {
-    await lsp.addEvents(params);
-})
+	await lsp.addEvents(params);
+});
+
+connection.onNotification("importManual", async (params: any) => {
+	console.log("It worked?");
+	console.log(params);
+});
 //#endregion
 
-
 //#region Type Services:
-connection.onCompletion(async (params): Promise<CompletionList|CompletionItem[]|null> => {
-    return await lsp.onCompletionRequest(params);
-});
-connection.onCompletionResolve(async (params): Promise<CompletionItem> => {
-    return await lsp.onCompletionResolveRequest(params);
-});
+connection.onCompletion(
+	async (params): Promise<CompletionList | CompletionItem[] | null> => {
+		return await lsp.onCompletionRequest(params);
+	}
+);
+connection.onCompletionResolve(
+	async (params): Promise<CompletionItem> => {
+		return await lsp.onCompletionResolveRequest(params);
+	}
+);
 connection.onSignatureHelp(async (params) => {
-    return await lsp.onSignatureRequest(params);
+	return await lsp.onSignatureRequest(params);
 });
 
 connection.onHover((params) => {
-    return lsp.hoverOnHover(params);
-})
+	return lsp.hoverOnHover(params);
+});
 
-connection.onDefinition((params) =>  {
-    return lsp.onDefinitionRequest(params);
-})
+connection.onDefinition((params) => {
+	return lsp.onDefinitionRequest(params);
+});
 //#endregion
 
 //#region Text Events
 connection.onDidChangeConfiguration((_) => {
-    // Revalidate any open text documents
-    // let allDocs = documents.all();
+	// Revalidate any open text documents
+	// let allDocs = documents.all();
 });
 
 connection.onDidOpenTextDocument(async (params) => {
-    await lsp.openTextDocument(params.textDocument.uri, params.textDocument.text);
+	await lsp.openTextDocument(params.textDocument.uri, params.textDocument.text);
 });
 
-connection.onDidChangeTextDocument(async params => {
-    await lsp.changedTextDocument(params.textDocument.uri, params.contentChanges);
+connection.onDidChangeTextDocument(async (params) => {
+	await lsp.changedTextDocument(params.textDocument.uri, params.contentChanges);
 });
 
-connection.onDidCloseTextDocument(params => {
-    connection.console.log(`${params.textDocument.uri} closed.`);
-    lsp.fsManager.closeOpenDocument(params.textDocument.uri);
+connection.onDidCloseTextDocument((params) => {
+	connection.console.log(`${params.textDocument.uri} closed.`);
+	lsp.fsManager.closeOpenDocument(params.textDocument.uri);
 });
 
 // Cache on shutdown:
 connection.onShutdown(() => {
-    lsp.fsManager.cacheProject();
+	lsp.fsManager.cacheProject();
 });
 //#endregion
-
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 
 // Listen on the connection
 connection.listen();
-

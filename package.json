@@ -8,7 +8,7 @@
 	"version": "0.7.20",
 	"license": "MIT",
 	"engines": {
-		"node": "^8.11.3"
+		"vscode": "^1.22.0"
 	},
 	"keywords": [
 		"LSP",
@@ -25,13 +25,16 @@
 		"url": "https://github.com/GameMakerDiscord/gml-tools-langserver"
 	},
 	"dependencies": {
+		"adm-zip": "^0.4.11",
+		"cheerio": "^1.0.0-rc.2",
 		"child_process": "^1.0.2",
 		"chokidar": "^2.0.4",
 		"fs-extra": "^7.0.0",
+		"gamemaker-rubber": "^2.0.3",
 		"intellisense": "0.0.1",
-		"node": "^8.11.3",
 		"ohm-js": "^0.14.0",
 		"path": "^0.12.7",
+		"prettier": "^1.14.2",
 		"upath": "^1.1.0",
 		"uuid": "^3.3.2",
 		"vscode-languageserver": "^4.4.2",
@@ -41,6 +44,17 @@
 		"build": "tsc",
 		"watch": "tsc --watch"
 	},
+	"husky": {
+		"hooks": {
+			"pre-commit": "lint-staged"
+		}
+	},
+	"lint-staged": {
+		"*.{ts,json}": [
+			"prettier --write",
+			"git add"
+		]
+	},
 	"files": [
 		"/out",
 		"/docs",
@@ -49,8 +63,12 @@
 		"CODE_OF_CONDUCT.md"
 	],
 	"devDependencies": {
-		"typescript": "^3.0.1",
+		"@types/adm-zip": "^0.4.31",
+		"@types/cheerio": "^0.22.8",
+		"@types/fs-extra": "^5.0.4",
 		"@types/node": "^10.7.0",
-		"@types/fs-extra": "^5.0.4"
+		"husky": "^1.0.0-rc.13",
+		"lint-staged": "^7.2.2",
+		"typescript": "^3.0.1"
 	}
 }
