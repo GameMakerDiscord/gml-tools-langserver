@@ -7,9 +7,6 @@
 	"preview": true,
 	"version": "0.7.19",
 	"license": "MIT",
-	"engines": {
-		"node": "^8.11.3"
-	},
 	"keywords": [
 		"LSP",
 		"compile",
@@ -33,6 +30,7 @@
 		"node": "^8.11.3",
 		"ohm-js": "^0.14.0",
 		"path": "^0.12.7",
+		"prettier": "^1.14.2",
 		"upath": "^1.1.0",
 		"uuid": "^3.3.2",
 		"vscode-languageserver": "^4.4.2",
@@ -42,6 +40,17 @@
 		"build": "tsc",
 		"watch": "tsc --watch"
 	},
+	"husky": {
+		"hooks": {
+			"pre-commit": "lint-staged"
+		}
+	},
+	"lint-staged": {
+		"*.{ts,json}": [
+			"prettier --write",
+			"git add"
+		]
+	},
 	"files": [
 		"/out",
 		"/docs",
@@ -50,8 +59,10 @@
 		"CODE_OF_CONDUCT.md"
 	],
 	"devDependencies": {
-		"typescript": "^3.0.1",
+		"@types/fs-extra": "^5.0.4",
 		"@types/node": "^10.7.0",
-		"@types/fs-extra": "^5.0.4"
+		"husky": "^1.0.0-rc.13",
+		"lint-staged": "^7.2.2",
+		"typescript": "^3.0.1"
 	}
 }
