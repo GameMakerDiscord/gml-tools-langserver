@@ -1,5 +1,4 @@
-import { WorkspaceFolder, MessageType } from "vscode-languageserver/lib/main";
-import Uri from "vscode-uri/lib/umd";
+import { WorkspaceFolder } from "vscode-languageserver/lib/main";
 import * as fse from "fs-extra";
 import * as path from "path";
 import { Grammar } from "ohm-js";
@@ -10,9 +9,11 @@ import * as upath from "upath";
 import * as uuidv4 from "uuid/v4";
 import URI from "vscode-uri/lib/umd";
 import * as chokidar from "chokidar";
-import { SemanticsOption, CreateObjPackage, AddEventsPackage, ResourceType } from "./declarations";
+import { SemanticsOption, CreateObjPackage, AddEventsPackage, ResourceType, DocFunctionEntry } from "./declarations";
 import * as rubber from "gamemaker-rubber";
 import { Resource, EventType, EventNumber, YYP, YYPResource } from "yyp-typings";
+import * as AdmZip from "adm-zip";
+import * as cheerio from "cheerio";
 
 export interface GMLScriptContainer {
 	[propName: string]: GMLScript;
@@ -312,7 +313,7 @@ export class FileSystem {
 	//#region Initialization
 	public async initialWorkspaceFolders(workspaceFolder: WorkspaceFolder[]) {
 		this.workspaceFolder = workspaceFolder;
-		this.projectDirectory = Uri.parse(this.workspaceFolder[0].uri).fsPath;
+		this.projectDirectory = URI.parse(this.workspaceFolder[0].uri).fsPath;
 
 		// Get our Directories
 		this.topLevelDirectories = await fse.readdir(this.projectDirectory);
@@ -382,23 +383,94 @@ export class FileSystem {
 			const test = await this.lsp.connection.sendRequest("requestImportManual");
 			if (test == "Okay") {
 				// Returns a URI:
-				gms2Program = await this.lsp.connection.sendRequest("importManual")["path"];
+				gms2Program = (await this.lsp.connection.sendRequest("importManual")).toString();
 			}
 		}
 
 		// If we have no GMS2 Manual path, we stop here.
 		if (!gms2Program) return;
-
-		const ourZip = path.join(gms2Program, "chm2web", "YoYoStudioHelp");
-
-		if (fse.existsSync(ourZip) == false) {
-			this.lsp.connection.window.showErrorMessage(
-				"Could not find YoYoStudioHelp zip file. GMS2 Manual not imported."
-			);
-			return;
-		}
+		const ourZip = path.join(gms2Program, "chm2web", "YoYoStudioHelp.zip");
+		// If someone's messed with their manual, we stop here too.
+		if (!(await fse.pathExists(ourZip))) return;
 
 		// Okay, finally, we have a path to a ZIP, which we know exists. Holy moly.
+		// Let's unzip to memory using Adm-Zip:
+		const yyStudioHelp = new AdmZip(ourZip);
+
+		// Main Loop:
+		// We're going to iterate on the entire contents of the ZIP file,
+		// checking if we care about a file by its name.
+		const normalScriptingDocs = "source/_build/3_scripting/4_gml_reference";
+		let gmlDocs = {
+			functions: []
+		};
+
+		for (const thisZipEntry of yyStudioHelp.getEntries()) {
+			// Is this a Scripting File?
+			if (thisZipEntry.entryName.includes(normalScriptingDocs)) {
+				if (thisZipEntry.isDirectory) {
+					continue;
+				}
+				if (thisZipEntry.name == "index.html") {
+					continue;
+				}
+
+				// Cheerio parsing
+				const $ = cheerio.load(thisZipEntry.getData().toString(), {
+					normalizeWhitespace: true
+				});
+				const thisFunction: DocFunctionEntry = {
+					documentation: "",
+					example: {
+						code: "",
+						description: ""
+					},
+					name: "",
+					parameters: [],
+					return: "",
+					signature: "",
+					link: "docs2.yoyogames.com" + thisZipEntry.entryName
+				};
+
+				const docType = $("h3");
+
+				// New Style Docs
+				if (docType.length == 4) {
+					docType.each((i, element) => {
+						if (element.firstChild.data == "Syntax:") {
+							// Jump forward in the HTML two lines. This is really stupid if it works on everything.
+							thisFunction.signature = element.next.next.firstChild.data;
+							thisFunction.name = thisFunction.signature.slice(0, thisFunction.signature.indexOf("("));
+						}
+
+						if (element.firstChild.data == "Returns:") {
+							// Jump forward in the HTML two lines. This is really stupid if it works on everything.
+							thisFunction.return = element.next.next.firstChild.data;
+						}
+
+						if (element.firstChild.data == "Description") {
+							const ourBlockQuote = element.next.next.childNodes[1];
+							let output = "";
+
+							// Iterate on our Block Quote
+							for (const thisChild of ourBlockQuote.children) {
+								if (thisChild.type == "text") {
+									output += thisChild.data;
+								}
+
+								if (thisChild.type == "tag") {
+									const referenceName = thisChild.childNodes[0].childNodes[0].data;
+
+									this;
+								}
+							}
+						}
+					});
+				}
+
+				console.log("play around with cheerio");
+			}
+		}
 	}
 
 	private async indexYYP(thisYYP: YYP, reIndexViews?: boolean) {
@@ -668,7 +740,7 @@ export class FileSystem {
 
 	//#region Special Indexing Methods
 	private async initialDiagnostics(fpath: string, semanticsToRun: SemanticsOption) {
-		let fileURI = Uri.file(fpath);
+		let fileURI = URI.file(fpath);
 		let fileText: string;
 		try {
 			fileText = await fse.readFile(fpath, "utf8");
@@ -710,7 +782,7 @@ export class FileSystem {
 	//#region Document Handlers
 
 	private async createDocumentFolder(path: string, name: string, type: ResourceType) {
-		let uri = Uri.file(path);
+		let uri = URI.file(path);
 
 		this.documents[uri.toString()] = {
 			name: name,

@@ -25,6 +25,8 @@
 		"url": "https://github.com/GameMakerDiscord/gml-tools-langserver"
 	},
 	"dependencies": {
+		"adm-zip": "^0.4.11",
+		"cheerio": "^1.0.0-rc.2",
 		"child_process": "^1.0.2",
 		"chokidar": "^2.0.4",
 		"fs-extra": "^7.0.0",
@@ -61,6 +63,8 @@
 		"CODE_OF_CONDUCT.md"
 	],
 	"devDependencies": {
+		"@types/adm-zip": "^0.4.31",
+		"@types/cheerio": "^0.22.8",
 		"@types/fs-extra": "^5.0.4",
 		"@types/node": "^10.7.0",
 		"husky": "^1.0.0-rc.13",
