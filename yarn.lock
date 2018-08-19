@@ -1121,10 +1121,6 @@ next-tick@1:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/next-tick/-/next-tick-1.0.0.tgz#ca86d1fe8828169b0120208e3dc8424b9db8342c"
 
-node-bin-setup@^1.0.0:
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/node-bin-setup/-/node-bin-setup-1.0.6.tgz#4b5c9bb937ece702d7069b36ca78af4684677528"
-
 node-pre-gyp@^0.10.0:
   version "0.10.0"
   resolved "https://registry.yarnpkg.com/node-pre-gyp/-/node-pre-gyp-0.10.0.tgz#6e4ef5bb5c5203c6552448828c852c40111aac46"
@@ -1139,12 +1135,6 @@ node-pre-gyp@^0.10.0:
     rimraf "^2.6.1"
     semver "^5.3.0"
     tar "^4"
-
-node@^8.11.3:
-  version "8.11.3"
-  resolved "https://registry.yarnpkg.com/node/-/node-8.11.3.tgz#b9efe2c3f4c8c84ee78439b119d768ad3b30eed6"
-  dependencies:
-    node-bin-setup "^1.0.0"
 
 nopt@^4.0.1:
   version "4.0.1"

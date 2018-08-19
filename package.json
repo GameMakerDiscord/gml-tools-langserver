@@ -7,6 +7,9 @@
 	"preview": true,
 	"version": "0.7.19",
 	"license": "MIT",
+	"engines": {
+		"vscode": "^1.22.0"
+	},
 	"keywords": [
 		"LSP",
 		"compile",
@@ -27,7 +30,6 @@
 		"fs-extra": "^7.0.0",
 		"gamemaker-rubber": "^2.0.3",
 		"intellisense": "0.0.1",
-		"node": "^8.11.3",
 		"ohm-js": "^0.14.0",
 		"path": "^0.12.7",
 		"prettier": "^1.14.2",
