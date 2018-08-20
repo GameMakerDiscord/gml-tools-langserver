@@ -14,6 +14,7 @@ import * as rubber from "gamemaker-rubber";
 import { Resource, EventType, EventNumber, YYP, YYPResource } from "yyp-typings";
 import * as AdmZip from "adm-zip";
 import * as cheerio from "cheerio";
+import * as os from "os";
 
 export interface GMLScriptContainer {
 	[propName: string]: GMLScript;
@@ -371,7 +372,8 @@ export class FileSystem {
 				break;
 
 			case "darwin":
-				console.log("TODO: ADD SUPPORT FOR MAC");
+				// Unix filesystems are weird, but also just much simpler to work this. Thanks, Unix.
+				gms2Program = "/Applications/GameMaker Studio 2.app/Contents/MonoBundle";
 				break;
 		}
 
@@ -429,7 +431,7 @@ export class FileSystem {
 					parameters: [],
 					return: "",
 					signature: "",
-					link: "docs2.yoyogames.com" + thisZipEntry.entryName
+					link: "docs2.yoyogames.com/" + thisZipEntry.entryName
 				};
 
 				const docType = $("h3");
@@ -437,18 +439,19 @@ export class FileSystem {
 				// New Style Docs
 				if (docType.length == 4) {
 					docType.each((i, element) => {
-						if (element.firstChild.data == "Syntax:") {
+						const data = element.firstChild.data;
+						if (data == "Syntax:") {
 							// Jump forward in the HTML two lines. This is really stupid if it works on everything.
 							thisFunction.signature = element.next.next.firstChild.data;
 							thisFunction.name = thisFunction.signature.slice(0, thisFunction.signature.indexOf("("));
 						}
 
-						if (element.firstChild.data == "Returns:") {
+						if (data == "Returns:") {
 							// Jump forward in the HTML two lines. This is really stupid if it works on everything.
 							thisFunction.return = element.next.next.firstChild.data;
 						}
 
-						if (element.firstChild.data == "Description") {
+						if (data == "Description") {
 							const ourBlockQuote = element.next.next.childNodes[1];
 							let output = "";
 
@@ -460,10 +463,26 @@ export class FileSystem {
 
 								if (thisChild.type == "tag") {
 									const referenceName = thisChild.childNodes[0].childNodes[0].data;
-
-									this;
+									const link = thisChild.attribs["href"];
+									output += "[" + referenceName + "](" + link + ")";
 								}
 							}
+							thisFunction.documentation = output;
+						}
+
+						if (data == "Example:") {
+							const ourExample = element.next.next.childNodes;
+							let output = "";
+
+							// Get our Code Example
+							for (const thisExampleLine of ourExample) {
+								if (thisExampleLine.type == "text") {
+									output += thisExampleLine.data;
+								}
+							}
+
+							// Now fast forward to explanation of code:
+							const description = element.next.next.next.next; // eye roll
 						}
 					});
 				}
