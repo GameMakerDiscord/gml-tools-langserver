@@ -26,6 +26,7 @@
 	},
 	"dependencies": {
 		"adm-zip": "^0.4.11",
+		"ajv": "^6.5.3",
 		"cheerio": "^1.0.0-rc.2",
 		"chokidar": "^2.0.4",
 		"fs-extra": "^7.0.0",
@@ -35,7 +36,6 @@
 		"nodemon": "^1.18.3",
 		"ohm-js": "^0.14.0",
 		"path": "^0.12.7",
-		"prettier": "^1.14.2",
 		"upath": "^1.1.0",
 		"uuid": "^3.3.2",
 		"vscode-languageserver": "^4.4.2",
@@ -44,11 +44,6 @@
 	"scripts": {
 		"build": "tsc",
 		"watch": "tsc --watch"
-	},
-	"husky": {
-		"hooks": {
-			"pre-commit": "lint-staged"
-		}
 	},
 	"lint-staged": {
 		"*.{ts,json}": [

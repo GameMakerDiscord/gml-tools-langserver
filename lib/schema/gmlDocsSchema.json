@@ -1,0 +1,66 @@
+{
+	"$schema": "http://json-schema.org/draft-06/schema#",
+	"$ref": "#/definitions/GMLDocSchema",
+	"definitions": {
+		"GMLDocSchema": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"functions": {
+					"type": "array",
+					"items": {
+						"$ref": "functionSchema.json#/definitions/Function"
+					}
+				},
+				"objectsAndInstanceVariables": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/ObjectsAndInstanceVariable"
+					}
+				},
+				"instanceVariables": {
+					"type":"array",
+					"items": {
+						"$ref": "#/definitions/InstanceVariable"
+					}
+				}
+			},
+			"required": ["functions", "objectsAndInstanceVariables"],
+			"title": "GMLDocSchema"
+		},
+		"ObjectsAndInstanceVariable": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"instanceVariables": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/InstanceVariable"
+					}
+				}
+			},
+			"required": ["description", "instanceVariables", "name"],
+			"title": "ObjectsAndInstanceVariable"
+		},
+		"InstanceVariable": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"label": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				}
+			},
+			"required": ["description", "label"],
+			"title": "InstanceVariable"
+		}
+	}
+}

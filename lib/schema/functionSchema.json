@@ -1,0 +1,77 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+	"$ref": "#/definitions/Function",
+	"definitions": {
+        "Function": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Parameter"
+                    }
+                },
+                "example": {
+                    "$ref": "#/definitions/Example"
+                },
+                "documentation": {
+                    "type": "string"
+                },
+                "return": {
+                    "type": "string"
+                },
+                "link": {
+                    "type": "string"
+                }
+            },
+            "required": ["documentation", "example", "name", "parameters", "return", "signature"],
+            "title": "Function"
+        },
+        "Example": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                }
+            },
+            "required": ["code", "description"],
+            "title": "Example"
+        },
+        "Parameter": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "label": {
+                    "$ref": "#/definitions/non-empty-string"
+                },
+                "documentation": {
+                    "$ref": "#/definitions/non-empty-string"
+                },
+                "required": {
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "documentation",
+                "label",
+                "required"
+            ],
+            "title": "Parameter"
+        },
+        "non-empty-string" : {
+            "type":"string",
+            "minLength":1
+        }
+    }
+}
