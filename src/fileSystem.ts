@@ -9,12 +9,19 @@ import * as upath from "upath";
 import * as uuidv4 from "uuid/v4";
 import URI from "vscode-uri/lib/umd";
 import * as chokidar from "chokidar";
-import { SemanticsOption, CreateObjPackage, AddEventsPackage, ResourceType, DocFunctionEntry } from "./declarations";
+import {
+	SemanticsOption,
+	CreateObjPackage,
+	AddEventsPackage,
+	ResourceType,
+	DocFunctionEntry,
+	DocParams
+} from "./declarations";
 import * as rubber from "gamemaker-rubber";
 import { Resource, EventType, EventNumber, YYP, YYPResource } from "yyp-typings";
 import * as AdmZip from "adm-zip";
 import * as cheerio from "cheerio";
-import * as os from "os";
+import * as ajv from "ajv";
 
 export interface GMLScriptContainer {
 	[propName: string]: GMLScript;
@@ -480,12 +487,93 @@ export class FileSystem {
 									output += thisExampleLine.data;
 								}
 							}
+							thisFunction.example.code = output;
 
-							// Now fast forward to explanation of code:
+							// Now fast forward to explanation of code and clear the output:
 							const description = element.next.next.next.next; // eye roll
+							output = "";
+							for (const thisDescLine of description.childNodes) {
+								if (thisDescLine.type == "text") {
+									output += thisDescLine.data.trim();
+								}
+
+								if (thisDescLine.type == "tag") {
+									output += thisDescLine.firstChild.data;
+								}
+							}
+							thisFunction.example.description = output;
 						}
+
+						console.log("Everything but params done...");
 					});
 				}
+
+				// Get Parameter Information
+				const paramTable = $("table");
+
+				paramTable.each((i, element) => {
+					// Try to confirm that this is our Param table:
+					// We do a try/catch because there's a high chance if there's
+					// another table that we get a type-error here.
+					try {
+						// First, we iterate over all the tables:
+						for (const thisTable of element.childNodes) {
+							// Within each table, we check the `tbody` of each. This is the *actual* table.
+							if (thisTable.name == "tbody") {
+								// Iterate on the Rows of the Table.
+								let foundArgument, foundDescription;
+								for (const thisRow of thisTable.childNodes) {
+									// We ignore text here. It's always `\n\n`.
+									if (thisRow.name == "tr") {
+										// We could be indexing a parameter here, so let's make a guy!
+										let paramEntry: DocParams = {
+											documentation: "",
+											label: "",
+											required: true
+										};
+										for (const thisEntry of thisRow.childNodes) {
+											// HEADER ROW
+											if (thisEntry.name == "th") {
+												const headerTitle = thisEntry.firstChild.data;
+												if (headerTitle == "Argument") {
+													foundArgument = true;
+												}
+
+												if (headerTitle == "Description") {
+													foundDescription = true;
+												}
+												// Continue so we don't accidentally call our
+												// header a parameter with the below!
+												continue;
+											}
+
+											// NORMAL ROWS
+											if (foundArgument && foundDescription) {
+												if (thisEntry.name == "td") {
+													// Okay, we're finally here, now's our big moment.
+													// Let check where we're at in the indexing...
+													if (paramEntry.label == "") {
+														paramEntry.label = thisEntry.firstChild.data;
+													} else {
+														const ourDescription = thisEntry.firstChild.data;
+														paramEntry.documentation = ourDescription;
+
+														if (ourDescription.includes("(optional")) {
+															paramEntry.required = false;
+														}
+													}
+												}
+											}
+										}
+
+										// Validate our Param Entry...TODO
+										console.log(paramEntry);
+									}
+								}
+							}
+						}
+					} catch (error) {}
+				});
 
 				console.log("play around with cheerio");
 			}
