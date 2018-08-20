@@ -19,6 +19,7 @@ import { GMLDefinitionProvider } from "./definition";
 import { GMLSignatureProvider } from "./signature";
 import { GMLCompletionProvider } from "./completion";
 import { IGMLDocumentation, SemanticsOption, CreateObjPackage, LanguageService, ResourceType } from "./declarations";
+import { DocumentationImporter } from "./documentationImporter";
 
 export class LSP {
 	readonly gmlGrammar: Grammar;
@@ -29,6 +30,7 @@ export class LSP {
 	public gmlSignatureProvider: GMLSignatureProvider;
 	public gmlCompletionProvider: GMLCompletionProvider;
 	public reference: Reference;
+	public documentationImporter: DocumentationImporter;
 	public timer: timeUtil;
 
 	constructor(public connection: IConnection) {
@@ -43,6 +45,7 @@ export class LSP {
 		// Create our tools:
 		this.reference = new Reference(this.gmlDocumentation);
 		this.fsManager = new FileSystem(this.gmlGrammar, this);
+		this.documentationImporter = new DocumentationImporter(this, this.reference);
 
 		//#region Language Services
 		this.gmlHoverProvider = new GMLHoverProvider(this.reference, this.fsManager);
@@ -55,7 +58,11 @@ export class LSP {
 
 	//#region Init
 	public async beginIndex(workspaceFolder: WorkspaceFolder[]) {
-		return await this.fsManager.initialWorkspaceFolders(workspaceFolder);
+		// Let the FileSystem do its index thing...
+		await this.fsManager.initialWorkspaceFolders(workspaceFolder);
+
+		// Check for a manual...
+		await this.documentationImporter.checkManual();
 	}
 
 	private isServerReady() {

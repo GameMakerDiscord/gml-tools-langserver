@@ -46,6 +46,7 @@ If you are using the Language Server, you can report any issues by submitting an
 If the issue is a grammar issue, please flag such an issue with [GRAMMAR] at the front of it. If the issue is a documentation issue (an existing function showing up as non-existent, missing hover/signature support for functions, etc.) please flag the issue with [DOCS].
 
 ## How to Debug the Language Server
+0. Install Visual Studio Code (which is our first class client/test bed), Nodejs, and Yarn.
 
 1. Create a folder where you would like to store the GML-Tools Language Server and the GML-Tools VSCode Client Implementation.
 
@@ -63,7 +64,7 @@ If the issue is a grammar issue, please flag such an issue with [GRAMMAR] at the
 4. Install dependencies for each folder (you will need to move your terminal into each folder for this):
 
     ```npm
-    npm install
+    yarn
     ```
 
 5. Compile the Language Server with the Task: `"Language Server -- Build"`:
@@ -103,8 +104,8 @@ If the issue is a grammar issue, please flag such an issue with [GRAMMAR] at the
         ```ts
         let serverModule = "ABSOLUTE_FILEPATH_TO_LANGUAGE_SERVER/out/server.js";
         ```
-        where "ABSOLUTE_FILEPATH_TO_LANGUAGE_SERVER" has been replaced with the absolute filepath to the language server retrieved previously.
+        where `ABSOLUTE_FILEPATH_TO_LANGUAGE_SERVER` has been replaced with the absolute filepath to the language server retrieved previously.
 
 8. Begin the Extension by pressing `F5`. To place breakpoints in the Typescript of the language server, once the client is running, launch the "Attach to Server" process from the debug menu, or use the Client/Server option to launch both at once.
 
-9. Happy coding! If any problems occur, please add an issue.
+9. Happy coding! If any problems occur, please add an issue. If you have any suggestions for simplifying this process while keeping the language server and the separate, please submit an issue. Thank you!
