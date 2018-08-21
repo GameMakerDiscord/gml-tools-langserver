@@ -4,7 +4,7 @@
 		{
 			"label": "Server -- Build",
 			"type": "npm",
-			"script": "build",
+			"script": "testBuild",
 			"group": {
 				"kind": "build",
 				"isDefault": true
@@ -14,7 +14,7 @@
 		{
 			"label": "Server -- Watch",
 			"type": "npm",
-			"script": "watch",
+			"script": "testWatch",
 			"group": "build",
 			"isBackground": true,
 			"problemMatcher": "$tsc-watch"

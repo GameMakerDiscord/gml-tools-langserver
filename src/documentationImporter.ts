@@ -18,7 +18,7 @@ export class DocumentationImporter {
 
     constructor(lsp: LSP, reference: Reference) {
         this.lsp = lsp;
-        this.reference = reference;
+		this.reference = reference;
         
         // Create our Schema Validators
         // const docsSchema = JSON.parse(fse.readFileSync(path.join(__dirname, path.normalize("../lib/schema/gmlDocsSchema.json")), "utf-8"));

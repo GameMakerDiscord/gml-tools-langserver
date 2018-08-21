@@ -33,7 +33,6 @@
 		"gamemaker-rubber": "^2.0.3",
 		"global": "^4.3.2",
 		"intellisense": "0.0.1",
-		"nodemon": "^1.18.3",
 		"ohm-js": "^0.14.0",
 		"path": "^0.12.7",
 		"upath": "^1.1.0",
@@ -42,8 +41,8 @@
 		"yyp-typings": "^1.1.4"
 	},
 	"scripts": {
-		"build": "tsc",
-		"watch": "tsc --watch"
+		"testBuild": "tsc && yalc publish",
+		"testWatch": "concurrently --kill-others \"tsc --watch\" \"yalc publish && nodemon -x 'yalc push'\""
 	},
 	"lint-staged": {
 		"*.{ts,json}": [
@@ -65,8 +64,10 @@
 		"@types/fs-extra": "^5.0.4",
 		"@types/node": "^10.7.0",
 		"@types/uuid": "^3.4.3",
+		"concurrently": "^3.6.1",
 		"husky": "^1.0.0-rc.13",
 		"lint-staged": "^7.2.2",
+		"nodemon": "^1.18.3",
 		"typescript": "^3.0.1",
 		"yalc": "^1.0.0-pre.22"
 	}
