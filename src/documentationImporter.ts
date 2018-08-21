@@ -104,7 +104,11 @@ export class DocumentationImporter {
 				// New Style Docs
 				if (docType.length == 4) {
 					docType.each((i, element) => {
-						const data = element.firstChild.data;
+						console.log("oh hi")
+						let lastNode = this.recurseTillData(element.firstChild);
+						let data = "";
+						if (lastNode) data = lastNode.data;
+
 						if (data === undefined) {
 							return;
 						}
@@ -130,10 +134,8 @@ export class DocumentationImporter {
 								}
 
 								if (thisChild.name == "a") {
-									let referenceName = thisChild.childNodes[0];
-									while (referenceName.type != "text") {
-										referenceName = referenceName.firstChild;
-									}
+									let referenceName = this.recurseTillData(thisChild.childNodes[0]);
+
 									const link = thisChild.attribs["href"];
 									output += "[" + referenceName.data + "](" + link + ")";
 								}
@@ -246,7 +248,7 @@ export class DocumentationImporter {
 								}
 							}
 						}
-					} catch (error) {}
+					} catch (error) { }
 				});
 
 				// Final Validation
@@ -259,5 +261,18 @@ export class DocumentationImporter {
 				}
 			}
 		}
+	}
+
+	private recurseTillData(startNode: CheerioElement): CheerioElement | null {
+		let recurseHere = startNode;
+
+		while (recurseHere.type != "text") {
+			recurseHere = recurseHere.firstChild;
+
+			if (recurseHere === undefined) {
+				return null;
+			}
+		}
+		return recurseHere;
 	}
 }
