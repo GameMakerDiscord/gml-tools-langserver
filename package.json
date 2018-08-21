@@ -41,7 +41,7 @@
 	},
 	"scripts": {
 		"testBuild": "tsc && yalc publish",
-		"testWatch": "tsc && yalc publish && concurrently --kill-others \"tsc --watch\" \"nodemon --exec npm run dev\"",
+		"testWatch": "concurrently --kill-others \"tsc --watch\" \"yalc publish && nodemon --exec npm run dev\"",
 		"dev": "yalc push"
 	},
 	"lint-staged": {

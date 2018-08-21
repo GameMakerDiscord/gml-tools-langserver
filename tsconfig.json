@@ -9,13 +9,13 @@
 			"es2018",
 			"dom" // dom is added due to ohm-js using dom.
 		],
-		"experimentalDecorators": true,
-		"emitDecoratorMetadata": true,
 		"preserveConstEnums": true,
 		"declaration": true,
 		"declarationDir": "./out/declarations/",
 		"sourceMap": true,
-		"sourceRoot": "C:/Node Projects/gml-tools-ls/src"
+		"sourceRoot": ""
 	},
-	"include": ["./src/**/*.ts"]
+	"include": [
+		"./src/**/*.ts"
+	]
 }
