@@ -14,9 +14,8 @@
 		"preserveConstEnums": true,
 		"declaration": true,
 		"declarationDir": "./out/declarations/",
-		"sourceMap": true
+		"sourceMap": true,
+		"sourceRoot": "C:/Node Projects/gml-tools-ls/src"
 	},
-	"include": [
-		"./src/**/*.ts"
-	]
+	"include": ["./src/**/*.ts"]
 }

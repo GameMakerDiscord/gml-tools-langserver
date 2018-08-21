@@ -9,25 +9,26 @@ import * as cheerio from "cheerio";
 
 /**
  * The DocumentationImporter is responsible for two tasks:
- * 1. Importing the 
+ * 1. Importing the
  */
 export class DocumentationImporter {
-    private lsp: LSP;
-    private reference: Reference;
-    private functionValidator: Ajv.ValidateFunction;
+	private lsp: LSP;
+	private reference: Reference;
+	private functionValidator: Ajv.ValidateFunction;
 
-    constructor(lsp: LSP, reference: Reference) {
-        this.lsp = lsp;
+	constructor(lsp: LSP, reference: Reference) {
+		this.lsp = lsp;
 		this.reference = reference;
-        
-        // Create our Schema Validators
-        // const docsSchema = JSON.parse(fse.readFileSync(path.join(__dirname, path.normalize("../lib/schema/gmlDocsSchema.json")), "utf-8"));
-        const funcSchema = JSON.parse(fse.readFileSync(path.join(__dirname, path.normalize("../lib/schema/functionSchema.json")), "utf-8"));
-        const ajv = new Ajv();
-        ajv.addMetaSchema(require("ajv/lib/refs/json-schema-draft-06.json"));
-        this.functionValidator = ajv.compile(funcSchema);
-    }
-    
+
+		// Create our Schema Validators
+		// const docsSchema = JSON.parse(fse.readFileSync(path.join(__dirname, path.normalize("../lib/schema/gmlDocsSchema.json")), "utf-8"));
+		const funcSchema = JSON.parse(
+			fse.readFileSync(path.join(__dirname, path.normalize("../lib/schema/functionSchema.json")), "utf-8")
+		);
+		const ajv = new Ajv();
+		this.functionValidator = ajv.compile(funcSchema);
+	}
+
 	public async checkManual() {
 		let gms2Program: string;
 		switch (process.platform) {
@@ -103,10 +104,10 @@ export class DocumentationImporter {
 				// New Style Docs
 				if (docType.length == 4) {
 					docType.each((i, element) => {
-                        const data = element.firstChild.data;
-                        if (data === undefined) {
-                            return;
-                        }
+						const data = element.firstChild.data;
+						if (data === undefined) {
+							return;
+						}
 						if (data == "Syntax:") {
 							// Jump forward in the HTML two lines. This is really stupid if it works on everything.
 							thisFunction.signature = element.next.next.firstChild.data;
@@ -129,21 +130,21 @@ export class DocumentationImporter {
 								}
 
 								if (thisChild.name == "a") {
-                                    let referenceName = thisChild.childNodes[0];
-                                    while (referenceName.type != "text") {
-                                        referenceName = referenceName.firstChild;
-                                    }
+									let referenceName = thisChild.childNodes[0];
+									while (referenceName.type != "text") {
+										referenceName = referenceName.firstChild;
+									}
 									const link = thisChild.attribs["href"];
 									output += "[" + referenceName.data + "](" + link + ")";
-                                }
-                                
-                                if (thisChild.name == "b") {
-                                    output += "**" + thisChild.childNodes[0].data + "**";
-                                }
+								}
 
-                                if (thisChild.name == "i") {
-                                    output += "*" + thisChild.childNodes[0].data + "*";
-                                }
+								if (thisChild.name == "b") {
+									output += "**" + thisChild.childNodes[0].data + "**";
+								}
+
+								if (thisChild.name == "i") {
+									output += "*" + thisChild.childNodes[0].data + "*";
+								}
 							}
 							thisFunction.documentation = output;
 						}
@@ -194,8 +195,8 @@ export class DocumentationImporter {
 								for (const thisRow of thisTable.childNodes) {
 									// We ignore text here. It's always `\n\n`.
 									if (thisRow.name == "tr") {
-                                        // We could be indexing a parameter here, so let's make a guy!
-                                        let checkParam = false;
+										// We could be indexing a parameter here, so let's make a guy!
+										let checkParam = false;
 										let thisParameter: DocParams = {
 											documentation: "",
 											label: "",
@@ -213,14 +214,14 @@ export class DocumentationImporter {
 													foundDescription = true;
 												}
 												// Continue so we don't accidentally call our
-                                                // header a parameter with the below!
+												// header a parameter with the below!
 												continue;
 											}
 
 											// NORMAL ROWS
 											if (foundArgument && foundDescription) {
 												if (thisEntry.name == "td") {
-                                                    checkParam = true;
+													checkParam = true;
 													// Okay, we're finally here, now's our big moment.
 													// Let check where we're at in the indexing...
 													if (thisParameter.label == "") {
@@ -235,28 +236,27 @@ export class DocumentationImporter {
 													}
 												}
 											}
-                                        }
-                                        
-                                        if (checkParam) {
-                                            // TODO: We don't validate here. Should we?
-                                            thisFunction.parameters.push(thisParameter);
-                                        }
+										}
+
+										if (checkParam) {
+											// TODO: We don't validate here. Should we?
+											thisFunction.parameters.push(thisParameter);
+										}
 									}
 								}
 							}
 						}
 					} catch (error) {}
-                });
-                
-                // Final Validation
-                const isValid = this.functionValidator(thisFunction);
+				});
 
-                if (isValid) {
-                    gmlDocs.functions.push(thisFunction);
-                } else {
-                    console.log(this.functionValidator.errors);
-                }
+				// Final Validation
+				const isValid = this.functionValidator(thisFunction);
 
+				if (isValid) {
+					gmlDocs.functions.push(thisFunction);
+				} else {
+					console.log(this.functionValidator.errors);
+				}
 			}
 		}
 	}
