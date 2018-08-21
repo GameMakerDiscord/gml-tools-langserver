@@ -8,32 +8,32 @@ GML-Tools is a language server, compliant with Microsoft's Language Server Proto
 
 **GML-Tools currently supports the following type features:**
 
-* Real time diagnostics
-* Hovers
-* Goto definition (variables, scripts, enums, macros)
-* Auto-complete
-* Signature Support
+-   Real time diagnostics
+-   Hovers
+-   Goto definition (variables, scripts, enums, macros)
+-   Auto-complete
+-   Signature Support
 
 **GML-Tools will support the following type features soon:**
 
-* Find all references
-* Document symbols
-* Workspace symbol search
-* Rename
+-   Find all references
+-   Document symbols
+-   Workspace symbol search
+-   Rename
 
 **GML-Tools also has support for the following GML-specific commands, if the client integrates it:**
 
-* Create Script
-* Create Object
-* Create Event
-* Compile and test project. (Windows Only) -- *Note: other platforms could be supported if there is sufficient interest.*
+-   Create Script
+-   Create Object
+-   Create Event
+-   Compile and test project. (Windows Only) -- _Note: other platforms could be supported if there is sufficient interest._
 
 **GML-Tools will support the following GML-specific commands, if the client integrates them:**
 
-* Better documentation support
-* Delete Resource
-* Delete Event
-* Create Sprite
+-   Better documentation support
+-   Delete Resource
+-   Delete Event
+-   Create Sprite
 
 ## Contributors
 
@@ -46,66 +46,40 @@ If you are using the Language Server, you can report any issues by submitting an
 If the issue is a grammar issue, please flag such an issue with [GRAMMAR] at the front of it. If the issue is a documentation issue (an existing function showing up as non-existent, missing hover/signature support for functions, etc.) please flag the issue with [DOCS].
 
 ## How to Debug the Language Server
+
 0. Install Visual Studio Code (which is our first class client/test bed), Nodejs, and Yarn.
 
 1. Create a folder where you would like to store the GML-Tools Language Server and the GML-Tools VSCode Client Implementation.
 
-2. Open a terminal in that folder and clone this repository with:
+1. Open a terminal in that folder and clone this repository with:
 
     ```git
     git clone https://github.com/GameMakerDiscord/gml-tools-langserver.git
     ```
 
-3. Clone [the Visual Studio Code client found here](https://github.com/user/repo/blob/branch/other_file.md) as well to the same folder:
+1. Clone [the Visual Studio Code client found here](https://github.com/sanboxrunner/gml-tools-vsc-client) as well to the same folder:
     ```git
     git clone
     https://github.com/sanboxrunner/gml-tools-vsc-client
     ```
-4. Install dependencies for each folder (you will need to move your terminal into each folder for this):
+1. Install dependencies for each folder (you will need to move your terminal into each folder for this):
 
     ```npm
     yarn
     ```
 
-5. Compile the Language Server with the Task: `"Language Server -- Build"`:
+1. Compile the Language Server and the Client with the Tasks "Build" or "Watch". Do not compile by command line, as the Language Server and Client connect over a local interchange created in those "Build" and "Watch" commands.
 
-    *Tip: Use `"Language Server -- Watch"` to write Typescript and have it transpiled in realtime for you.*
+1. Due to a bug in the `tsconfig.json` (see [this issue](https://github.com/Microsoft/TypeScript/issues/26531)), the absolute path of the sourceRoot in the Language Server `tsconfig.json` file will need to be added. Navigate to `"./gml-tools-ls/tsconfig.json"` and edit "sourceRoot" to be the following:
 
-    You may run into an error here in the Ohm-JS library regarding the "Node-List" typing. You can safely comment that out in the Ohm-JS typings until they have resolved the error -- we do not use that typing.
+    ```json
+    ...
+    "sourceRoot": "ABSOLUTEPATH/gml-tools-ls/src",
+    ...
+    ```
 
-6. Compile the Client with the Task: `"Client -- Watch"`:
+    where "ABSOLUTEPATH" is the absolute path to `gml-tools-ls`.
 
-    *Tip: We compile it in Watch here because we will be doing some initial set up in the Client*
+1. Begin the Extension by pressing `F5`. To place breakpoints in the Typescript of the language server, once the client is running, launch the "Attach to Server" process from the debug menu, or use the Client/Server option to launch both at once.
 
-7. Edit the Client `launch.json` and `extension.ts` files:
-
-    1. Find the absolute path to the Language Server's root folder. Examples of such a path are: `C:\myProjects\gml-tools-langserver` or `/Users/Mario/gml-tools-langserver`.
-
-        Change the Configuration `Attach To Server` to this:
-        ```json
-        {
-            "type": "node",
-            "request": "attach",
-            "name": "Attach to Server",
-            "address": "localhost",
-            "protocol": "inspector",
-            "port": 6009,
-            "sourceMaps": true,
-            "outFiles": ["ABSOLUTE_FILEPATH_TO_LANGUAGE_SERVER/out/**/*.js"]
-        }
-        ```
-        where "ABSOLUTE_FILEPATH_TO_LANGUAGE_SERVER" has been replaced with the absolute filepath to the language server retrieved previously.
-
-    2. In your client folder, open `/src/extension.ts`. Comment out this line:
-        ```ts
-        let serverModule = context.asAbsolutePath(path.join("node_modules", "gml-tools-langserver", 'out', "server.js" ));
-        ```
-        and instead add in this line:
-        ```ts
-        let serverModule = "ABSOLUTE_FILEPATH_TO_LANGUAGE_SERVER/out/server.js";
-        ```
-        where `ABSOLUTE_FILEPATH_TO_LANGUAGE_SERVER` has been replaced with the absolute filepath to the language server retrieved previously.
-
-8. Begin the Extension by pressing `F5`. To place breakpoints in the Typescript of the language server, once the client is running, launch the "Attach to Server" process from the debug menu, or use the Client/Server option to launch both at once.
-
-9. Happy coding! If any problems occur, please add an issue. If you have any suggestions for simplifying this process while keeping the language server and the separate, please submit an issue. Thank you!
+1. Happy coding! If any problems occur, please add an issue. If you have any suggestions for simplifying this process while keeping the language server and the separate, please submit an issue. Thank you!
