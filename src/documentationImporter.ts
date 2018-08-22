@@ -72,7 +72,8 @@ export class DocumentationImporter {
 
 		// Main docs
 		let gmlDocs = {
-			functions: []
+			functions: [],
+			variables: []
 		};
 
 		let failureList = {

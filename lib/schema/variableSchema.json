@@ -1,0 +1,50 @@
+{
+	"$schema": "http://json-schema.org/draft-06/schema#",
+	"$ref": "#/definitions/Variable",
+	"definitions": {
+		"Variable": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"$ref": "#/definitions/non-empty-string"
+				},
+				"example": {
+					"$ref": "#/definitions/Example"
+				},
+				"documentation": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				},
+				"link": {
+					"$ref": "#/definitions/non-empty-string"
+				},
+				"object": {
+					"type": "string"
+				}
+			},
+			"required": ["documentation", "example", "name", "type", "object"],
+			"title": "Variable"
+		},
+		"Example": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"code": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				}
+			},
+			"required": ["code", "description"],
+			"title": "Example"
+		},
+		"non-empty-string": {
+			"type": "string",
+			"minLength": 1
+		}
+	}
+}
