@@ -44,7 +44,8 @@ export interface GMLFunctionStack {
 	readonly interval: Interval;
 	readonly isScript: boolean;
 	readonly exists?: boolean;
-	readonly params?: number;
+	readonly minParams?: number;
+	readonly maxParams?: number;
 }
 
 export interface MatchResultsPackage {
@@ -194,7 +195,8 @@ export class DiagnosticHandler {
 						let thisFunction: GMLFunctionStack = {
 							name: funcName,
 							interval: funcId.source,
-							params: jsdoc.parameterCount,
+							minParams: jsdoc.minParameters,
+							maxParams: jsdoc.maxParameters,
 							isScript: jsdoc.isScript,
 							exists: true
 						};
@@ -205,7 +207,6 @@ export class DiagnosticHandler {
 						this.functionStack.push({
 							name: funcName,
 							interval: funcId.source,
-							params: 0,
 							isScript: null,
 							exists: false
 						});
@@ -252,10 +253,10 @@ export class DiagnosticHandler {
 						// First we push an error if the Array is longer than the number of arguments we want:
 						// This is for the case of `two_arg_function(arg0, arg1,  )` where an extra comma/blank
 						// argument is present.
-						if (providedArguments.length > currentFunc.params) {
+						if (providedArguments.length > currentFunc.maxParams) {
 							const eMessage =
 								"Expected " +
-								currentFunc.params +
+								currentFunc.maxParams +
 								" arguments, but got " +
 								providedArguments.length +
 								".";
@@ -288,9 +289,9 @@ export class DiagnosticHandler {
 
 						// Check how many nonEmptyArgs we have, and if it's enough (we don't check
 						// for ">" because the first check should have caught it):
-						if (nonEmptyArgs < currentFunc.params) {
+						if (nonEmptyArgs < currentFunc.minParams) {
 							const eMessage =
-								"Expected " + currentFunc.params + " arguments, but got " + nonEmptyArgs + ".";
+								"Expected " + currentFunc.minParams + " arguments, but got " + nonEmptyArgs + ".";
 
 							// Create our Diagnostic:
 							this.semanticDiagnostics.push(
@@ -338,7 +339,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}
@@ -392,7 +393,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}
@@ -439,7 +440,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}
@@ -467,13 +468,12 @@ export class DiagnosticHandler {
 					let thisParam: JSDOCParameter = {
 						documentation: "",
 						label: "",
-						type: ""
 					};
 
-					// Add a type
-					if (ourType) {
-						thisParam.type = typeDecl.child(0).child(1).sourceString;
-					}
+					// // Add a type
+					// if (ourType) {
+					// 	thisParam.type = typeDecl.child(0).child(1).sourceString;
+					// }
 
 					// Add our ParamEntry's first word
 					const ourWords = ourParam.match(/\S+/g);
@@ -513,7 +513,7 @@ export class DiagnosticHandler {
 						this.jsdocGenerated.parameters.push({
 							label: thisArg,
 							documentation: "",
-							type: ""
+							// type: ""
 						});
 					}
 
@@ -525,7 +525,13 @@ export class DiagnosticHandler {
 					const ourID = id.nesourceString;
 
 					if (/\bargument[0-9]+\b/.test(ourID)) {
-						this.jsdocGenerated.parameterCount++;
+						this.jsdocGenerated.minParameters++;
+						this.jsdocGenerated.maxParameters = this.jsdocGenerated.minParameters;
+					}
+
+					if (/\bargument\[[0-9]+\]/.test(ourID)) {
+						this.jsdocGenerated.minParameters = -9999;
+						this.jsdocGenerated.maxParameters = 9999;
 					}
 				},
 
@@ -537,7 +543,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}
@@ -861,7 +867,8 @@ export class DiagnosticHandler {
 		this.jsdocGenerated = {
 			description: "",
 			isScript: true,
-			parameterCount: 0,
+			minParameters: 0,
+			maxParameters: 9999,
 			parameters: [],
 			returns: "",
 			signature: ""

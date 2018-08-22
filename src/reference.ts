@@ -2,10 +2,10 @@ import { Range, Location } from "vscode-languageserver/lib/main";
 import { JSDOC } from "./fileSystem";
 import { VariablesPackage, GMLVariableLocation } from "./diagnostic";
 import URI from "vscode-uri/lib/umd";
-import { IGMLDocumentation } from "./declarations";
+import { IGMLDocumentation, GMLDocs } from "./declarations";
 
 export interface IScriptsAndFunctions {
-    [key: string] : IEachScript;
+    [key: string]: IEachScript;
 }
 
 export interface IEachScript {
@@ -83,7 +83,7 @@ export class Reference {
     private scriptsAndFunctions: IScriptsAndFunctions;
     private scriptsAndFunctionsList: Array<string>;
     private globalVariables: IVars;
-    private readonly gmlDocs: IGMLDocumentation;
+    private gmlDocs: GMLDocs;
     private enums: IEnums;
     private enum2URI: enum2uri;
     private macros: IMacros;
@@ -92,7 +92,7 @@ export class Reference {
     private sprites: Array<string>;
     private allResourceNames: Array<string>;
     private localVariableDictionary: ILocalDictionary;
-    public rooms : string[];
+    public rooms: string[];
     public tilesets: string[];
     public fonts: string[];
     public extensions: string[];
@@ -100,10 +100,10 @@ export class Reference {
     public sounds: string[];
     public timeline: string[];
     public paths: string[];
-    
 
-    constructor(gmlDocs: IGMLDocumentation) {
-        this.gmlDocs = gmlDocs;
+
+    constructor() {
+        this.gmlDocs = null;
         this.objects = {};
         this.objectList = [];
         this.localVariableDictionary = {};
@@ -125,26 +125,23 @@ export class Reference {
         this.timeline = [];
         this.paths = [];
         this.rooms = [];
-
-        this.indexGMLDocs();
     }
 
-    public indexGMLDocs() {
+    public indexGMLDocs(gmlDocs: GMLDocs) {
+        this.gmlDocs = gmlDocs;
         // Add our docs into our scriptsAndFunctions.
-        for (const func in this.gmlDocs) {
-            if (this.gmlDocs.hasOwnProperty(func)) {
-                const element = this.gmlDocs[func];
-                let jsdoc: JSDOC = {
-                    signature: element.signature,
-                    returns: element.return,
-                    parameterCount: element.parameters.length,
-                    parameters: element.parameters,
-                    description: element.documentation,
-                    isScript: false
-                };
-                // Add to the Reference Chart
-                this.scriptAddScript(func, null, jsdoc);
-            }
+        for (const thisFunction of this.gmlDocs.functions) {
+            let jsdoc: JSDOC = {
+                signature: thisFunction.signature,
+                returns: thisFunction.return,
+                maxParameters: thisFunction.maxParameters,
+                minParameters: thisFunction.minParameters,
+                parameters: thisFunction.parameters,
+                description: thisFunction.documentation,
+                isScript: false
+            };
+            // Add to the Reference Chart
+            this.scriptAddScript(thisFunction.name, null, jsdoc);
         }
     }
 
@@ -183,7 +180,7 @@ export class Reference {
         this.sprites = [];
         this.allResourceNames = [];
 
-        this.indexGMLDocs();
+        this.indexGMLDocs(this.gmlDocs);
     }
     //#endregion
 
@@ -210,7 +207,7 @@ export class Reference {
     }
 
     public localExists(uri: string, name: string) {
-        const allLocals =  this.getAllLocalsAtURI(uri);
+        const allLocals = this.getAllLocalsAtURI(uri);
 
         let exists = false;
 
@@ -225,7 +222,7 @@ export class Reference {
     }
 
     public localGetLocation(uri: string, name: string) {
-        const allLocals =  this.getAllLocalsAtURI(uri);
+        const allLocals = this.getAllLocalsAtURI(uri);
 
         for (const thisLocal of allLocals) {
             if (thisLocal.value == name) {
@@ -242,7 +239,8 @@ export class Reference {
             JSDOC: jsdoc || {
                 description: null,
                 isScript: true,
-                parameterCount: null,
+                minParameters: 0,
+                maxParameters: 9999,
                 parameters: null,
                 returns: null,
                 signature: null
@@ -308,7 +306,7 @@ export class Reference {
         if (this.objects.hasOwnProperty(obj) == false) {
             this.addObject(obj);
         }
-        
+
         // Create our URI object/clear it
         this.URI2ObjectVariables[uri] = [];
 
@@ -339,7 +337,7 @@ export class Reference {
         if (this.objects.hasOwnProperty(objName) == false) {
             this.addObject(objName);
         }
-        
+
         // Iterate on the variables
         for (const globvar of globvars) {
             // Store the global into the global reference.
@@ -399,7 +397,7 @@ export class Reference {
         }
 
         return Object.getOwnPropertyNames(this.objects[objName]);
-        
+
     }
 
     public getGlobalVariables() {
@@ -407,7 +405,7 @@ export class Reference {
     }
 
     public clearTheseVariablesAtURI(uri: string, ourVars: IObjVar[]) {
-    if (ourVars) {
+        if (ourVars) {
             for (const thisVariable of ourVars) {
                 delete this.objects[thisVariable.object][thisVariable.variable];
             }
@@ -420,14 +418,14 @@ export class Reference {
     //#region Enums
     public getEnumEntries(enumName: string): Array<EnumMembers> {
         const thisUri = this.enum2URI[enumName];
-        
+
         return this.enums[thisUri][enumName].enumEntries;
     }
 
     public getEnumLocation(enumName: string): Location {
         const thisUri = this.enum2URI[enumName];
-        
-        return this.enums[thisUri][enumName].location ;
+
+        return this.enums[thisUri][enumName].location;
     }
 
     public enumExists(name: string) {
@@ -439,7 +437,7 @@ export class Reference {
         if (this.enums[thisURI] == undefined) {
             this.enums[thisURI] = {};
         }
-        
+
 
         this.enums[thisURI][name] = {
             location: { uri: thisURI, range: thisRange },
@@ -457,12 +455,12 @@ export class Reference {
         return this.enum2URI[enumName];
     }
 
-    public clearAllEnumsAtURI(URI: string) {       
+    public clearAllEnumsAtURI(URI: string) {
         for (const enumName in this.enums[URI]) {
             if (this.enums[URI].hasOwnProperty(enumName)) {
                 // clear the normal list
                 delete this.enums[URI][enumName];
-                
+
 
                 // clear the enum2uri List
                 if (this.enum2URI[enumName]) {
@@ -530,7 +528,7 @@ export class Reference {
         if (this.macros[thisURI] == undefined) {
             this.macros[thisURI] = {};
         }
-        
+
 
         this.macros[thisURI][name] = {
             location: { uri: thisURI, range: thisRange },
@@ -542,13 +540,13 @@ export class Reference {
 
     public getMacroValue(name: string) {
         const thisUri = this.macros2uri[name];
-        
+
         return this.macros[thisUri][name].value;
     }
 
     public getMacroLocation(name: string) {
         const thisUri = this.macros2uri[name];
-        
+
         return this.macros[thisUri][name].location;
     }
 
@@ -585,7 +583,7 @@ export class Reference {
     public spriteDeleteSprite(name: string) {
         const thisIndex = this.sprites.indexOf(name);
         if (thisIndex == -1) return;
-        this.sprites.splice(thisIndex,1);
+        this.sprites.splice(thisIndex, 1);
     }
 
     public spriteGetAllSprites() {

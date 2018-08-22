@@ -23,7 +23,6 @@ import { DocumentationImporter } from "./documentationImporter";
 
 export class LSP {
 	readonly gmlGrammar: Grammar;
-	private readonly gmlDocumentation: IGMLDocumentation;
 	public fsManager: FileSystem;
 	public gmlHoverProvider: GMLHoverProvider;
 	public gmlDefinitionProvider: GMLDefinitionProvider;
@@ -38,14 +37,11 @@ export class LSP {
 		this.gmlGrammar = grammar(
 			fse.readFileSync(path.join(__dirname, path.normalize("../lib/gmlGrammar.ohm")), "utf-8")
 		);
-		this.gmlDocumentation = JSON.parse(
-			fse.readFileSync(path.join(__dirname, path.normalize("../lib/gmlDocs.json")), "utf-8")
-		);
 
 		// Create our tools:
-		this.reference = new Reference(this.gmlDocumentation);
-		this.fsManager = new FileSystem(this.gmlGrammar, this);
+		this.reference = new Reference();
 		this.documentationImporter = new DocumentationImporter(this, this.reference);
+		this.fsManager = new FileSystem(this.gmlGrammar, this);
 
 		//#region Language Services
 		this.gmlHoverProvider = new GMLHoverProvider(this.reference, this.fsManager);
@@ -62,7 +58,11 @@ export class LSP {
 		await this.fsManager.initialWorkspaceFolders(workspaceFolder);
 
 		// Check for a manual...
-		await this.documentationImporter.checkManual();
+		const ourManual = await this.documentationImporter.checkManual();
+
+		if (ourManual) {
+			this.reference.indexGMLDocs(ourManual);
+		}
 	}
 
 	private isServerReady() {
@@ -317,7 +317,7 @@ export class LSP {
 		// Basic Conversions straight here:
 		if (typeof objectPackage.objectEvents == "string") {
 			objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(",");
-			objectPackage.objectEvents = objectPackage.objectEvents.map(function(x) {
+			objectPackage.objectEvents = objectPackage.objectEvents.map(function (x) {
 				return x.trim();
 			});
 		}
@@ -368,7 +368,7 @@ export class LSP {
 
 	public async addEvents(eventsPackage: { uri: string; events: string }) {
 		let eventsArray = eventsPackage.events.toLowerCase().split(",");
-		eventsArray = eventsArray.map(function(x) {
+		eventsArray = eventsArray.map(function (x) {
 			return x.trim();
 		});
 

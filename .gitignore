@@ -6,4 +6,4 @@ node_modules/
 
 yalc.lock
 
-.tsconfig.json
+tsconfig.json

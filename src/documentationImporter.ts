@@ -1,4 +1,4 @@
-import { DocFunctionEntry, DocParams } from "./declarations";
+import { DocFunction, DocParams, GMLDocs, DocType } from "./declarations";
 import * as path from "path";
 import * as fse from "fs-extra";
 import * as AdmZip from "adm-zip";
@@ -15,6 +15,7 @@ export class DocumentationImporter {
 	private lsp: LSP;
 	private reference: Reference;
 	private functionValidator: Ajv.ValidateFunction;
+	private variableValidator: Ajv.ValidateFunction;
 
 	constructor(lsp: LSP, reference: Reference) {
 		this.lsp = lsp;
@@ -25,11 +26,15 @@ export class DocumentationImporter {
 		const funcSchema = JSON.parse(
 			fse.readFileSync(path.join(__dirname, path.normalize("../lib/schema/functionSchema.json")), "utf-8")
 		);
+		const varSchema = JSON.parse(
+			fse.readFileSync(path.join(__dirname, path.normalize("../lib/schema/variableSchema.json")), "utf-8")
+		)
 		const ajv = new Ajv();
 		this.functionValidator = ajv.compile(funcSchema);
+		this.variableValidator = ajv.compile(varSchema);
 	}
 
-	public async checkManual() {
+	public async checkManual(): Promise<GMLDocs> {
 		let gms2Program: string;
 		switch (process.platform) {
 			case "win32":
@@ -55,10 +60,10 @@ export class DocumentationImporter {
 		}
 
 		// If we have no GMS2 Manual path, we stop here.
-		if (!gms2Program) return;
+		if (!gms2Program) return null;
 		const ourZip = path.join(gms2Program, "chm2web", "YoYoStudioHelp.zip");
 		// If someone's messed with their manual, we stop here too.
-		if (!(await fse.pathExists(ourZip))) return;
+		if (!(await fse.pathExists(ourZip))) return null;
 
 		// Okay, finally, we have a path to a ZIP, which we know exists. Holy moly.
 		// Let's unzip to memory using Adm-Zip:
@@ -71,7 +76,7 @@ export class DocumentationImporter {
 		const secondaryDocs = "source/_build/3_scripting/3_gml_overview";
 
 		// Main docs
-		let gmlDocs = {
+		let gmlDocs: GMLDocs = {
 			functions: [],
 			variables: []
 		};
@@ -111,7 +116,7 @@ export class DocumentationImporter {
 				const $ = cheerio.load(thisZipEntry.getData().toString(), {
 					normalizeWhitespace: true
 				});
-				const thisFunction: DocFunctionEntry = {
+				const thisFunction: DocFunction = {
 					documentation: "",
 					example: {
 						code: "",
@@ -125,6 +130,8 @@ export class DocumentationImporter {
 					signature: "",
 					link: "docs2.yoyogames.com/" + thisZipEntry.entryName
 				};
+
+				let resourceType: DocType;
 
 				try {
 					const docType = $("h3");
@@ -160,42 +167,52 @@ export class DocumentationImporter {
 									}
 								}
 
-								thisFunction.name = thisFunction.signature.slice(
-									0,
-									thisFunction.signature.indexOf("(")
-								);
-								// Parse for optional/limitless parameters:
-								let commas = 0;
-								let openBracket;
+								// Check if this is a variable or a Function:
+								const isFunction = thisFunction.signature.includes("(");
 
-								for (const thisChar of thisFunction.signature) {
-									if (thisChar == ",") {
+								if (isFunction) {
+									resourceType = DocType.function;
+									thisFunction.name = thisFunction.signature.slice(
+										0,
+										thisFunction.signature.indexOf("(")
+									);
+									// Parse for optional/limitless parameters:
+									let commas = 0;
+									let openBracket;
+
+									for (const thisChar of thisFunction.signature) {
+										if (thisChar == ",") {
+											commas++;
+										}
+										if (thisChar == "[" && !openBracket) {
+											openBracket = commas;
+										}
+									}
+
+									// Figure out our Max Parameters
+									if (commas > 0) {
 										commas++;
+										thisFunction.maxParameters = commas;
 									}
-									if (thisChar == "[" && !openBracket) {
-										openBracket = commas;
+
+									if (commas == 0) {
+										if (thisFunction.signature.includes("()") == false) {
+											thisFunction.maxParameters = 1;
+										} else {
+											thisFunction.maxParameters = 0;
+										}
 									}
-								}
 
-								// Figure out our Max Parameters
-								if (commas > 0) {
-									commas++;
-									thisFunction.maxParameters = commas;
+									// Figure out our Min Parameters
+									if (openBracket !== undefined) {
+										thisFunction.minParameters = openBracket;
+									} else if (!thisFunction.minParameters)
+										thisFunction.minParameters = thisFunction.maxParameters;
+								} else {
+									// cutt off the semicolon
+									thisFunction.name = thisFunction.signature.slice(0, -1);
+									resourceType = DocType.variable;
 								}
-
-								if (commas == 0) {
-									if (thisFunction.signature.includes("()") == false) {
-										thisFunction.maxParameters = 1;
-									} else {
-										thisFunction.maxParameters = 0;
-									}
-								}
-
-								// Figure out our Min Parameters
-								if (openBracket !== undefined) {
-									thisFunction.minParameters = openBracket;
-								} else if (!thisFunction.minParameters)
-									thisFunction.minParameters = thisFunction.maxParameters;
 							}
 
 							if (data.includes("Returns")) {
@@ -216,22 +233,27 @@ export class DocumentationImporter {
 											for (const thisGrandChild of thisParent) {
 												if (thisGrandChild.type == "text") {
 													output += thisGrandChild.data;
-												}
+												} else
 
-												if (thisGrandChild.name == "a") {
-													let referenceName = this.recurseTillData(thisGrandChild);
+													if (thisGrandChild.name == "a") {
+														let referenceName = this.recurseTillData(thisGrandChild);
 
-													const link = thisGrandChild.attribs["href"];
-													output += "[" + referenceName.data + "](" + link + ")";
-												}
+														const link = thisGrandChild.attribs["href"];
+														output += "[" + referenceName.data + "](" + link + ")";
+													} else
 
-												if (thisGrandChild.name == "b") {
-													output += "**" + this.recurseTillData(thisGrandChild).data + "**";
-												}
+														if (thisGrandChild.name == "b") {
+															output += "**" + this.recurseTillData(thisGrandChild).data + "**";
+														} else
 
-												if (thisGrandChild.name == "i") {
-													output += "*" + this.recurseTillData(thisGrandChild).data + "*";
-												}
+															if (thisGrandChild.name == "i") {
+																output += "*" + this.recurseTillData(thisGrandChild).data + "*";
+															} else {
+																const isData = this.recurseTillData(thisGrandChild);
+																if (isData) {
+																	output += isData.data;
+																}
+															}
 											}
 										} else {
 											if (thisChild.type == "text") {
@@ -384,33 +406,61 @@ export class DocumentationImporter {
 				} catch (err) {
 					failureList["May have been parsed incorrectly:"].push(thisFunction.name);
 				}
-				// Final Validation
-				const isValid = this.functionValidator(thisFunction);
+				// Final Validation For Functions:
+				if (resourceType == DocType.function) {
+					const isValid = await this.functionValidator(thisFunction);
 
-				if (isValid) {
-					// Clean random newline characters:
-					thisFunction.documentation = this.clearLineTerminators(thisFunction.documentation);
-					thisFunction.signature = this.clearLineTerminators(thisFunction.signature);
-					thisFunction.example.description = this.clearLineTerminators(thisFunction.example.description);
-					thisFunction.name = this.clearLineTerminators(thisFunction.name);
-					thisFunction.return = this.clearLineTerminators(thisFunction.return);
+					if (isValid) {
+						// Clean random newline characters:
+						thisFunction.documentation = this.clearLineTerminators(thisFunction.documentation);
+						thisFunction.signature = this.clearLineTerminators(thisFunction.signature);
+						thisFunction.example.description = this.clearLineTerminators(thisFunction.example.description);
+						thisFunction.name = this.clearLineTerminators(thisFunction.name);
+						thisFunction.return = this.clearLineTerminators(thisFunction.return);
 
-					for (const thisParam of thisFunction.parameters) {
-						thisParam.label = this.clearLineTerminators(thisParam.label);
-						thisParam.documentation = this.clearLineTerminators(thisParam.documentation);
+						for (const thisParam of thisFunction.parameters) {
+							thisParam.label = this.clearLineTerminators(thisParam.label);
+							thisParam.documentation = this.clearLineTerminators(thisParam.documentation);
+						}
+
+						// Commit everything here:
+						gmlDocs.functions.push(thisFunction);
+					} else {
+						// Push our *invalid* functions here.
+						if (failureList["May have been parsed incorrectly:"].includes(thisFunction.name) == false) {
+							failureList["Was not Parsed; likely not a function:"].push(thisFunction.name);
+						}
 					}
+				}
 
-					gmlDocs.functions.push(thisFunction);
-				} else {
-					if (failureList["May have been parsed incorrectly:"].includes(thisFunction.name) == false) {
-						failureList["Was not Parsed; likely not a function:"].push(thisFunction.name);
+				if (resourceType == DocType.variable) {
+					// Create our Variable
+					const thisVar = {
+						documentation: this.clearLineTerminators(thisFunction.documentation),
+						example: {
+							code: thisFunction.example.code,
+							description: this.clearLineTerminators(thisFunction.example.description)
+						},
+						link: thisFunction.link,
+						name: this.clearLineTerminators(thisFunction.name),
+						object: "*",
+						type: this.clearLineTerminators(thisFunction.return)
+					};
+
+					if (this.variableValidator(thisVar)) {
+						gmlDocs.variables.push(thisVar);
+					} else {
+						// Push our *invalid* functions here.
+						if (failureList["May have been parsed incorrectly:"].includes(thisVar.name) == false) {
+							failureList["Was not Parsed; likely not a function:"].push(thisVar.name);
+						}
 					}
 				}
 			}
 		}
-		fse.writeJsonSync("C:\\Resources\\work.json", gmlDocs, {
-			encoding: "utf8"
-		});
+
+		return gmlDocs;
+
 	}
 
 	private recurseTillData(startNode: CheerioElement): CheerioElement | null {

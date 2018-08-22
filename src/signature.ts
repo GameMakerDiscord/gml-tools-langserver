@@ -1,6 +1,8 @@
 import { Reference } from "./reference";
-import {    TextDocumentPositionParams, SignatureHelp,
-            ParameterInformation } from "vscode-languageserver/lib/main"
+import {
+    TextDocumentPositionParams, SignatureHelp,
+    ParameterInformation
+} from "vscode-languageserver/lib/main"
 import { getIndexFromPosition, getWordAtIndex, normalizeEoLSequences } from "./utils";
 import { FileSystem } from "./fileSystem";
 import { Token, SignatureWalkState, TokenNames } from "./declarations";
@@ -15,10 +17,10 @@ export class GMLSignatureProvider {
         this.fs = fs;
     }
 
-    public async onSignatureRequest(params: TextDocumentPositionParams): Promise<SignatureHelp|null> {
+    public async onSignatureRequest(params: TextDocumentPositionParams): Promise<SignatureHelp | null> {
         const uri = params.textDocument.uri;
         const tokenList = await (await this.fs.getDiagnosticHandler(uri)).getTokenList();
-        const thisPos = getIndexFromPosition(await this.fs.getDocument(uri),params.position);
+        const thisPos = getIndexFromPosition(await this.fs.getDocument(uri), params.position);
 
         // Walk down our TokenList As Far as we can
         let thisIndex = tokenList.length - 1;
@@ -38,7 +40,7 @@ export class GMLSignatureProvider {
         let ourFunc: Token = null;
 
         // Iterate backwards:
-        for (let i = thisIndex; i > 0; i--) {
+        for (let i = thisIndex; i > -1; i--) {
             const element = tokenList[i];
             let breakMain = false;
 
@@ -57,14 +59,14 @@ export class GMLSignatureProvider {
                             break;
                     }
                     break;
-                
+
                 case SignatureWalkState.FINAL_FUNC:
                     if (element.tokenName == TokenNames.funcIdentifier) {
                         ourFunc = element;
                     }
                     breakMain = true;
                     break;
-            
+
                 case SignatureWalkState.INTERMEDIARY_OPEN:
                     switch (element.tokenName) {
                         case TokenNames.comma:
@@ -82,7 +84,7 @@ export class GMLSignatureProvider {
                     }
                     break;
             }
-            
+
             if (breakMain) {
                 break;
             }
@@ -109,7 +111,7 @@ export class GMLSignatureProvider {
 
             const docs = referencePackage.description.indexOf(".") ? referencePackage.description.slice(0, referencePackage.description.indexOf(".") + 1) : referencePackage.description.slice(0, 30) + "...";
             return {
-                signatures: [ {
+                signatures: [{
                     label: referencePackage.signature,
                     documentation: docs,
                     parameters: paras

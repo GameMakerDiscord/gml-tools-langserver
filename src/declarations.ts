@@ -81,7 +81,7 @@ export type enumsMacros = [string[], MacroPackage[]];
 
 export type OtherResources = [string[], CompletionItemKind];
 
-export interface DocFunctionEntry {
+export interface DocFunction {
 	name: string;
 	signature: string;
 	parameters: DocParams[];
@@ -102,3 +102,23 @@ export interface DocExample {
 	code: string;
 	description: string;
 }
+
+export interface GMLDocs {
+	functions: DocFunction[];
+	variables: DocVariable[];
+}
+
+export interface DocVariable {
+	name: string;
+	example: DocExample;
+	documentation: string;
+	type: string;
+	link: string;
+	object: string;
+}
+
+export const enum DocType {
+	function = 0,
+	variable = 1
+}
+

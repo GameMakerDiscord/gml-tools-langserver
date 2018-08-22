@@ -14,7 +14,7 @@ import {
 	CreateObjPackage,
 	AddEventsPackage,
 	ResourceType,
-	DocFunctionEntry,
+	DocFunction,
 	DocParams
 } from "./declarations";
 import * as rubber from "gamemaker-rubber";
@@ -33,7 +33,8 @@ export interface GMLScript {
 export interface JSDOC {
 	signature: string;
 	returns: string;
-	parameterCount: number;
+	minParameters: number;
+	maxParameters: number;
 	parameters: Array<JSDOCParameter>;
 	description: string;
 	isScript: boolean;
@@ -42,7 +43,6 @@ export interface JSDOC {
 export interface JSDOCParameter {
 	label: string;
 	documentation: string;
-	type: string;
 }
 
 export interface GMLObjectContainer {
@@ -1005,13 +1005,13 @@ export class FileSystem {
 		}
 		console.log(
 			"NonGML file indexed by YYP? Serious error. \n" +
-				"This event: " +
-				thisEvent.eventtype +
-				"/" +
-				thisEvent.enumb +
-				"\n" +
-				"This directory: " +
-				dirPath
+			"This event: " +
+			thisEvent.eventtype +
+			"/" +
+			thisEvent.enumb +
+			"\n" +
+			"This directory: " +
+			dirPath
 		);
 		return null;
 	}
