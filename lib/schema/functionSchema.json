@@ -29,9 +29,24 @@
 				},
 				"link": {
 					"$ref": "#/definitions/non-empty-string"
+				},
+				"minParameters": {
+					"type": "number"
+				},
+				"maxParameters": {
+					"type": "number"
 				}
 			},
-			"required": ["documentation", "example", "name", "parameters", "return", "signature"],
+			"required": [
+				"documentation",
+				"example",
+				"name",
+				"parameters",
+				"return",
+				"signature",
+				"minParameters",
+				"maxParameters"
+			],
 			"title": "Function"
 		},
 		"Example": {
@@ -57,12 +72,9 @@
 				},
 				"documentation": {
 					"$ref": "#/definitions/non-empty-string"
-				},
-				"required": {
-					"type": "boolean"
 				}
 			},
-			"required": ["documentation", "label", "required"],
+			"required": ["documentation", "label"],
 			"title": "Parameter"
 		},
 		"non-empty-string": {

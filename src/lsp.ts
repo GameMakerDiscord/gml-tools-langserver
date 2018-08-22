@@ -418,8 +418,7 @@ export class LSP {
 	}
 
 	private isValidResourceName(name: string) {
-		const ourCheck = RegExp(/^[a-z_]+[a-z0-9_]$/i);
-		return ourCheck.test(name);
+		return /^[a-z_]+[a-z0-9_]*$/i.test(name);
 	}
 
 	private resourceExistsAlready(name: string) {

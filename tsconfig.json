@@ -13,9 +13,7 @@
 		"declaration": true,
 		"declarationDir": "./out/declarations/",
 		"sourceMap": true,
-		"sourceRoot": ""
+		"sourceRoot": "C:/Node Projects/gml-tools-ls/src"
 	},
-	"include": [
-		"./src/**/*.ts"
-	]
+	"include": ["./src/**/*.ts"]
 }

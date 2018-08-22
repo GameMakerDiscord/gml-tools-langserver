@@ -85,6 +85,8 @@ export interface DocFunctionEntry {
 	name: string;
 	signature: string;
 	parameters: DocParams[];
+	minParameters: number;
+	maxParameters: number;
 	example: DocExample;
 	documentation: string;
 	return: string;
@@ -94,7 +96,6 @@ export interface DocFunctionEntry {
 export interface DocParams {
 	label: string;
 	documentation: string;
-	required: boolean;
 }
 
 export interface DocExample {
