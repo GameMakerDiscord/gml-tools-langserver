@@ -35,6 +35,9 @@
 				},
 				"maxParameters": {
 					"type": "number"
+				},
+				"isBritish": {
+					"type": "boolean"
 				}
 			},
 			"required": [

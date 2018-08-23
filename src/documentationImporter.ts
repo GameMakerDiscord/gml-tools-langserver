@@ -1,4 +1,4 @@
-import { DocFunction, DocParams, GMLDocs, DocType } from "./declarations";
+import { DocFunction, DocParams, GMLDocs, DocType, DocVariable } from "./declarations";
 import * as path from "path";
 import * as fse from "fs-extra";
 import * as AdmZip from "adm-zip";
@@ -16,6 +16,10 @@ export class DocumentationImporter {
 	private reference: Reference;
 	private functionValidator: Ajv.ValidateFunction;
 	private variableValidator: Ajv.ValidateFunction;
+	private UKSpellings: {
+		[spelling: string]: string;
+	};
+	private UKSpellingsA: string[];
 
 	constructor(lsp: LSP, reference: Reference) {
 		this.lsp = lsp;
@@ -28,46 +32,29 @@ export class DocumentationImporter {
 		);
 		const varSchema = JSON.parse(
 			fse.readFileSync(path.join(__dirname, path.normalize("../lib/schema/variableSchema.json")), "utf-8")
-		)
+		);
 		const ajv = new Ajv();
 		this.functionValidator = ajv.compile(funcSchema);
 		this.variableValidator = ajv.compile(varSchema);
+
+		this.UKSpellings = {
+			colour: "color",
+			randomise: "randomize",
+			normalised: "normalized",
+			maximise: "maximized"
+		};
+		this.UKSpellingsA = Object.getOwnPropertyNames(this.UKSpellings);
 	}
 
-	public async checkManual(): Promise<GMLDocs> {
-		let gms2Program: string;
-		switch (process.platform) {
-			case "win32":
-				gms2Program = path.join("C:", "Program Files", "GameMaker Studio 2");
-				break;
+	public async createManual(): Promise<GMLDocs> {
+		// Get our path to the GMS2 Program folder. If nothing there,
+		// exit early.
+		const gms2FPath = await this.getManualPath();
+		if (!gms2FPath) return null;
 
-			case "darwin":
-				// Unix filesystems are weird, but also just much simpler to work this. Thanks, Unix.
-				gms2Program = "/Applications/GameMaker Studio 2.app/Contents/MonoBundle";
-				break;
-		}
-
-		if (gms2Program && fse.existsSync(gms2Program)) {
-			this.lsp.connection.window.showInformationMessage(
-				'GMS2 Manual found at default location. Indexing manual to "./.gml-tools". Please hold...'
-			);
-		} else {
-			const test = await this.lsp.connection.sendRequest("requestImportManual");
-			if (test == "Okay") {
-				// Returns a URI:
-				gms2Program = (await this.lsp.connection.sendRequest("importManual")).toString();
-			}
-		}
-
-		// If we have no GMS2 Manual path, we stop here.
-		if (!gms2Program) return null;
-		const ourZip = path.join(gms2Program, "chm2web", "YoYoStudioHelp.zip");
-		// If someone's messed with their manual, we stop here too.
-		if (!(await fse.pathExists(ourZip))) return null;
-
-		// Okay, finally, we have a path to a ZIP, which we know exists. Holy moly.
-		// Let's unzip to memory using Adm-Zip:
-		const yyStudioHelp = new AdmZip(ourZip);
+		// Find our Zip, and exit if it's null;
+		const yyStudioHelp = await this.getManualZip(gms2FPath);
+		if (!yyStudioHelp) return null;
 
 		// Main Loop:
 		// We're going to iterate on the entire contents of the ZIP file,
@@ -80,7 +67,6 @@ export class DocumentationImporter {
 			functions: [],
 			variables: []
 		};
-
 		let failureList = {
 			"May have been parsed incorrectly:": [],
 			"Was not Parsed; likely not a function:": []
@@ -233,27 +219,21 @@ export class DocumentationImporter {
 											for (const thisGrandChild of thisParent) {
 												if (thisGrandChild.type == "text") {
 													output += thisGrandChild.data;
-												} else
+												} else if (thisGrandChild.name == "a") {
+													let referenceName = this.recurseTillData(thisGrandChild);
 
-													if (thisGrandChild.name == "a") {
-														let referenceName = this.recurseTillData(thisGrandChild);
-
-														const link = thisGrandChild.attribs["href"];
-														output += "[" + referenceName.data + "](" + link + ")";
-													} else
-
-														if (thisGrandChild.name == "b") {
-															output += "**" + this.recurseTillData(thisGrandChild).data + "**";
-														} else
-
-															if (thisGrandChild.name == "i") {
-																output += "*" + this.recurseTillData(thisGrandChild).data + "*";
-															} else {
-																const isData = this.recurseTillData(thisGrandChild);
-																if (isData) {
-																	output += isData.data;
-																}
-															}
+													const link = thisGrandChild.attribs["href"];
+													output += "[" + referenceName.data + "](" + link + ")";
+												} else if (thisGrandChild.name == "b") {
+													output += "**" + this.recurseTillData(thisGrandChild).data + "**";
+												} else if (thisGrandChild.name == "i") {
+													output += "*" + this.recurseTillData(thisGrandChild).data + "*";
+												} else {
+													const isData = this.recurseTillData(thisGrandChild);
+													if (isData) {
+														output += isData.data;
+													}
+												}
 											}
 										} else {
 											if (thisChild.type == "text") {
@@ -423,7 +403,36 @@ export class DocumentationImporter {
 							thisParam.documentation = this.clearLineTerminators(thisParam.documentation);
 						}
 
-						// Commit everything here:
+						// Stupid, stupid British spelling Check:
+						for (const thisSpelling of this.UKSpellingsA) {
+							if (thisFunction.name.includes(thisSpelling)) {
+								const americanVersion = Object.assign({}, thisFunction);
+
+								// Rename :eye-roll:
+								americanVersion.name = americanVersion.name.replace(
+									thisSpelling,
+									this.UKSpellings[thisSpelling]
+								);
+								americanVersion.signature = americanVersion.signature.replace(
+									thisSpelling,
+									this.UKSpellings[thisSpelling]
+								);
+								americanVersion.link = americanVersion.link.replace(
+									thisSpelling,
+									this.UKSpellings[thisSpelling]
+								);
+								americanVersion.return = americanVersion.return.replace(
+									thisSpelling,
+									this.UKSpellings[thisSpelling]
+								);
+
+								gmlDocs.functions.push(americanVersion);
+								thisFunction.isBritish = true;
+							}
+						}
+
+						// Commit our Main Function here
+
 						gmlDocs.functions.push(thisFunction);
 					} else {
 						// Push our *invalid* functions here.
@@ -435,7 +444,7 @@ export class DocumentationImporter {
 
 				if (resourceType == DocType.variable) {
 					// Create our Variable
-					const thisVar = {
+					const thisVar: DocVariable = {
 						documentation: this.clearLineTerminators(thisFunction.documentation),
 						example: {
 							code: thisFunction.example.code,
@@ -448,6 +457,30 @@ export class DocumentationImporter {
 					};
 
 					if (this.variableValidator(thisVar)) {
+						// Stupid, stupid British spelling Check:
+						for (const thisSpelling of this.UKSpellingsA) {
+							if (thisVar.name.includes(thisSpelling)) {
+								const americanVersion = Object.assign({}, thisVar);
+
+								// Rename :eye-roll:
+								americanVersion.name = americanVersion.name.replace(
+									thisSpelling,
+									this.UKSpellings[thisSpelling]
+								);
+								americanVersion.type = americanVersion.type.replace(
+									thisSpelling,
+									this.UKSpellings[thisSpelling]
+								);
+								americanVersion.link = americanVersion.link.replace(
+									thisSpelling,
+									this.UKSpellings[thisSpelling]
+								);
+
+								gmlDocs.variables.push(americanVersion);
+								thisVar.isBritish = true;
+							}
+						}
+
 						gmlDocs.variables.push(thisVar);
 					} else {
 						// Push our *invalid* functions here.
@@ -460,7 +493,37 @@ export class DocumentationImporter {
 		}
 
 		return gmlDocs;
+	}
 
+	private async getManualPath(): Promise<string> {
+		let gms2Program =
+			process.platform == "win32"
+				? path.join("C:", "Program Files", "GameMaker Studio 2")
+				: "/Applications/GameMaker Studio 2.app/Contents/MonoBundle";
+
+		if (gms2Program && fse.existsSync(gms2Program)) {
+			this.lsp.connection.window.showInformationMessage(
+				'GMS2 Manual found at default location. Indexing manual to "./.gml-tools". Please hold...'
+			);
+		} else {
+			const test = await this.lsp.connection.sendRequest("requestImportManual");
+			if (test == "Okay") {
+				// Returns a URI:
+				gms2Program = (await this.lsp.connection.sendRequest("importManual")).toString();
+			}
+		}
+
+		return gms2Program;
+	}
+
+	private async getManualZip(fpath: string) {
+		const ourZip = path.join(fpath, "chm2web", "YoYoStudioHelp.zip");
+		// If someone's messed with their manual, we stop here too.
+		if (!(await fse.pathExists(ourZip))) return null;
+
+		// Okay, finally, we have a path to a ZIP, which we know exists. Holy moly.
+		// Let's unzip to memory using Adm-Zip:
+		return new AdmZip(ourZip);
 	}
 
 	private recurseTillData(startNode: CheerioElement): CheerioElement | null {

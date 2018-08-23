@@ -98,6 +98,8 @@ export class GMLCompletionProvider {
         const functionList = this.reference.scriptGetScriptList();
         for (const item of functionList) {
             if (item.match(rx) !== null) {
+                
+
                 const total = workingArray.push({
                     label : item,
                     kind: CompletionItemKind.Function,

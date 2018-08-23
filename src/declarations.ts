@@ -91,6 +91,7 @@ export interface DocFunction {
 	documentation: string;
 	return: string;
 	link: string;
+	isBritish?: boolean;
 }
 
 export interface DocParams {
@@ -115,10 +116,10 @@ export interface DocVariable {
 	type: string;
 	link: string;
 	object: string;
+	isBritish?: boolean;
 }
 
 export const enum DocType {
 	function = 0,
 	variable = 1
 }
-

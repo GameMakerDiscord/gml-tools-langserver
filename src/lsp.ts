@@ -18,7 +18,14 @@ import { Reference, IObjVar } from "./reference";
 import { GMLDefinitionProvider } from "./definition";
 import { GMLSignatureProvider } from "./signature";
 import { GMLCompletionProvider } from "./completion";
-import { IGMLDocumentation, SemanticsOption, CreateObjPackage, LanguageService, ResourceType } from "./declarations";
+import {
+	IGMLDocumentation,
+	SemanticsOption,
+	CreateObjPackage,
+	LanguageService,
+	ResourceType,
+	GMLDocs
+} from "./declarations";
 import { DocumentationImporter } from "./documentationImporter";
 
 export class LSP {
@@ -57,11 +64,24 @@ export class LSP {
 		// Let the FileSystem do its index thing...
 		await this.fsManager.initialWorkspaceFolders(workspaceFolder);
 
-		// Check for a manual...
-		const ourManual = await this.documentationImporter.checkManual();
+		// Check or Create the Manual:
+		let ourManual: GMLDocs;
+		let cacheManual = false;
+		if ((await this.fsManager.isFileCached("gmlDocs.json")) == false) {
+			ourManual = await this.documentationImporter.createManual();
+			cacheManual = true;
+		} else {
+			ourManual = JSON.parse(await this.fsManager.getCachedFileText("gmlDocs.json", "utf-8"));
+		}
 
 		if (ourManual) {
+			// Load our Manual into Memory
 			this.reference.indexGMLDocs(ourManual);
+
+			// Cache the Manual:
+			if (cacheManual) {
+				// this.fsManager.setCachedFileText("gmlDocs.json", JSON.stringify(ourManual));
+			}
 		}
 	}
 
@@ -317,7 +337,7 @@ export class LSP {
 		// Basic Conversions straight here:
 		if (typeof objectPackage.objectEvents == "string") {
 			objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(",");
-			objectPackage.objectEvents = objectPackage.objectEvents.map(function (x) {
+			objectPackage.objectEvents = objectPackage.objectEvents.map(function(x) {
 				return x.trim();
 			});
 		}
@@ -368,7 +388,7 @@ export class LSP {
 
 	public async addEvents(eventsPackage: { uri: string; events: string }) {
 		let eventsArray = eventsPackage.events.toLowerCase().split(",");
-		eventsArray = eventsArray.map(function (x) {
+		eventsArray = eventsArray.map(function(x) {
 			return x.trim();
 		});
 

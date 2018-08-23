@@ -225,7 +225,7 @@ export class FileSystem {
 	/**
 	 * All the folders and files in this.topLevelFolder
 	 */
-	private topLevelDirectories: Array<string>;
+	private topLevelDirectories: string[];
 
 	/**
 	 * Grammar object, which can contain more than one
@@ -257,7 +257,7 @@ export class FileSystem {
 	 * This is an array of active documents. Primarily used to apply more complicated
 	 * semantics on documents already opened.
 	 */
-	private openedDocuments: Array<string>;
+	private openedDocuments: string[];
 
 	/**
 	 * Checks whether or not the initial indexing is complete.
@@ -282,7 +282,7 @@ export class FileSystem {
 	// private options: Array<Resource.Options>;
 	// private rooms: Array<Resource.Room>;
 	private sprites: GMLSpriteContainer;
-	private views: Array<GMLFolder>;
+	private views: GMLFolder[];
 	// private defaultView: GMLFolder;
 	// private tilesets: Array<Resource.Tileset>;
 	// private fonts: Array<Resource.Font>;
@@ -292,8 +292,9 @@ export class FileSystem {
 	private preferences_cache: any;
 	private workspaceFolder: WorkspaceFolder[];
 	private yypWatcher: chokidar.FSWatcher;
-	private resourceKeys: Array<string>;
+	private resourceKeys: string[];
 	private originalYYP: YYP;
+	private cachedFileNames: string[];
 
 	constructor(standardGrammar: Grammar, lsp: LSP) {
 		this.objects = {};
@@ -547,10 +548,6 @@ export class FileSystem {
 		}
 	}
 
-	public cacheProject() {
-		this._cacheProject();
-	}
-
 	private sortViews(nonRoot: Array<Resource.GMFolder>, root: Array<Resource.GMFolder>) {
 		// Iterate on our Roots:
 		for (const thisRoot of root) {
@@ -614,19 +611,62 @@ export class FileSystem {
 	}
 	//#endregion
 
-	//#region Old Indexing
+	//#region Caching
+	/**
+	 * Run our initial cache check. If the cache exists, it will
+	 * save the file names; otherwise, it will create the cache.
+	 */
+	private async initCheckCache() {
+		// Try to Read the Cache
+		if (this.topLevelDirectories.includes(".gml-tools")) {
+			this.cachedFileNames = await fse.readdir(path.join(this.projectDirectory, ".gml-tools"));
+		} else {
+			// Create the Cache:
+			await this.createCache(path.join(this.projectDirectory, ".gml-tools"));
+			this.cachedFileNames = [];
+		}
+	}
 
-	private async _cacheProject() {
-		// let encodedJSON = JSON.stringify({
-		//     objects: this.objects,
-		//     scripts: this.scripts,
-		//     uri2name: this.uri2normalname
-		// });
-		// let gmDir = await fse.readdir(this.topLevelFolder + "\\.gmtools");
-		// await writeFile(this.topLevelFolder + "\\.gmtools" + "\\__gmtProjCache.json", encodedJSON, "utf8");
-		// if (gmDir.includes("declarations.d.gml") == false) {
-		//     await writeFile(this.topLevelFolder + "\\.gmtools" + "\\declarations.d.gml", "", "utf8");
-		// }
+	/**
+	 * Creates the .gml-tools folder, where we will cache all
+	 * our data.
+	 * @param fpath The absolute file path where the manual
+	 * should be cached.
+	 */
+	private async createCache(fpath: string) {
+		await fse.mkdir(fpath);
+	}
+
+	/**
+	 * Checks if the manual is cached or not. It
+	 * is safe to run without knowing if the cache
+	 * exists yet.
+	 * @param fileName The name and extension of the file to
+	 * check for. Example: "gmlDocs.json"
+	 */
+	public async isFileCached(fileName: string): Promise<boolean> {
+		// Make sure our Cache is initialized:
+		if (!this.cachedFileNames) {
+			await this.initCheckCache();
+		}
+
+		return this.cachedFileNames.includes(fileName);
+	}
+
+	/**
+	 * Returns the text of a file in the `.gml-tools` cache.
+	 * Note: this function **is not** safe to run. Use
+	 * `isFileCached` first if you will recreate the file.
+	 * @param fileName The name of the cached file. No need
+	 * for an absolute filepath, since the cache could be
+	 * located somewhere only the FileSystem knows.
+	 */
+	public async getCachedFileText(fileName: string, encoding: string) {
+		return await fse.readFile(path.join(this.projectDirectory, ".gml-tools", fileName), encoding);
+	}
+
+	public async setCachedFileText(fileName: string, textToSave: string) {
+		await fse.writeFile(path.join(this.projectDirectory, ".gml-tools", fileName), textToSave, "utf8");
 	}
 	//#endregion
 
@@ -1005,13 +1045,13 @@ export class FileSystem {
 		}
 		console.log(
 			"NonGML file indexed by YYP? Serious error. \n" +
-			"This event: " +
-			thisEvent.eventtype +
-			"/" +
-			thisEvent.enumb +
-			"\n" +
-			"This directory: " +
-			dirPath
+				"This event: " +
+				thisEvent.eventtype +
+				"/" +
+				thisEvent.enumb +
+				"\n" +
+				"This directory: " +
+				dirPath
 		);
 		return null;
 	}

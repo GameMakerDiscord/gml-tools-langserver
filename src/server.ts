@@ -166,7 +166,7 @@ connection.onDidCloseTextDocument((params) => {
 
 // Cache on shutdown:
 connection.onShutdown(() => {
-	lsp.fsManager.cacheProject();
+	// lsp.fsManager.cacheProject();
 });
 //#endregion
 

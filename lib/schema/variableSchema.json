@@ -23,6 +23,9 @@
 				},
 				"object": {
 					"type": "string"
+				},
+				"isBritish": {
+					"type": "boolean"
 				}
 			},
 			"required": ["documentation", "example", "name", "type", "object"],
