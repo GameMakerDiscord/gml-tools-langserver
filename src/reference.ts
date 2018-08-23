@@ -82,7 +82,7 @@ export class Reference {
 	private scriptsAndFunctions: IScriptsAndFunctions;
 	private scriptsAndFunctionsList: Array<string>;
 	private globalVariables: IVars;
-	private gmlDocs: GMLDocs;
+	private gmlDocs: GMLDocs.DocFile;
 	private enums: IEnums;
 	private enum2URI: enum2uri;
 	private macros: IMacros;
@@ -125,7 +125,7 @@ export class Reference {
 		this.rooms = [];
 	}
 
-	public indexGMLDocs(gmlDocs: GMLDocs) {
+	public indexGMLDocs(gmlDocs: GMLDocs.DocFile) {
 		this.gmlDocs = gmlDocs;
 		// Add our docs into our scriptsAndFunctions.
 		for (const thisFunction of this.gmlDocs.functions) {
@@ -139,7 +139,7 @@ export class Reference {
 				isScript: false
 			};
 			// Add to the Reference Chart
-			this.scriptAddScript(thisFunction.name, null, jsdoc, thisFunction.isBritish);
+			this.scriptAddScript(thisFunction.name, null, jsdoc, thisFunction.doNotAutoComplete);
 		}
 	}
 
@@ -232,7 +232,7 @@ export class Reference {
 	//#endregion
 
 	//#region Scripts
-	public scriptAddScript(name: string, uri: URI, jsdoc?: JSDOC, isBritish?: boolean) {
+	public scriptAddScript(name: string, uri: URI, jsdoc?: JSDOC, doNotAutocomplete?: boolean) {
 		this.scriptsAndFunctions[name] = {
 			JSDOC: jsdoc || {
 				description: null,
@@ -244,8 +244,8 @@ export class Reference {
 				signature: null
 			},
 			uri: uri,
-			callBackLocation: isBritish === undefined ? this.scriptsAndFunctionsList.push(name) : null,
-			isBritish: isBritish
+			callBackLocation: doNotAutocomplete === undefined ? this.scriptsAndFunctionsList.push(name) : null,
+			isBritish: doNotAutocomplete
 		};
 	}
 

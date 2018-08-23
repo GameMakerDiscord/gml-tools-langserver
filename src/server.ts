@@ -8,35 +8,27 @@ import {
 	IPCMessageWriter,
 	createConnection,
 	IConnection,
-	TextDocuments,
 	CompletionItem,
-	CompletionList
+	CompletionList,
+	TextDocumentSyncKind,
+	DidChangeConfigurationNotification
 } from "vscode-languageserver/lib/main";
 import { LSP } from "./lsp";
 
 // Create a connection for the server. The connection uses Node's IPC as a transport
 let connection: IConnection = createConnection(new IPCMessageReader(process), new IPCMessageWriter(process));
 
-// Create a simple text document manager. TODO: MAKE THIS BETTER.
-let documents = new TextDocuments();
-documents.listen(connection);
-
 const lsp = new LSP(connection);
 
-// var shouldSendDiagnosticRelatedInformation: boolean = false;
-
-// After the server has started the client sends an initialize request. The server receives
-// in the passed params the rootPath of the workspace plus the client capabilities.
+// Initalize the Server
 connection.onInitialize((params) => {
-	// shouldSendDiagnosticRelatedInformation = params.capabilities && params.capabilities.textDocument
-	// && params.capabilities.textDocument.publishDiagnostics
-	// && params.capabilities.textDocument.publishDiagnostics.relatedInformation;
+	// Tell the FS to begin indexing
 	lsp.beginIndex(params.workspaceFolders);
 
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
-			textDocumentSync: documents.syncKind,
+			textDocumentSync: TextDocumentSyncKind.Full,
 			completionProvider: {
 				resolveProvider: true,
 				triggerCharacters: ["."]
@@ -46,6 +38,7 @@ connection.onInitialize((params) => {
 			signatureHelpProvider: {
 				triggerCharacters: ["(", ","]
 			},
+
 			executeCommandProvider: {
 				commands: [
 					"GMLTools.createObject",
@@ -54,12 +47,16 @@ connection.onInitialize((params) => {
 					"GMLTools.compileTestVM",
 					"GMLTools.compileTestYYC",
 					"GMLTools.compileExport",
-					"GMLTools.forceReindex",
-					"GMLTools.importManual"
+					"GMLTools.forceReindex"
 				]
 			}
 		}
 	};
+});
+
+connection.onInitialized(() => {
+	// Register for configuration changes:
+	connection.client.register(DidChangeConfigurationNotification.type);
 });
 
 //#region Commands
@@ -82,19 +79,17 @@ connection.onExecuteCommand((params) => {
 		case "GMLTools.compileTestVM":
 			lsp.beginCompile("test", false);
 			break;
+
 		case "GMLTools.compileTestYYC":
 			lsp.beginCompile("test", true);
 			break;
+
 		case "GMLTools.compileExport":
 			connection.sendNotification("compileExport");
 			break;
 
 		case "GMLTools.forceReindex":
 			lsp.forceReIndex();
-			break;
-
-		case "GMLTools.importManual":
-			// connection.sendNotification("importManual");
 			break;
 	}
 });
@@ -115,10 +110,6 @@ connection.onNotification("addEvents", async (params: any) => {
 	await lsp.addEvents(params);
 });
 
-connection.onNotification("importManual", async (params: any) => {
-	console.log("It worked?");
-	console.log(params);
-});
 //#endregion
 
 //#region Type Services:
@@ -146,9 +137,10 @@ connection.onDefinition((params) => {
 //#endregion
 
 //#region Text Events
-connection.onDidChangeConfiguration((_) => {
-	// Revalidate any open text documents
-	// let allDocs = documents.all();
+connection.onDidChangeConfiguration(async (params) => {
+	const changedImplementation = await lsp.findNewSettings();
+
+	lsp.updateSettings(changedImplementation);
 });
 
 connection.onDidOpenTextDocument(async (params) => {
@@ -169,9 +161,6 @@ connection.onShutdown(() => {
 	// lsp.fsManager.cacheProject();
 });
 //#endregion
-
-// Make the text document manager listen on the connection
-// for open, change and close text document events
 
 // Listen on the connection
 connection.listen();

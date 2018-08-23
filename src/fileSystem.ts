@@ -9,14 +9,7 @@ import * as upath from "upath";
 import * as uuidv4 from "uuid/v4";
 import URI from "vscode-uri/lib/umd";
 import * as chokidar from "chokidar";
-import {
-	SemanticsOption,
-	CreateObjPackage,
-	AddEventsPackage,
-	ResourceType,
-	DocFunction,
-	DocParams
-} from "./declarations";
+import { SemanticsOption, CreateObjPackage, AddEventsPackage, ResourceType } from "./declarations";
 import * as rubber from "gamemaker-rubber";
 import { Resource, EventType, EventNumber, YYP, YYPResource } from "yyp-typings";
 
@@ -665,8 +658,21 @@ export class FileSystem {
 		return await fse.readFile(path.join(this.projectDirectory, ".gml-tools", fileName), encoding);
 	}
 
+	/**
+	 * Set cached file with a string. Will write over any other data.
+	 * @param fileName Filename to create.
+	 * @param textToSave Text to save, encoded as 'utf8'
+	 */
 	public async setCachedFileText(fileName: string, textToSave: string) {
 		await fse.writeFile(path.join(this.projectDirectory, ".gml-tools", fileName), textToSave, "utf8");
+	}
+
+	public async deletedCachedFile(fileName: string) {
+		await fse.unlink(path.join(this.projectDirectory, ".gml-tools", fileName));
+	}
+
+	public async deleteCache() {
+		await fse.rmdir(path.join(this.projectDirectory, ".gml-tools"));
 	}
 	//#endregion
 

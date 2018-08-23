@@ -1,4 +1,4 @@
-import { DocFunction, DocParams, GMLDocs, DocType, DocVariable } from "./declarations";
+import { GMLDocs, GMLToolsSettings } from "./declarations";
 import * as path from "path";
 import * as fse from "fs-extra";
 import * as AdmZip from "adm-zip";
@@ -46,7 +46,7 @@ export class DocumentationImporter {
 		this.UKSpellingsA = Object.getOwnPropertyNames(this.UKSpellings);
 	}
 
-	public async createManual(): Promise<GMLDocs> {
+	public async createManual(): Promise<GMLDocs.DocFile> {
 		// Get our path to the GMS2 Program folder. If nothing there,
 		// exit early.
 		const gms2FPath = await this.getManualPath();
@@ -63,7 +63,7 @@ export class DocumentationImporter {
 		const secondaryDocs = "source/_build/3_scripting/3_gml_overview";
 
 		// Main docs
-		let gmlDocs: GMLDocs = {
+		let gmlDocs: GMLDocs.DocFile = {
 			functions: [],
 			variables: []
 		};
@@ -102,7 +102,7 @@ export class DocumentationImporter {
 				const $ = cheerio.load(thisZipEntry.getData().toString(), {
 					normalizeWhitespace: true
 				});
-				const thisFunction: DocFunction = {
+				const thisFunction: GMLDocs.DocFunction = {
 					documentation: "",
 					example: {
 						code: "",
@@ -117,7 +117,7 @@ export class DocumentationImporter {
 					link: "docs2.yoyogames.com/" + thisZipEntry.entryName
 				};
 
-				let resourceType: DocType;
+				let resourceType: GMLDocs.DocType;
 
 				try {
 					const docType = $("h3");
@@ -157,7 +157,7 @@ export class DocumentationImporter {
 								const isFunction = thisFunction.signature.includes("(");
 
 								if (isFunction) {
-									resourceType = DocType.function;
+									resourceType = GMLDocs.DocType.function;
 									thisFunction.name = thisFunction.signature.slice(
 										0,
 										thisFunction.signature.indexOf("(")
@@ -197,7 +197,7 @@ export class DocumentationImporter {
 								} else {
 									// cutt off the semicolon
 									thisFunction.name = thisFunction.signature.slice(0, -1);
-									resourceType = DocType.variable;
+									resourceType = GMLDocs.DocType.variable;
 								}
 							}
 
@@ -316,7 +316,7 @@ export class DocumentationImporter {
 										if (thisRow.name == "tr") {
 											// We could be indexing a parameter here, so let's make a guy!
 											let checkParam = false;
-											let thisParameter: DocParams = {
+											let thisParameter: GMLDocs.DocParams = {
 												documentation: "",
 												label: ""
 											};
@@ -387,7 +387,7 @@ export class DocumentationImporter {
 					failureList["May have been parsed incorrectly:"].push(thisFunction.name);
 				}
 				// Final Validation For Functions:
-				if (resourceType == DocType.function) {
+				if (resourceType == GMLDocs.DocType.function) {
 					const isValid = await this.functionValidator(thisFunction);
 
 					if (isValid) {
@@ -403,7 +403,7 @@ export class DocumentationImporter {
 							thisParam.documentation = this.clearLineTerminators(thisParam.documentation);
 						}
 
-						// Stupid, stupid British spelling Check:
+						// Stupid, stupid British spelling Check for the bipsy bopsy little crumpet men:
 						for (const thisSpelling of this.UKSpellingsA) {
 							if (thisFunction.name.includes(thisSpelling)) {
 								const americanVersion = Object.assign({}, thisFunction);
@@ -426,13 +426,23 @@ export class DocumentationImporter {
 									this.UKSpellings[thisSpelling]
 								);
 
+								// Figure out the Right spelling
+								if (
+									this.lsp.userSettings.preferredSpellings ==
+									GMLToolsSettings.SpellingSettings.british
+								) {
+									americanVersion.doNotAutoComplete = true;
+								} else if (
+									this.lsp.userSettings.preferredSpellings ==
+									GMLToolsSettings.SpellingSettings.american
+								) {
+									thisFunction.doNotAutoComplete = true;
+								}
 								gmlDocs.functions.push(americanVersion);
-								thisFunction.isBritish = true;
 							}
 						}
 
 						// Commit our Main Function here
-
 						gmlDocs.functions.push(thisFunction);
 					} else {
 						// Push our *invalid* functions here.
@@ -442,9 +452,9 @@ export class DocumentationImporter {
 					}
 				}
 
-				if (resourceType == DocType.variable) {
+				if (resourceType == GMLDocs.DocType.variable) {
 					// Create our Variable
-					const thisVar: DocVariable = {
+					const thisVar: GMLDocs.DocVariable = {
 						documentation: this.clearLineTerminators(thisFunction.documentation),
 						example: {
 							code: thisFunction.example.code,
@@ -477,7 +487,7 @@ export class DocumentationImporter {
 								);
 
 								gmlDocs.variables.push(americanVersion);
-								thisVar.isBritish = true;
+								thisVar.doNotAutoComplete = true;
 							}
 						}
 

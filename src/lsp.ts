@@ -24,7 +24,8 @@ import {
 	CreateObjPackage,
 	LanguageService,
 	ResourceType,
-	GMLDocs
+	GMLDocs,
+	GMLToolsSettings
 } from "./declarations";
 import { DocumentationImporter } from "./documentationImporter";
 
@@ -38,6 +39,7 @@ export class LSP {
 	public reference: Reference;
 	public documentationImporter: DocumentationImporter;
 	public timer: timeUtil;
+	public userSettings: GMLToolsSettings.Config;
 
 	constructor(public connection: IConnection) {
 		this.connection = connection;
@@ -64,8 +66,12 @@ export class LSP {
 		// Let the FileSystem do its index thing...
 		await this.fsManager.initialWorkspaceFolders(workspaceFolder);
 
+		this.userSettings = await this.connection.workspace.getConfiguration({
+			section: "gml-tools"
+		});
+
 		// Check or Create the Manual:
-		let ourManual: GMLDocs;
+		let ourManual: GMLDocs.DocFile;
 		let cacheManual = false;
 		if ((await this.fsManager.isFileCached("gmlDocs.json")) == false) {
 			ourManual = await this.documentationImporter.createManual();
@@ -80,7 +86,53 @@ export class LSP {
 
 			// Cache the Manual:
 			if (cacheManual) {
-				// this.fsManager.setCachedFileText("gmlDocs.json", JSON.stringify(ourManual));
+				this.fsManager.setCachedFileText("gmlDocs.json", JSON.stringify(ourManual, null, 4));
+			}
+		}
+	}
+
+	public async findNewSettings(): Promise<{ [prop: string]: string }> {
+		if (!this.userSettings) return {};
+		// Get our Settings:
+		const newSettings = await this.connection.workspace.getConfiguration({
+			section: "gml-tools"
+		});
+
+		// Iterate over to find our changed settings:
+		const ourSettings = Object.keys(newSettings);
+		let changedSettings = {};
+
+		for (const thisSetting of ourSettings) {
+			if (JSON.stringify(newSettings[thisSetting]) != JSON.stringify(this.userSettings[thisSetting])) {
+				changedSettings[thisSetting] = newSettings[thisSetting];
+			}
+		}
+
+		// Commit our changed Configs
+		return changedSettings;
+	}
+
+	public async updateSettings(changedSettings: { [key: string]: string }) {
+		const newSettings = Object.keys(changedSettings);
+
+		// Iterate on the settings
+		for (const thisSetting of newSettings) {
+			if (thisSetting == "preferredSpellings") {
+				if (
+					changedSettings[thisSetting] == GMLToolsSettings.SpellingSettings.american ||
+					changedSettings[thisSetting] == GMLToolsSettings.SpellingSettings.british ||
+					changedSettings[thisSetting] == GMLToolsSettings.SpellingSettings.noPref
+				) {
+					this.userSettings.preferredSpellings = newSettings[thisSetting];
+
+					this.connection.window.showWarningMessage("Please Restart VSCode for Setting to Take Effect.");
+
+					try {
+						this.fsManager.deletedCachedFile("gmlDocs.json");
+					} catch (err) {
+						throw err;
+					}
+				}
 			}
 		}
 	}

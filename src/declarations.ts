@@ -81,45 +81,80 @@ export type enumsMacros = [string[], MacroPackage[]];
 
 export type OtherResources = [string[], CompletionItemKind];
 
-export interface DocFunction {
-	name: string;
-	signature: string;
-	parameters: DocParams[];
-	minParameters: number;
-	maxParameters: number;
-	example: DocExample;
-	documentation: string;
-	return: string;
-	link: string;
-	isBritish?: boolean;
+/**
+ * Namespace describing all GMLDocs interfaces.
+ */
+export namespace GMLDocs {
+	/**
+	 * This describes the saved DocFile we create.
+	 */
+	export interface DocFile {
+		functions: DocFunction[];
+		variables: DocVariable[];
+	}
+
+	/**
+	 * Scrapped Documentation Function information.
+	 */
+	export interface DocFunction {
+		name: string;
+		signature: string;
+		parameters: DocParams[];
+		minParameters: number;
+		maxParameters: number;
+		example: DocExample;
+		documentation: string;
+		return: string;
+		link: string;
+		doNotAutoComplete?: boolean;
+	}
+	/**
+	 * Scrapped Documentation Variable information.
+	 */
+	export interface DocVariable {
+		name: string;
+		example: DocExample;
+		documentation: string;
+		type: string;
+		link: string;
+		object: string;
+		doNotAutoComplete?: boolean;
+	}
+
+	/**
+	 * Scrapped Documentation Parameter information.
+	 */
+	export interface DocParams {
+		label: string;
+		documentation: string;
+	}
+	/**
+	 * Scrapped Documentation Example information.
+	 */
+	export interface DocExample {
+		code: string;
+		description: string;
+	}
+
+	/**
+	 * Enum used very briefly in the `documentationImporter` to
+	 * differentiate functions and variables by the presence of
+	 * "()" in their "signature" property.
+	 */
+	export const enum DocType {
+		function = 0,
+		variable = 1
+	}
 }
 
-export interface DocParams {
-	label: string;
-	documentation: string;
-}
+export namespace GMLToolsSettings {
+	export interface Config {
+		preferredSpellings: SpellingSettings;
+	}
 
-export interface DocExample {
-	code: string;
-	description: string;
-}
-
-export interface GMLDocs {
-	functions: DocFunction[];
-	variables: DocVariable[];
-}
-
-export interface DocVariable {
-	name: string;
-	example: DocExample;
-	documentation: string;
-	type: string;
-	link: string;
-	object: string;
-	isBritish?: boolean;
-}
-
-export const enum DocType {
-	function = 0,
-	variable = 1
+	export const enum SpellingSettings {
+		american = "American",
+		british = "British",
+		noPref = "No Preference"
+	}
 }
