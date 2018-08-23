@@ -827,7 +827,14 @@ export class FileSystem {
 			directoryFilepath: ourDirectoryPath
 		};
 
-		await this.lsp.openTextDocument(URI.file(ourGMLPath).toString(), "");
+		await this.lsp.openTextDocument({
+			textDocument: {
+				languageId: "gml",
+				text: "",
+				uri: URI.file(ourGMLPath).toString(),
+				version: 1
+			}
+		});
 
 		return ourGMLPath;
 	}

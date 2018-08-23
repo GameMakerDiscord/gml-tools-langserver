@@ -11,7 +11,8 @@ import {
 	TextDocumentContentChangeEvent,
 	TextDocumentPositionParams,
 	WorkspaceFolder,
-	Connection
+	Connection,
+	DidOpenTextDocumentParams
 } from "vscode-languageserver/lib/main";
 import { DiagnosticHandler, LintPackageFactory, DiagnosticsPackage, LintPackage } from "./diagnostic";
 import { Reference, IObjVar } from "./reference";
@@ -40,9 +41,11 @@ export class LSP {
 	public documentationImporter: DocumentationImporter;
 	public timer: timeUtil;
 	public userSettings: GMLToolsSettings.Config;
+	private originalOpenDocuments: DidOpenTextDocumentParams[];
 
 	constructor(public connection: IConnection) {
 		this.connection = connection;
+		this.originalOpenDocuments = [];
 		this.gmlGrammar = grammar(
 			fse.readFileSync(path.join(__dirname, path.normalize("../lib/gmlGrammar.ohm")), "utf-8")
 		);
@@ -88,6 +91,11 @@ export class LSP {
 			if (cacheManual) {
 				this.fsManager.setCachedFileText("gmlDocs.json", JSON.stringify(ourManual, null, 4));
 			}
+		}
+
+		// Clear out our open text documents and lint them:
+		for (const thisParam of this.originalOpenDocuments) {
+			this.openTextDocument(thisParam);
 		}
 	}
 
@@ -143,13 +151,20 @@ export class LSP {
 	//#endregion
 
 	//#region Text Events
-	public async openTextDocument(uri: string, text: string) {
+	public async openTextDocument(params: DidOpenTextDocumentParams) {
+		// Commit to open Q if indexing still...
+		if (this.isServerReady() == false) {
+			this.originalOpenDocuments.push(params);
+			return null;
+		}
+
+		const uri = params.textDocument.uri;
+		const text = params.textDocument.text;
+
 		const thisDiagnostic = await this.fsManager.getDiagnosticHandler(uri);
 		await thisDiagnostic.setInput(text);
 		this.fsManager.addDocument(uri, text);
 		this.fsManager.addOpenDocument(uri);
-
-		if (this.isServerReady() == false) return null;
 
 		const finalDiagnosticPackage = await this.lint(thisDiagnostic, SemanticsOption.All);
 

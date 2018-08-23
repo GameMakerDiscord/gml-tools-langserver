@@ -144,7 +144,7 @@ connection.onDidChangeConfiguration(async (params) => {
 });
 
 connection.onDidOpenTextDocument(async (params) => {
-	await lsp.openTextDocument(params.textDocument.uri, params.textDocument.text);
+	await lsp.openTextDocument(params);
 });
 
 connection.onDidChangeTextDocument(async (params) => {
