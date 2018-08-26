@@ -5,7 +5,7 @@
 	"publisher": "Jonathan Spira (sanbox)",
 	"author": "Jonathan Spira",
 	"preview": true,
-	"version": "0.7.20",
+	"version": "0.8.0",
 	"license": "MIT",
 	"engines": {
 		"vscode": "^1.26.0"
@@ -42,7 +42,8 @@
 	"scripts": {
 		"testBuild": "tsc && yalc publish",
 		"testWatch": "concurrently --kill-others \"tsc --watch\" \"yalc publish && nodemon --exec npm run dev\"",
-		"dev": "yalc push"
+		"dev": "yalc push",
+		"build": "tsc"
 	},
 	"lint-staged": {
 		"*.{ts,json}": [
