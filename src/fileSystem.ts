@@ -3,7 +3,7 @@ import * as fse from "fs-extra";
 import * as path from "path";
 import { Grammar } from "ohm-js";
 import { DiagnosticHandler, DiagnosticsPackage } from "./diagnostic";
-import { LSP } from "./lsp";
+import { LangServ } from "./langserv";
 import { Reference } from "./reference";
 import * as upath from "upath";
 import * as uuidv4 from "uuid/v4";
@@ -232,7 +232,7 @@ export class FileSystem {
 	 * The LSP, which is the main controller object of the server.
 	 * It will eventually be renamed "langserver"
 	 */
-	private lsp: LSP;
+	private lsp: LangServ;
 
 	/**
 	 * Reference contains all the objects and scripts reference packets,
@@ -290,7 +290,7 @@ export class FileSystem {
 	private originalYYP: YYP;
 	private cachedFileNames: string[];
 
-	constructor(standardGrammar: Grammar, lsp: LSP) {
+	constructor(standardGrammar: Grammar, lsp: LangServ) {
 		this.objects = {};
 		this.scripts = {};
 		// this.options = [];

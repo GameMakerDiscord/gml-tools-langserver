@@ -2,14 +2,14 @@ import { Reference } from "./reference";
 import { Location, TextDocumentPositionParams, Range } from "vscode-languageserver/lib/main";
 import { getWordAtPositionFS } from "./utils";
 import { ws } from "./hover";
-import { LSP } from "./lsp";
+import { LangServ } from "./langserv";
 import { FileSystem } from "./fileSystem";
 import { LanguageService } from "./declarations";
 
 export class GMLDefinitionProvider {
     private reference: Reference;
 
-    constructor(reference: Reference, private lsp: LSP) {
+    constructor(reference: Reference, private lsp: LangServ) {
         this.reference = reference;
         this.lsp = lsp;
     }

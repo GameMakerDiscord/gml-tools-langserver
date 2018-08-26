@@ -5,15 +5,10 @@
 		"module": "commonjs",
 		"moduleResolution": "node",
 		"outDir": "out",
-		"lib": [
-			"es2018",
-			"dom" // dom is added due to ohm-js using dom.
-		],
+		"lib": ["es2018", "dom"],
 		"preserveConstEnums": true,
 		"declaration": true,
-		"declarationDir": "./out/declarations/",
-		"sourceMap": true,
-		"sourceRoot": "C:/Node Projects/gml-tools-ls/src"
+		"declarationDir": "./out/declarations/"
 	},
 	"include": ["./src/**/*.ts"]
 }

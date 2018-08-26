@@ -2,7 +2,7 @@ import { GMLDocs, GMLToolsSettings } from "./declarations";
 import * as path from "path";
 import * as fse from "fs-extra";
 import * as AdmZip from "adm-zip";
-import { LSP } from "./lsp";
+import { LangServ } from "./langserv";
 import { Reference } from "./reference";
 import * as Ajv from "ajv";
 import * as cheerio from "cheerio";
@@ -12,7 +12,7 @@ import * as cheerio from "cheerio";
  * 1. Importing the
  */
 export class DocumentationImporter {
-	private lsp: LSP;
+	private lsp: LangServ;
 	private reference: Reference;
 	private functionValidator: Ajv.ValidateFunction;
 	private variableValidator: Ajv.ValidateFunction;
@@ -21,7 +21,7 @@ export class DocumentationImporter {
 	};
 
 	private UKSpellingsA: string[];
-	constructor(lsp: LSP, reference: Reference) {
+	constructor(lsp: LangServ, reference: Reference) {
 		this.lsp = lsp;
 		this.reference = reference;
 

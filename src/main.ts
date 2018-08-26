@@ -13,12 +13,12 @@ import {
 	TextDocumentSyncKind,
 	DidChangeConfigurationNotification
 } from "vscode-languageserver/lib/main";
-import { LSP } from "./lsp";
+import { LangServ } from "./langserv";
 
 // Create a connection for the server. The connection uses Node's IPC as a transport
 let connection: IConnection = createConnection(new IPCMessageReader(process), new IPCMessageWriter(process));
 
-const lsp = new LSP(connection);
+const lsp = new LangServ(connection);
 
 // Initalize the Server
 connection.onInitialize((params) => {

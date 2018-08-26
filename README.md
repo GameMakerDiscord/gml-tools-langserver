@@ -83,3 +83,29 @@ If the issue is a grammar issue, please flag such an issue with [GRAMMAR] at the
 1. Begin the Extension by pressing `F5`. To place breakpoints in the Typescript of the language server, once the client is running, launch the "Attach to Server" process from the debug menu, or use the Client/Server option to launch both at once.
 
 1. Happy coding! If any problems occur, please add an issue. If you have any suggestions for simplifying this process while keeping the language server and the separate, please submit an issue. Thank you!
+
+## Publishing an Update to the Language Server
+
+0. Sanbox maintains the Language Server, and no one else should have or need to publish it. In the event, however, that someone else does need to publish an update, here are the necessary steps.
+
+1. Remove the `"sourceRoot"` and `"sourceMap"` sections from the `tsconfig.json` entirely. Once Typescript can allow for relative sourceRoots, we can publish the sourcemaps along with the source.
+
+1. Delete the `out` directory from your filesystem and confirm that `package.json` contains the following:
+
+    ```json
+    "files": [
+    	"/out",
+    	"/lib",
+    	"License.txt",
+    	"README.md",
+    	"CODE_OF_CONDUCT.md"
+    ],
+    ```
+
+    Then, compile with `build`.
+    _Note: do **not** use `testBuild`._
+
+
+1. Publish by running `yarn publish` and specifying a new version.
+
+4. Update various clients to the new version.

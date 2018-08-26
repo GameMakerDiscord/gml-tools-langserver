@@ -29,7 +29,7 @@ import {
 } from "./declarations";
 import { DocumentationImporter } from "./documentationImporter";
 
-export class LSP {
+export class LangServ {
 	readonly gmlGrammar: Grammar;
 	public fsManager: FileSystem;
 	public gmlHoverProvider: GMLHoverProvider;
