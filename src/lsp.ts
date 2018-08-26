@@ -20,7 +20,6 @@ import { GMLDefinitionProvider } from "./definition";
 import { GMLSignatureProvider } from "./signature";
 import { GMLCompletionProvider } from "./completion";
 import {
-	IGMLDocumentation,
 	SemanticsOption,
 	CreateObjPackage,
 	LanguageService,
@@ -72,6 +71,12 @@ export class LSP {
 		this.userSettings = await this.connection.workspace.getConfiguration({
 			section: "gml-tools"
 		});
+
+		// Assign our settings, per setting:
+		this.gmlHoverProvider.numberOfSentences =
+			this.userSettings.numberOfDocumentationSentences == -1
+				? undefined
+				: this.userSettings.numberOfDocumentationSentences;
 
 		// Check or Create the Manual:
 		let ourManual: GMLDocs.DocFile;
@@ -141,6 +146,15 @@ export class LSP {
 						throw err;
 					}
 				}
+			}
+
+			if (thisSetting == "numberOfDocumentationSentences") {
+				this.userSettings.numberOfDocumentationSentences = newSettings[thisSetting];
+				// Assign our settings, per setting:
+				this.gmlHoverProvider.numberOfSentences =
+					this.userSettings.numberOfDocumentationSentences == -1
+						? undefined
+						: this.userSettings.numberOfDocumentationSentences;
 			}
 		}
 	}
@@ -220,12 +234,12 @@ export class LSP {
 
 	public async lint(thisDiagnostic: DiagnosticHandler, bit: SemanticsOption) {
 		let lintPack = await this.initLint(thisDiagnostic);
-		// this.timer.setTimeFast();
+		this.timer.setTimeFast();
 		const initDiagnostics = await this.getMatchResultsPackage(thisDiagnostic, lintPack);
-		// console.log("Our normal syntax lint took " + this.timer.timeDifferenceNowNice());
-		// this.timer.setTimeFast();
+		console.log("Our normal syntax lint took " + this.timer.timeDifferenceNowNice());
+		this.timer.setTimeFast();
 		const semDiagnostics = await this.runSemantics(thisDiagnostic, lintPack, bit);
-		// console.log("Our Semantics took " + this.timer.timeDifferenceNowNice());
+		console.log("Our Semantics took " + this.timer.timeDifferenceNowNice());
 
 		return initDiagnostics.concat(semDiagnostics);
 	}

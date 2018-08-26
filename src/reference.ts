@@ -136,7 +136,8 @@ export class Reference {
 				minParameters: thisFunction.minParameters,
 				parameters: thisFunction.parameters,
 				description: thisFunction.documentation,
-				isScript: false
+				isScript: false,
+				link: thisFunction.link
 			};
 			// Add to the Reference Chart
 			this.scriptAddScript(thisFunction.name, null, jsdoc, thisFunction.doNotAutoComplete);

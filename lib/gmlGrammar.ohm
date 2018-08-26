@@ -21,6 +21,10 @@ gml {
     unicodeSpaceSeparator = "\u2000".."\u200B" | "\u3000"
     // #endregion
 
+    OptionalParentheses<elem>
+        =   elem
+        |   oParens elem cParens -- parenthetical
+
     // #region Parsing Expressions
     Statement<endSemiColon>
         =   Block
@@ -59,7 +63,7 @@ gml {
         |   LocalDeclarationType<canReDec> #endSemiColon
     EmptyStatement = ";"
     IfStatement
-        =   if oParens? ConditionalExpression cParens? Statement<#sc> (else Statement<#sc>)?
+        =   if OptionalParentheses<ConditionalExpression> Statement<#sc> (else Statement<#sc>)?
     ForStatement
         =   for oParens VariableStatement<noReDec,empty> #sc ConditionalExpression #sc Statement<empty> #sc? cParens Statement<#sc>
     RepeatStatement
@@ -69,7 +73,7 @@ gml {
     DoUntilStatement
         =   do Statement<#sc> until oParens ConditionalExpression cParens #sc
     SwitchStatement
-        =   switch oParens ConditionalExpression cParens CaseBlock
+        =   switch  OptionalParentheses<ConditionalExpression> CaseBlock
     CaseBlock
         =   oCurly CaseClause* DefaultClause? CaseClause* cCurly
     CaseClause
@@ -83,14 +87,9 @@ gml {
     ExitStatement
         =   exit #sc
     ReturnStatement
-        =   StandardReturn
-        |   VariableReturn
-    StandardReturn
-        =   return (oParens? Statement<empty> cParens?)? #sc
-    VariableReturn
-        =   return oParens? identifier cParens? #sc
+        =  return (OptionalParentheses<ConditionalExpression>)? #sc
     WithStatement
-        =   with oParens ConditionalExpression cParens Statement<#sc>
+        =   with OptionalParentheses<ConditionalExpression> Statement<#sc>
     IncrementStatement<endSemiColon>
         =   PreIncrementStatement #endSemiColon
         |   PostIncrementStatment #endSemiColon
@@ -119,7 +118,9 @@ gml {
     EnumCall
         =   identifier "." identifier
     RegionStatement
-        = "#region" | "#endregion"
+        =   "#region" #regionName StatementList "#endregion"
+    regionName
+        =   (~lineTerminator sourceCharacter)*
 
     // #region VariableStatement
     DeclarationAndDefinition
@@ -148,17 +149,27 @@ gml {
     // #endregion
 
     // #region Expressions Chart
-    ConditionalExpression (A CONDITIONAL COMMENT)
+    ConditionalExpression (conditional expression)
+        =   TernaryExpression
+
+    TernaryExpression
+        =   TernExp
+        |   LogicalORExpression
+    TernExp
+        =   ConditionalExpression "?" ConditionalExpression ":" ConditionalExpression
+
+    LogicalORExpression
         =   LOR
         |   LogicalANDExpression
     LOR
-        =   ConditionalExpression "||" LogicalANDExpression
+        =   ConditionalExpression LORSymbol LogicalANDExpression
     
     LogicalANDExpression
         =   LAND
         |   BitwiseORExpression
     LAND
-        =   LogicalANDExpression "&&" BitwiseORExpression
+        =   LogicalANDExpression LANDSymbol BitwiseORExpression
+
 
     BitwiseORExpression
         =   BOR
@@ -204,9 +215,16 @@ gml {
 
     AdditiveExpression
         =   ADD | SUB
+        |   ModDivExpression
+    ADD =   AdditiveExpression "+" ModDivExpression
+    SUB =   AdditiveExpression "-" ModDivExpression
+
+    ModDivExpression
+        =   MDE | DVE
         |   MultiplicativeExpression
-    ADD =   AdditiveExpression "+" MultiplicativeExpression
-    SUB =   AdditiveExpression "-" MultiplicativeExpression
+    MDE =   ModDivExpression mod MultiplicativeExpression
+    DVE =   ModDivExpression "div" MultiplicativeExpression
+
 
     MultiplicativeExpression
         =   MUL | DIV
@@ -262,7 +280,9 @@ gml {
         |   ArrayEntryLiteral
     
     DSLiteral
-        =   (mapAccessor | listAccessor | gridAccessor | arrayAccessor) ConditionalExpression "]"
+        =   (mapAccessor | listAccessor | arrayAccessor) ConditionalExpression "]"
+        |   gridAccessor NonemptyListOf<ConditionalExpression, comma> "]"
+
     ArrayEntryLiteral
         =   "[" NonemptyListOf<ConditionalExpression,comma> "]"
 
@@ -276,6 +296,7 @@ gml {
     ParentExpression
         =   oParens ConditionalExpression cParens
     // #endregion
+
 
 
 
@@ -467,6 +488,9 @@ gml {
     curlys      =   oCurly | cCurly
     oCurly      =   "{" | "begin"
     cCurly      =   "}" | "end"
+    mod         =   "mod" | "%"
+    LANDSymbol  =   "&&" | "AND"
+    LORSymbol   =   "||" | "OR"
     noReDec     =   ~varDec
     empty       =
 

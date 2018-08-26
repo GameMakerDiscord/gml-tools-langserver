@@ -2,7 +2,7 @@ import { WorkspaceFolder } from "vscode-languageserver/lib/main";
 import * as fse from "fs-extra";
 import * as path from "path";
 import { Grammar } from "ohm-js";
-import { DiagnosticHandler } from "./diagnostic";
+import { DiagnosticHandler, DiagnosticsPackage } from "./diagnostic";
 import { LSP } from "./lsp";
 import { Reference } from "./reference";
 import * as upath from "upath";
@@ -31,6 +31,7 @@ export interface JSDOC {
 	parameters: Array<JSDOCParameter>;
 	description: string;
 	isScript: boolean;
+	link?: string;
 }
 
 export interface JSDOCParameter {
@@ -400,6 +401,7 @@ export class FileSystem {
 							eventPath: ourPath
 						});
 						await this.createDocumentFolder(ourPath, objYY.name, ResourceType.Object);
+						console.log(ourPath);
 						await this.initialDiagnostics(ourPath, SemanticsOption.Function | SemanticsOption.Variable);
 					}
 
@@ -691,15 +693,18 @@ export class FileSystem {
 		const thisDiagnostic = await this.getDiagnosticHandler(fileURI.toString());
 		await thisDiagnostic.setInput(fileText);
 
+		let finalDiagnosticPackage;
 		try {
-			await this.lsp.lint(thisDiagnostic, semanticsToRun);
+			finalDiagnosticPackage = await this.lsp.lint(thisDiagnostic, semanticsToRun);
 		} catch (error) {
 			console.log("Error at " + fpath + ". Error: " + error);
 		}
 
 		// Note: we calculate project diagnostics, but we do not currently send them anywhere. That will
 		// be a future option. TODO.
-		// await this.lsp.connection.sendDiagnostics(DiagnosticsPackage.create(fileURI.toString(), finalDiagnosticPackage));
+		await this.lsp.connection.sendDiagnostics(
+			DiagnosticsPackage.create(fileURI.toString(), finalDiagnosticPackage)
+		);
 		this.diagnosticDictionary[fileURI.toString()] = thisDiagnostic;
 	}
 

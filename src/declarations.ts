@@ -150,6 +150,7 @@ export namespace GMLDocs {
 export namespace GMLToolsSettings {
 	export interface Config {
 		preferredSpellings: SpellingSettings;
+		numberOfDocumentationSentences: number;
 	}
 
 	export const enum SpellingSettings {

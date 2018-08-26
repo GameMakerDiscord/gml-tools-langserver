@@ -19,8 +19,8 @@ export class DocumentationImporter {
 	private UKSpellings: {
 		[spelling: string]: string;
 	};
-	private UKSpellingsA: string[];
 
+	private UKSpellingsA: string[];
 	constructor(lsp: LSP, reference: Reference) {
 		this.lsp = lsp;
 		this.reference = reference;
@@ -33,7 +33,9 @@ export class DocumentationImporter {
 		const varSchema = JSON.parse(
 			fse.readFileSync(path.join(__dirname, path.normalize("../lib/schema/variableSchema.json")), "utf-8")
 		);
+
 		const ajv = new Ajv();
+		ajv.addMetaSchema(require("ajv/lib/refs/json-schema-draft-06.json"));
 		this.functionValidator = ajv.compile(funcSchema);
 		this.variableValidator = ajv.compile(varSchema);
 
@@ -71,6 +73,13 @@ export class DocumentationImporter {
 			"May have been parsed incorrectly:": [],
 			"Was not Parsed; likely not a function:": []
 		};
+		const hardCodedChecks = [
+			"keyboard_get_map",
+			"gpu_set_blendmode",
+			"gpu_get_tex_mip_filter",
+			"physics_particle_get_damping",
+			"steam_activate_overlay"
+		];
 
 		for (const thisZipEntry of yyStudioHelp.getEntries()) {
 			// Is this a Scripting File?
@@ -114,7 +123,7 @@ export class DocumentationImporter {
 					maxParameters: null,
 					return: "",
 					signature: "",
-					link: "docs2.yoyogames.com/" + thisZipEntry.entryName
+					link: "https://docs2.yoyogames.com/" + thisZipEntry.entryName
 				};
 
 				let resourceType: GMLDocs.DocType;
@@ -125,7 +134,7 @@ export class DocumentationImporter {
 					// Covers all docs except those without "Returns" as a title.
 					if (docType.length >= 3) {
 						docType.each((i, element) => {
-							let lastNode = this.recurseTillData(element);
+							let lastNode = this.loopTilData(element);
 							let data = "";
 							if (lastNode) data = lastNode.data;
 
@@ -139,7 +148,7 @@ export class DocumentationImporter {
 
 								for (let i = 0; i < ourSignature.childNodes.length; i++) {
 									const thisChild = ourSignature.childNodes[i];
-									const thisData = this.recurseTillData(thisChild);
+									const thisData = this.loopTilData(thisChild);
 									if (thisData) {
 										thisFunction.signature += thisData.data.trim();
 									}
@@ -220,16 +229,16 @@ export class DocumentationImporter {
 												if (thisGrandChild.type == "text") {
 													output += thisGrandChild.data;
 												} else if (thisGrandChild.name == "a") {
-													let referenceName = this.recurseTillData(thisGrandChild);
+													let referenceName = this.loopTilData(thisGrandChild);
 
 													const link = thisGrandChild.attribs["href"];
 													output += "[" + referenceName.data + "](" + link + ")";
 												} else if (thisGrandChild.name == "b") {
-													output += "**" + this.recurseTillData(thisGrandChild).data + "**";
+													output += "**" + this.loopTilData(thisGrandChild).data + "**";
 												} else if (thisGrandChild.name == "i") {
-													output += "*" + this.recurseTillData(thisGrandChild).data + "*";
+													output += "*" + this.loopTilData(thisGrandChild).data + "*";
 												} else {
-													const isData = this.recurseTillData(thisGrandChild);
+													const isData = this.loopTilData(thisGrandChild);
 													if (isData) {
 														output += isData.data;
 													}
@@ -257,7 +266,7 @@ export class DocumentationImporter {
 
 									// Get our Code Example
 									for (const thisExampleLine of ourExample) {
-										const ourData = this.recurseTillData(thisExampleLine);
+										const ourData = this.loopTilData(thisExampleLine);
 
 										if (ourData) {
 											output += ourData.data;
@@ -269,7 +278,7 @@ export class DocumentationImporter {
 									const description = element.next.next.next.next; // eye roll
 									output = "";
 									for (const thisDescLine of description.childNodes) {
-										const ourText = this.recurseTillData(thisDescLine);
+										const ourText = this.loopTilData(thisDescLine);
 
 										if (ourText) {
 											output += ourText.data;
@@ -288,7 +297,7 @@ export class DocumentationImporter {
 						const allParagraphs = $("p");
 
 						allParagraphs.each((i, element) => {
-							const returns = this.recurseTillData(element);
+							const returns = this.loopTilData(element);
 
 							if (returns && returns.data == "Returns:") {
 								thisFunction.return = element.childNodes[1].data.trim();
@@ -345,7 +354,7 @@ export class DocumentationImporter {
 														let output = "";
 
 														for (const thisChild of thisEntry.childNodes) {
-															const thisAttempt = this.recurseTillData(thisChild);
+															const thisAttempt = this.loopTilData(thisChild);
 															if (thisAttempt) {
 																output += thisAttempt.data;
 															}
@@ -373,7 +382,7 @@ export class DocumentationImporter {
 									if (thisFunction.maxParameters == 9999) {
 										// We check infParam again because having two tables, where
 										// the first table is the Arguments table, messes this up.
-										if (infParam) {
+										if (infParam !== undefined) {
 											thisFunction.minParameters = infParam;
 										}
 									}
@@ -398,10 +407,33 @@ export class DocumentationImporter {
 						thisFunction.name = this.clearLineTerminators(thisFunction.name);
 						thisFunction.return = this.clearLineTerminators(thisFunction.return);
 
+						// clear spaces :eye roll: from our links:
+						thisFunction.link = thisFunction.link.replace(/[ ]/g, "%20");
+
 						for (const thisParam of thisFunction.parameters) {
 							thisParam.label = this.clearLineTerminators(thisParam.label);
 							thisParam.documentation = this.clearLineTerminators(thisParam.documentation);
 						}
+
+						// HARDCODED CHECKS: One day we'll abstract there, but here are errors we couldn't fix.
+						if (hardCodedChecks.includes(thisFunction.name)) {
+							const h2 = $("h2");
+							const ourText = this.loopTilData(h2[0]);
+							if (ourText) {
+								thisFunction.name = ourText.data;
+							}
+						}
+
+						// Duplicate check
+						let cont = false;
+						for (const thisSavedFunc of gmlDocs.functions) {
+							if (thisSavedFunc.name == thisFunction.name) {
+								cont = true;
+								console.log("Found duplicate name at :" + thisFunction.link);
+								break;
+							}
+						}
+						if (cont) continue;
 
 						// Stupid, stupid British spelling Check for the bipsy bopsy little crumpet men:
 						for (const thisSpelling of this.UKSpellingsA) {
@@ -414,10 +446,6 @@ export class DocumentationImporter {
 									this.UKSpellings[thisSpelling]
 								);
 								americanVersion.signature = americanVersion.signature.replace(
-									thisSpelling,
-									this.UKSpellings[thisSpelling]
-								);
-								americanVersion.link = americanVersion.link.replace(
 									thisSpelling,
 									this.UKSpellings[thisSpelling]
 								);
@@ -536,7 +564,7 @@ export class DocumentationImporter {
 		return new AdmZip(ourZip);
 	}
 
-	private recurseTillData(startNode: CheerioElement): CheerioElement | null {
+	private loopTilData(startNode: CheerioElement): CheerioElement | null {
 		let recurseHere = startNode;
 
 		while (recurseHere.type != "text") {

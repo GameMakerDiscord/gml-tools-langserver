@@ -3,126 +3,137 @@ import { getWordAtPositionFS } from "./utils";
 import { JSDOC, FileSystem } from "./fileSystem";
 import { Reference } from "./reference";
 
-
-
 export enum ws {
-    beforePeriod,
-    afterPeriod
+	beforePeriod,
+	afterPeriod
 }
 
 export class GMLHoverProvider {
-    constructor(private reference: Reference, private fs: FileSystem) {
-        this.reference = reference;
-        this.fs        = fs;
-    }
-    public async provideHover(params: TextDocumentPositionParams): Promise<Hover> {
-        // Retrieve our textDocument (TODO make our TextDocument Manager (guuuh));
-        const hoveredText = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
-        
-        if (hoveredText) {
-            // Do all our period hovers here:
-            if (hoveredText.includes(".")) {
-                const wordAtSplit = hoveredText.split(".");
+	public numberOfSentences: number;
 
-                // Enums
-                if (this.reference.enumExists(wordAtSplit[ws.beforePeriod])) {
-                    const theseEnumMembers = this.reference.getEnumEntries(wordAtSplit[ws.beforePeriod]);
+	constructor(private reference: Reference, private fs: FileSystem) {
+		this.reference = reference;
+		this.fs = fs;
+		// We set number of sentences to 1, whihc mirrors the default user setting,
+		// but only to protect against the small race condition that a user tries a
+		// hover in the miliseconds before the LSP sends the userSetting for number
+		// of sentences.
+		this.numberOfSentences = 1;
+	}
+	public async provideHover(params: TextDocumentPositionParams): Promise<Hover> {
+		// Retrieve our textDocument (TODO make our TextDocument Manager (guuuh));
+		const hoveredText = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
 
-                    // Find our Enum's value:
-                    let enumeration = 0;
+		if (hoveredText) {
+			// Do all our period hovers here:
+			if (hoveredText.includes(".")) {
+				const wordAtSplit = hoveredText.split(".");
 
-                    for (const thisMember of theseEnumMembers) {
-                        if (thisMember.enumName == wordAtSplit[ws.afterPeriod]) {
-                            enumeration = thisMember.enumeration;
-                            break;
-                        }  
-                    }
+				// Enums
+				if (this.reference.enumExists(wordAtSplit[ws.beforePeriod])) {
+					const theseEnumMembers = this.reference.getEnumEntries(wordAtSplit[ws.beforePeriod]);
 
-                    let returnMarkup: MarkedString = {
-                        language: "gml",
-                        value: "(enum member) " + wordAtSplit[ws.beforePeriod]
-                                + '.' + wordAtSplit[ws.afterPeriod] + " = " + enumeration.toString()
-                    }
+					// Find our Enum's value:
+					let enumeration = 0;
 
-                    // Find our Full Range:
+					for (const thisMember of theseEnumMembers) {
+						if (thisMember.enumName == wordAtSplit[ws.afterPeriod]) {
+							enumeration = thisMember.enumeration;
+							break;
+						}
+					}
 
-                    return {
-                        contents: returnMarkup
-                    }
-                }
-            }
+					let returnMarkup: MarkedString = {
+						language: "gml",
+						value:
+							"(enum member) " +
+							wordAtSplit[ws.beforePeriod] +
+							"." +
+							wordAtSplit[ws.afterPeriod] +
+							" = " +
+							enumeration.toString()
+					};
 
-            // Check if it's a Function or Script:
-            if (this.reference.scriptExists(hoveredText)) {
-                return this.onHoverFunction(this.reference.scriptGetScriptPackage(hoveredText).JSDOC);
-            }
+					// Find our Full Range:
 
-            // Check if it's an Enum:
-            if (this.reference.enumExists(hoveredText)) {
-                let mrkString: MarkedString = {
-                    value: "(enum) " + hoveredText,
-                    language: "gml"
-                }
-                return {
-                    contents: mrkString
-                }
-            }
+					return {
+						contents: returnMarkup
+					};
+				}
+			}
 
-            // Check if it's a Macro:
-            if (this.reference.macroExists(hoveredText)) {
-                const thisMac = this.reference.getMacroValue(hoveredText);
-                let mrkString: MarkedString = {
-                    value: "(macro) " + hoveredText + " = " + thisMac,
-                    language: "gml"
-                }
+			// Check if it's a Function or Script:
+			if (this.reference.scriptExists(hoveredText)) {
+				return this.onHoverFunction(this.reference.scriptGetScriptPackage(hoveredText).JSDOC);
+			}
 
-                return {
-                    contents: mrkString
-                }
-            }
-        } 
-        
-        return { contents: [] };
-    }
+			// Check if it's an Enum:
+			if (this.reference.enumExists(hoveredText)) {
+				let mrkString: MarkedString = {
+					value: "(enum) " + hoveredText,
+					language: "gml"
+				};
+				return {
+					contents: mrkString
+				};
+			}
 
-    private onHoverFunction(jsdoc: JSDOC): Hover {
-        let rMarkup: MarkedString[] = [];
-        let type = jsdoc.isScript ? "(script)" : "(function)";
-        
-        // Signature
-        rMarkup.push( {
-            value: type + " " + jsdoc.signature,
-            language: "gml"
-        });
+			// Check if it's a Macro:
+			if (this.reference.macroExists(hoveredText)) {
+				const thisMac = this.reference.getMacroValue(hoveredText);
+				let mrkString: MarkedString = {
+					value: "(macro) " + hoveredText + " = " + thisMac,
+					language: "gml"
+				};
 
-        // Documentation
-        let parameterContent: Array<string> = [];
-        for (const thisParam of jsdoc.parameters) {
-            let ourParam = "*@param* ```" + thisParam.label + "```";
-            ourParam+= thisParam.documentation == "" ? "" : " — " + thisParam.documentation;
-            parameterContent.push(ourParam);
-        }
+				return {
+					contents: mrkString
+				};
+			}
+		}
 
-        rMarkup.push(parameterContent.join("\n\n"));
+		return { contents: [] };
+	}
 
-        // Return Value:
-        rMarkup.push(jsdoc.returns == "" ? "" : "\n\n" + "*@returns* " + jsdoc.returns);
+	private onHoverFunction(jsdoc: JSDOC): Hover {
+		let rMarkup: MarkedString[] = [];
+		let type = jsdoc.isScript ? "(script)" : "(function)";
 
-        // Documentation
-        rMarkup.push(jsdoc.description == "" ? "" : "\n\n" + jsdoc.description.split(".", 1).join(".") + ".");
-        
+		// Signature
+		rMarkup.push({
+			value: type + " " + jsdoc.signature,
+			language: "gml"
+		});
 
-        return { contents: rMarkup };
-    }
+		// Documentation
+		let parameterContent: Array<string> = [];
+		for (const thisParam of jsdoc.parameters) {
+			let ourParam = "*@param* ```" + thisParam.label + "```";
+			ourParam += thisParam.documentation == "" ? "" : " — " + thisParam.documentation;
+			parameterContent.push(ourParam);
+		}
 
-    // private onHoverDeclaration(sourceText: string): Hover {
-    //     const entry = this.fsManager.declarations[sourceText];
-    //     // let rMarkup: MarkedString = {
-    //     //     value: entry,
-    //     //     language: "typescript"
-    //     // }
+		rMarkup.push(parameterContent.join("\n\n"));
 
-    //     return { contents: entry};
-    // }
+		// Return Value:
+		rMarkup.push(jsdoc.returns == "" ? "" : "\n\n" + "*@returns* " + jsdoc.returns);
+
+		// Documentation
+		let desc =
+			jsdoc.description == "" ? "" : "\n\n" + jsdoc.description.split(".", this.numberOfSentences).join(".");
+		desc += jsdoc.link === undefined ? "" : " " + "[Documentation.](" + jsdoc.link + ")";
+		rMarkup.push(desc);
+
+		return { contents: rMarkup };
+	}
+
+	// private onHoverDeclaration(sourceText: string): Hover {
+	//     const entry = this.fsManager.declarations[sourceText];
+	//     // let rMarkup: MarkedString = {
+	//     //     value: entry,
+	//     //     language: "typescript"
+	//     // }
+
+	//     return { contents: entry};
+	// }
 }
-
