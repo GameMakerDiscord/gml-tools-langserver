@@ -74,6 +74,7 @@ If the issue is a grammar issue, please flag such an issue with [GRAMMAR] at the
 
     ```json
     ...
+    "sourceMap": true,
     "sourceRoot": "ABSOLUTEPATH/gml-tools-ls/src",
     ...
     ```
