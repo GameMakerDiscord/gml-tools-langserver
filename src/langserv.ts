@@ -415,38 +415,42 @@ export class LangServ {
 
 	//#region Commands
 	public async createObject(objectPackage: CreateObjPackage) {
-		// Basic Conversions straight here:
-		if (typeof objectPackage.objectEvents == "string") {
-			objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(",");
-			objectPackage.objectEvents = objectPackage.objectEvents.map(function(x) {
-				return x.trim();
-			});
-		}
+		console.log("DON'T LET THIS TRHOUGH DINGUS");
+		return;
+		// // Basic Conversions straight here:
+		// if (typeof objectPackage.objectEvents == "string") {
+		// 	objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(",");
+		// 	objectPackage.objectEvents = objectPackage.objectEvents.map(function(x) {
+		// 		return x.trim();
+		// 	});
+		// }
 
-		objectPackage.objectName = objectPackage.objectName.trim();
+		// objectPackage.objectName = objectPackage.objectName.trim();
 
-		// Valid name
-		if (this.isValidResourceName(objectPackage.objectName) == false) {
-			this.connection.window.showErrorMessage(
-				"Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9."
-			);
-			return null;
-		}
+		// // Valid name
+		// if (this.isValidResourceName(objectPackage.objectName) == false) {
+		// 	this.connection.window.showErrorMessage(
+		// 		"Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9."
+		// 	);
+		// 	return null;
+		// }
 
-		// Check for duplicate resources:
-		if (this.resourceExistsAlready(objectPackage.objectName)) {
-			this.connection.window.showErrorMessage("Invalid object name given. Resource already exists.");
-			return null;
-		}
+		// // Check for duplicate resources:
+		// if (this.resourceExistsAlready(objectPackage.objectName)) {
+		// 	this.connection.window.showErrorMessage("Invalid object name given. Resource already exists.");
+		// 	return null;
+		// }
 
-		// If we made it here, send to the FS for the rest.
-		const ourGMLFilePath = await this.fsManager.createObject(objectPackage);
-		if (ourGMLFilePath) {
-			this.connection.sendNotification("goToURI", ourGMLFilePath);
-		}
+		// // If we made it here, send to the FS for the rest.
+		// const ourGMLFilePath = await this.fsManager.createObject(objectPackage);
+		// if (ourGMLFilePath) {
+		// 	this.connection.sendNotification("goToURI", ourGMLFilePath);
+		// }
 	}
 
 	public async createScript(scriptName: string) {
+		console.log("WE MADE IT HERE GET RID OF THIS DON'T SHIP IT.");
+		return;
 		// Basic Check
 		if (this.isValidResourceName(scriptName) == false) {
 			this.connection.window.showErrorMessage(

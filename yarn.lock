@@ -2752,6 +2752,6 @@ yargs@^7.1.0:
     y18n "^3.2.1"
     yargs-parser "^5.0.0"
 
-yyp-typings@^1.1.4:
-  version "1.1.4"
-  resolved "https://registry.yarnpkg.com/yyp-typings/-/yyp-typings-1.1.4.tgz#663fc9ade8e1c6ccc39a05248b7d46739f83f34d"
+yyp-typings@^2.0.4:
+  version "2.0.5"
+  resolved "https://registry.yarnpkg.com/yyp-typings/-/yyp-typings-2.0.5.tgz#b76a83235a38fb113002c564abd6b1bd421f4020"

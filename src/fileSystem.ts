@@ -92,6 +92,8 @@ export interface EventKinds {
 	evNumber: EventNumber;
 }
 
+type GMResourcePlus = Resource.GMResource | GMLFolder;
+
 /**
  * This is a copy of the normal Resource.GMFolder interface,
  * except that it allows for children to be other GMLFolders.
@@ -101,7 +103,7 @@ export interface GMLFolder {
 	id: string;
 
 	/** Internal resource type descriptor */
-	modelName: string;
+	modelName: "GMLFolder";
 
 	/** Version string, appears to be 1.0 or 1.1 */
 	mvc: string;
@@ -110,7 +112,7 @@ export interface GMLFolder {
 	name: string;
 
 	/** An array of the views/resource GUIDs which this folder contains. */
-	children: GMLFolderChildView;
+	children: GMResourcePlus[];
 
 	/** The FilterType of the View */
 	filterType: string;
@@ -123,10 +125,6 @@ export interface GMLFolder {
 
 	/** A code, likely used for adding localizations. */
 	localisedFolderName: string;
-}
-
-export interface GMLFolderChildView {
-	[newView: string]: GMLFolder | string;
 }
 
 export interface TempFolder {
@@ -272,16 +270,15 @@ export class FileSystem {
 	 * This is simply the name of the project!
 	 */
 	public projectName: string;
-
-	// private options: Array<Resource.Options>;
-	// private rooms: Array<Resource.Room>;
 	private sprites: GMLSpriteContainer;
 	private views: GMLFolder[];
-	// private defaultView: GMLFolder;
-	// private tilesets: Array<Resource.Tileset>;
-	// private fonts: Array<Resource.Font>;
-	// private extensions: Array<Resource.Extension>;
-	// private shaders: Array<Resource.Shader>;
+
+	/**
+	 * This is a dictionary where we put all our UUIDs. We use
+	 * it to send our clients our Tree structure. It effectivly represents
+	 * the serialization of the project.
+	 */
+	private projectResourceList: { [UUID: string]: Resource.GMResource };
 
 	private preferences_cache: any;
 	private workspaceFolder: WorkspaceFolder[];
@@ -297,7 +294,7 @@ export class FileSystem {
 		this.sprites = {};
 		this.views = [];
 		// this.declarations = {};
-		// this.gmFolderExists = false;
+		this.projectResourceList = {};
 		this.diagnosticDictionary = {};
 		this.grammars = {
 			standardGrammar: standardGrammar
@@ -364,7 +361,6 @@ export class FileSystem {
 		this.lsp.connection.window.showInformationMessage("Indexing Project, please hold...");
 		reIndexViews = reIndexViews || false;
 		// views stuff
-		let nonRootViews: Array<Resource.GMFolder> = [];
 		let rootViews: Array<Resource.GMFolder> = [];
 
 		// go through all the resources, putting them all out
@@ -385,6 +381,8 @@ export class FileSystem {
 						console.log("File: " + yyFilePath + " does not exist. Skipping...");
 						continue;
 					}
+					// Add to UUID Dict
+					this.projectResourceList[objYY.id] = objYY;
 
 					// Add to our Reference
 					this.reference.addObject(objYY.name);
@@ -424,6 +422,9 @@ export class FileSystem {
 						continue;
 					}
 
+					// Add to UUID Dict
+					this.projectResourceList[scriptYY.id] = scriptYY;
+
 					const scriptFP = path.join(dirPath, scriptYY.name + ".gml");
 					let thisScript: GMLScript = {
 						directoryFilepath: dirPath,
@@ -447,6 +448,8 @@ export class FileSystem {
 						directoryFilepath: dirPath,
 						yyFile: spriteYY
 					};
+					// Add to UUID Dict
+					this.projectResourceList[spriteYY.id] = spriteYY;
 
 					// Add it to the reference
 					this.reference.spriteAddSprite(spriteYY.name);
@@ -458,11 +461,16 @@ export class FileSystem {
 					// Check if we're a Root:
 					if (viewYY.filterType == "root") {
 						rootViews.push(viewYY);
-					} else nonRootViews.push(viewYY);
+					} else {
+						// Add to UUID Dict
+						this.projectResourceList[viewYY.id] = viewYY;
+					}
 					break;
 
 				case "GMTileSet":
 					const tsYY: Resource.Tileset = JSON.parse(await fse.readFile(yyFilePath, "utf8"));
+					// Add to UUID Dict
+					this.projectResourceList[tsYY.id] = tsYY;
 
 					// References
 					this.reference.tilesets.push(tsYY.name);
@@ -471,6 +479,8 @@ export class FileSystem {
 
 				case "GMSound":
 					const soundYY: Resource.Sound = JSON.parse(await fse.readFile(yyFilePath, "utf8"));
+					// Add to UUID Dict
+					this.projectResourceList[soundYY.id] = soundYY;
 
 					// References
 					this.reference.sounds.push(soundYY.name);
@@ -479,6 +489,8 @@ export class FileSystem {
 
 				case "GMPath":
 					const pathYY: Resource.Path = JSON.parse(await fse.readFile(yyFilePath, "utf8"));
+					// Add to UUID Dict
+					this.projectResourceList[pathYY.id] = pathYY;
 
 					// References
 					this.reference.paths.push(pathYY.name);
@@ -487,6 +499,8 @@ export class FileSystem {
 
 				case "GMShader":
 					const shaderYY: Resource.Shader = JSON.parse(await fse.readFile(yyFilePath, "utf8"));
+					// Add to UUID Dict
+					this.projectResourceList[pathYY.id] = pathYY;
 
 					// References
 					this.reference.shaders.push(shaderYY.name);
@@ -495,6 +509,8 @@ export class FileSystem {
 
 				case "GMFont":
 					const fontYY: Resource.Font = JSON.parse(await fse.readFile(yyFilePath, "utf8"));
+					// Add to UUID Dict
+					this.projectResourceList[fontYY.id] = fontYY;
 
 					// References
 					this.reference.fonts.push(fontYY.name);
@@ -503,6 +519,8 @@ export class FileSystem {
 
 				case "GMTimeline":
 					const timelineYY: Resource.Timeline = JSON.parse(await fse.readFile(yyFilePath, "utf8"));
+					// Add to UUID Dict
+					this.projectResourceList[timelineYY.id] = timelineYY;
 
 					// References
 					this.reference.timeline.push(timelineYY.name);
@@ -511,6 +529,8 @@ export class FileSystem {
 
 				case "GMRoom":
 					const roomYY: Resource.Room = JSON.parse(await fse.readFile(yyFilePath, "utf8"));
+					// Add to UUID Dict
+					this.projectResourceList[roomYY.id] = roomYY;
 
 					// References
 					this.reference.rooms.push(roomYY.name);
@@ -519,6 +539,8 @@ export class FileSystem {
 
 				case "GMNotes":
 					const noteYY: Resource.Note = JSON.parse(await fse.readFile(yyFilePath, "utf8"));
+					// Add to UUID Dict
+					this.projectResourceList[noteYY.id] = noteYY;
 
 					// Resources
 					this.reference.addResource(noteYY.name);
@@ -526,6 +548,8 @@ export class FileSystem {
 
 				case "GMExtension":
 					const extYY: Resource.Extension = JSON.parse(await fse.readFile(yyFilePath, "utf8"));
+					// Add to UUID Dict
+					this.projectResourceList[extYY.id] = extYY;
 
 					// Resources
 					this.reference.extensions.push(extYY.name);
@@ -539,15 +563,18 @@ export class FileSystem {
 
 		// Finish sorting our views:
 		if (reIndexViews) {
-			this.sortViews(nonRootViews, rootViews);
+			this.sortViews(rootViews);
 		}
 	}
 
-	private sortViews(nonRoot: Array<Resource.GMFolder>, root: Array<Resource.GMFolder>) {
+	//#endregion
+
+	//#region Walk View Tree
+	private sortViews(root: Array<Resource.GMFolder>) {
 		// Iterate on our Roots:
 		for (const thisRoot of root) {
 			// Walk the Tree.
-			const finalView = this.walkViewTree(thisRoot, nonRoot);
+			const finalView = this.walkViewTree(thisRoot);
 			this.views.push(finalView);
 
 			// // Add it to the default View
@@ -555,54 +582,68 @@ export class FileSystem {
 			//     this.defaultView = finalView;
 			// }
 		}
+
+		this.retrieveThisNodeChildren("16b21d61-0eb5-442b-a11c-6144a8725d42");
 	}
 
-	private walkViewTree(initialView: Resource.GMFolder, nonRoot: Array<Resource.GMFolder>): GMLFolder {
-		let newChildren: Array<GMLFolder | string> = [];
-		let finalView = this.constructGMLFolderFromView(initialView);
+	private walkViewTree(initialView: Resource.GMFolder): GMLFolder {
+		let newChildren: any = [];
+		let finalView = this.constructGMLFolderFromGMFolder(initialView);
 
-		for (const thisChild of initialView.children) {
-			// Filter the UUIDs:
-			let ourUUID: Resource.GMFolder;
-			for (const thisUUID of nonRoot) {
-				if (thisUUID.name == thisChild) {
-					ourUUID = thisUUID;
-					break;
-				}
-			}
+		for (const thisChildNode of initialView.children) {
+			// Find the resource of this UUID by scanning through
+			// *all* our UUIDs in `this.projectResourceList`. We
+			// add every resource to it in the .YYP.
+			const thisChildYY = this.projectResourceList[thisChildNode];
+			if (thisChildYY === undefined) continue;
 
-			// Walk down the UUID if it's a view, else store the string.
-			if (ourUUID) {
-				newChildren.push(this.walkViewTree(ourUUID, nonRoot));
+			// Walk down the UUID if it's a view, else store the YY file.
+			if (thisChildYY.modelName && thisChildYY.modelName == "GMFolder") {
+				newChildren.push(this.walkViewTree(thisChildYY));
 			} else {
-				newChildren.push(thisChild);
+				newChildren.push(thisChildYY);
 			}
 		}
 
-		// Add the children object as a property to the parent.
-		for (const thisChild of newChildren) {
-			if (typeof thisChild == "string") {
-				finalView.children[thisChild] = thisChild;
-			} else {
-				finalView.children[thisChild.id] = thisChild;
-			}
-		}
+		finalView.children = newChildren;
 
 		return finalView;
 	}
 
-	private constructGMLFolderFromView(init: Resource.GMFolder): GMLFolder {
+	private constructGMLFolderFromGMFolder(init: Resource.GMFolder): GMLFolder {
 		return {
 			name: init.name,
 			mvc: init.mvc,
-			modelName: init.modelName,
+			modelName: "GMLFolder",
 			localisedFolderName: init.localisedFolderName,
 			isDefaultView: init.isDefaultView,
 			id: init.id,
 			folderName: init.folderName,
 			filterType: init.filterType,
-			children: {}
+			children: []
 		};
+	}
+
+	public retrieveThisNodeChildren(nodeUUID: string) {
+		const result = this.searchViewsForUUID(this.views[0], nodeUUID);
+
+		return result;
+	}
+
+	private searchViewsForUUID(thisNode: GMResourcePlus, targetNodeUUID: string) {
+		if (thisNode.id == targetNodeUUID) {
+			return thisNode;
+		} else if (thisNode.modelName == "GMLFolder" && thisNode.children != null) {
+			let result = null;
+
+			for (let i = 0, l = thisNode.children.length; result == null && i < l; i++) {
+				const thisChildNode = thisNode.children[i];
+				result = this.searchViewsForUUID(thisChildNode, targetNodeUUID);
+			}
+			return result;
+		}
+
+		return null;
 	}
 	//#endregion
 

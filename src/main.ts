@@ -60,16 +60,26 @@ connection.onInitialized(() => {
 });
 
 //#region Commands
-connection.onExecuteCommand((params) => {
+connection.onExecuteCommand(async (params) => {
 	switch (params.command) {
 		case "GMLTools.createObject":
 			const ourSprites = lsp.reference.spriteGetAllSprites().slice();
 			ourSprites.push("No Sprite");
-			connection.sendNotification("createObject", { sprites: ourSprites });
+			const objInfo: any = await connection.sendRequest("createObject", { sprites: ourSprites });
+
+			// Actually Create the Object
+			if (objInfo) {
+				lsp.createObject(objInfo);
+			}
 			break;
 
 		case "GMLTools.createScript":
-			connection.sendNotification("createScript");
+			const myScript: any = await connection.sendRequest("createScript");
+
+			// Actually Create the Script
+			if (myScript) {
+				lsp.createScript(myScript);
+			}
 			break;
 
 		case "GMLTools.addEvents":
@@ -92,10 +102,6 @@ connection.onExecuteCommand((params) => {
 			lsp.forceReIndex();
 			break;
 	}
-});
-
-connection.onNotification("createObject", (params: any) => {
-	lsp.createObject(params);
 });
 
 connection.onNotification("compileExport", (params: any) => {

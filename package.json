@@ -37,7 +37,7 @@
 		"upath": "^1.1.0",
 		"uuid": "^3.3.2",
 		"vscode-languageserver": "^4.4.2",
-		"yyp-typings": "^1.1.4"
+		"yyp-typings": "^2.0.4"
 	},
 	"scripts": {
 		"testBuild": "tsc && yalc publish",
@@ -52,8 +52,8 @@
 		]
 	},
 	"files": [
-		"./out",
-		"./lib",
+		"/out",
+		"/lib",
 		"License.txt",
 		"README.md",
 		"CODE_OF_CONDUCT.md"

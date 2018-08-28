@@ -415,6 +415,7 @@ export class DocumentationImporter {
 							thisParam.documentation = this.clearLineTerminators(thisParam.documentation);
 						}
 
+						
 						// HARDCODED CHECKS: One day we'll abstract there, but here are errors we couldn't fix.
 						if (hardCodedChecks.includes(thisFunction.name)) {
 							const h2 = $("h2");

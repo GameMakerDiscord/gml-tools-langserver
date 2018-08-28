@@ -5,8 +5,7 @@ import {
 	normalizeEoLSequences,
 	regexIndexOf,
 	getIndexFromPosition,
-	getPositionFromIndex,
-	timeUtil
+	getPositionFromIndex
 } from "./utils";
 import { Reference } from "./reference";
 import { JSDOC, JSDOCParameter } from "./fileSystem";
