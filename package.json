@@ -52,8 +52,8 @@
 		]
 	},
 	"files": [
-		"/out",
-		"/lib",
+		"out",
+		"lib",
 		"License.txt",
 		"README.md",
 		"CODE_OF_CONDUCT.md"

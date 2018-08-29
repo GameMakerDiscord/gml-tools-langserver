@@ -24,7 +24,7 @@ const lsp = new LangServ(connection);
 connection.onInitialize((params) => {
 	// Tell the FS to begin indexing
 	lsp.beginIndex(params.workspaceFolders);
-
+	
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
@@ -83,7 +83,8 @@ connection.onExecuteCommand(async (params) => {
 			break;
 
 		case "GMLTools.addEvents":
-			connection.sendNotification("addEvents");
+			const ourEvents: any = await connection.sendNotification("addEvents");
+			lsp.addEvents(ourEvents);
 			break;
 
 		case "GMLTools.compileTestVM":
@@ -95,25 +96,14 @@ connection.onExecuteCommand(async (params) => {
 			break;
 
 		case "GMLTools.compileExport":
-			connection.sendNotification("compileExport");
+			const ourExports: any = await connection.sendRequest("compileExport");
+			lsp.beginCompile(ourExports.type === "Zip" ? "zip" : "installer", ourExports.yyc === "YYC", "project_name.zip");
 			break;
 
 		case "GMLTools.forceReindex":
 			lsp.forceReIndex();
 			break;
 	}
-});
-
-connection.onNotification("compileExport", (params: any) => {
-	lsp.beginCompile(params.type === "Zip" ? "zip" : "installer", params.yyc === "YYC", "project_name.zip");
-});
-
-connection.onNotification("createScript", async (params: string) => {
-	await lsp.createScript(params);
-});
-
-connection.onNotification("addEvents", async (params: any) => {
-	await lsp.addEvents(params);
 });
 
 //#endregion
