@@ -473,7 +473,7 @@ export class LangServ {
 
 	public async addEvents(eventsPackage: { uri: string; events: string }) {
 		let eventsArray = eventsPackage.events.toLowerCase().split(",");
-		eventsArray = eventsArray.map(function(x) {
+		eventsArray = eventsArray.map(function (x) {
 			return x.trim();
 		});
 

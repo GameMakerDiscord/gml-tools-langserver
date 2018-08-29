@@ -35,7 +35,13 @@ export class DocumentationImporter {
 		);
 
 		const ajv = new Ajv();
-		ajv.addMetaSchema(require("ajv/lib/refs/json-schema-draft-06.json"));
+		let check;
+		try {
+			check = ajv.getSchema("http://json-schema.org/draft-06/schema");
+		} catch (error) { }
+		if (!check) {
+			ajv.addMetaSchema(require("ajv/lib/refs/json-schema-draft-06.json"));
+		}
 		this.functionValidator = ajv.compile(funcSchema);
 		this.variableValidator = ajv.compile(varSchema);
 
@@ -415,7 +421,7 @@ export class DocumentationImporter {
 							thisParam.documentation = this.clearLineTerminators(thisParam.documentation);
 						}
 
-						
+
 						// HARDCODED CHECKS: One day we'll abstract there, but here are errors we couldn't fix.
 						if (hardCodedChecks.includes(thisFunction.name)) {
 							const h2 = $("h2");

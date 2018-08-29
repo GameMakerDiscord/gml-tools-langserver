@@ -12,6 +12,7 @@ import * as chokidar from "chokidar";
 import { SemanticsOption, CreateObjPackage, AddEventsPackage, ResourceType } from "./declarations";
 import * as rubber from "gamemaker-rubber";
 import { Resource, EventType, EventNumber, YYP, YYPResource } from "yyp-typings";
+import { ClientViewNode, ResourceNames } from "./sharedTypes";
 
 export interface GMLScriptContainer {
 	[propName: string]: GMLScript;
@@ -280,12 +281,12 @@ export class FileSystem {
 	 */
 	private projectResourceList: { [UUID: string]: Resource.GMResource };
 
-	private preferences_cache: any;
 	private workspaceFolder: WorkspaceFolder[];
 	private yypWatcher: chokidar.FSWatcher;
 	private resourceKeys: string[];
 	private originalYYP: YYP;
 	private cachedFileNames: string[];
+	private defaultView: number;
 
 	constructor(standardGrammar: Grammar, lsp: LangServ) {
 		this.objects = {};
@@ -577,13 +578,12 @@ export class FileSystem {
 			const finalView = this.walkViewTree(thisRoot);
 			this.views.push(finalView);
 
-			// // Add it to the default View
-			// if (thisRoot.isDefaultView) {
-			//     this.defaultView = finalView;
-			// }
+			// Add it to the default View
+			if (thisRoot.isDefaultView) {
+				this.defaultView = this.views.length - 1;
+			}
 		}
 
-		this.retrieveThisNodeChildren("16b21d61-0eb5-442b-a11c-6144a8725d42");
 	}
 
 	private walkViewTree(initialView: Resource.GMFolder): GMLFolder {
@@ -606,8 +606,8 @@ export class FileSystem {
 		}
 
 		finalView.children = newChildren;
-
 		return finalView;
+
 	}
 
 	private constructGMLFolderFromGMFolder(init: Resource.GMFolder): GMLFolder {
@@ -624,13 +624,39 @@ export class FileSystem {
 		};
 	}
 
-	public retrieveThisNodeChildren(nodeUUID: string) {
-		const result = this.searchViewsForUUID(this.views[0], nodeUUID);
-
-		return result;
+	private constructChildViewFromGMLFolder(thisResource: GMResourcePlus): ClientViewNode {
+		return {
+			id: thisResource.id,
+			modelName: thisResource.modelName,
+			name: thisResource.name,
+			fpath: this.createFPFromBase(thisResource)
+		}
 	}
 
-	private searchViewsForUUID(thisNode: GMResourcePlus, targetNodeUUID: string) {
+	public retrieveThisNodeChildren(nodeUUID: string): ClientViewNode[] {
+		const ourNode = this.searchViewsForUUID(this.views[this.defaultView], nodeUUID);
+		if (!ourNode) return null;
+
+		if (ourNode.modelName == "GMLFolder") {
+			let returnView: ClientViewNode[] = [];
+
+			for (const thisNode of ourNode.children) {
+				returnView.push(this.constructChildViewFromGMLFolder(thisNode));
+			}
+
+			return returnView;
+		} else if (ourNode.modelName == "GMObject") {
+			let returnView: ClientViewNode[] = [];
+
+			for (const thisEvent of ourNode.eventList) {
+				// TODO
+			}
+		}
+
+		return null;
+	}
+
+	private searchViewsForUUID(thisNode: GMResourcePlus, targetNodeUUID: string): GMResourcePlus {
 		if (thisNode.id == targetNodeUUID) {
 			return thisNode;
 		} else if (thisNode.modelName == "GMLFolder" && thisNode.children != null) {
@@ -642,7 +668,6 @@ export class FileSystem {
 			}
 			return result;
 		}
-
 		return null;
 	}
 	//#endregion
@@ -1104,13 +1129,13 @@ export class FileSystem {
 		}
 		console.log(
 			"NonGML file indexed by YYP? Serious error. \n" +
-				"This event: " +
-				thisEvent.eventtype +
-				"/" +
-				thisEvent.enumb +
-				"\n" +
-				"This directory: " +
-				dirPath
+			"This event: " +
+			thisEvent.eventtype +
+			"/" +
+			thisEvent.enumb +
+			"\n" +
+			"This directory: " +
+			dirPath
 		);
 		return null;
 	}
@@ -1141,6 +1166,49 @@ export class FileSystem {
 				);
 				return null;
 		}
+	}
+
+	private createFPFromBase(thisResource: GMResourcePlus) {
+		const resourcePath = this.modelNameToFileName(thisResource.modelName);
+
+		let relativePath;
+		// Early exit for silly views and notes, which don't have individual folders
+		// because Mark Alexander hates me (I blame him for this too).
+		if (resourcePath == "views") {
+			relativePath = path.join(resourcePath, thisResource.name + ".yy");
+		} else
+
+			// Handle Notes
+			if (resourcePath == "notes") {
+				relativePath = path.join(resourcePath, thisResource.name + ".txt");
+			} else
+
+				// Now we do normal execution for everyone else:
+				relativePath = path.join(resourcePath, thisResource.name, thisResource.name + ".yy");
+
+		return path.join(this.projectDirectory, relativePath);
+	}
+
+	private modelNameToFileName(mName: string): ResourceNames {
+		const ourMap = {
+			GMObject: "objects",
+			GMRoom: "rooms",
+			GMSprite: "sprites",
+			GMSound: "sounds",
+			GMPath: "paths",
+			GMFolder: "views",
+			GMLFolder: "views",
+			GMScript: "scripts",
+			GMFont: "fonts",
+			GMTimeline: "timelines",
+			GMTileSet: "tilesets",
+			GMNotes: "notes",
+			GMExtension: "extensions",
+			GMShader: "shaders",
+			GMIncludedFile: "datafiles_yy"
+		}
+
+		return ourMap[mName];
 	}
 	//#endregion
 
