@@ -8,7 +8,9 @@
 		"lib": ["es2018", "dom"],
 		"preserveConstEnums": true,
 		"declaration": true,
-		"declarationDir": "./out/declarations/"
+		"declarationDir": "./out/declarations/",
+		"sourceMap": true,
+		"sourceRoot": ""
 	},
 	"include": ["./src/**/*.ts"]
 }
