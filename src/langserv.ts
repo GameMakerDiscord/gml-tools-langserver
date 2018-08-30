@@ -71,16 +71,9 @@ export class LangServ {
 	}
 
 	//#region Init
-	public async beginIndex(workspaceFolder: WorkspaceFolder[]) {
+	public async workspaceBegin(workspaceFolder: WorkspaceFolder[]) {
 		// Let the FileSystem do its index thing...
 		await this.fsManager.initialWorkspaceFolders(workspaceFolder);
-
-		this.userSettings = await this.connection.workspace.getConfiguration({
-			section: "gml-tools"
-		});
-
-		// Assign our settings, per setting:
-		this.gmlHoverProvider.numberOfSentences = this.userSettings.numberOfDocumentationSentences;
 
 		// Check or Create the Manual:
 		let ourManual: GMLDocs.DocFile | null;
@@ -92,6 +85,7 @@ export class LangServ {
 			ourManual = JSON.parse(await this.fsManager.getCachedFileText("gmlDocs.json", "utf-8"));
 		}
 
+		// If we have a manual, load it into memory:
 		if (ourManual) {
 			// Load our Manual into Memory
 			this.reference.indexGMLDocs(ourManual);
@@ -102,10 +96,17 @@ export class LangServ {
 			}
 		}
 
-		// Clear out our open text documents and lint them:
-		for (const thisParam of this.originalOpenDocuments) {
-			this.openTextDocument(thisParam);
-		}
+		// Get our Configuration
+		this.userSettings = await this.connection.workspace.getConfiguration({
+			section: "gml-tools"
+		});
+
+		// Assign our settings, per setting:
+		this.gmlHoverProvider.numberOfSentences = this.userSettings.numberOfDocumentationSentences;
+	}
+
+	public async initialIndex() {
+		await this.fsManager.initialParseYYP();
 	}
 
 	public async findNewSettings(): Promise<{ [prop: string]: string }> {
@@ -282,7 +283,7 @@ export class LangServ {
 		diagnosticArray: Diagnostic[]
 	) {
 		// Run Semantics on Existing MatchResults.
-		const theseMatchResults= lintPackage.getMatchResults();
+		const theseMatchResults = lintPackage.getMatchResults();
 		if (theseMatchResults) {
 			await thisDiagnostic.runSemanticLintOperation(theseMatchResults);
 		}
@@ -396,7 +397,7 @@ export class LangServ {
 	//#endregion
 
 	//#region Type Service Calls
-	public async hoverOnHover(params: TextDocumentPositionParams): Promise<Hover|null> {
+	public async hoverOnHover(params: TextDocumentPositionParams): Promise<Hover | null> {
 		if (this.isServerReady() == false) return null;
 		return await this.gmlHoverProvider.provideHover(params);
 	}

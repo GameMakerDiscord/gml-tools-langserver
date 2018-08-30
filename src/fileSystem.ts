@@ -284,7 +284,7 @@ export class FileSystem {
 	private workspaceFolder: WorkspaceFolder[];
 	private yypWatcher: chokidar.FSWatcher | undefined;
 	private resourceKeys: string[];
-	private cachedFileNames: string[];
+	private cachedFileNames: string[] | undefined;
 	private defaultView: number;
 
 	constructor(standardGrammar: Grammar, lsp: LangServ) {
@@ -308,7 +308,6 @@ export class FileSystem {
 		this.topLevelDirectories = [];
 		this.projectYYPPath = "";
 		this.projectName = "";
-		this.cachedFileNames = [];
 		this.defaultView = 0;
 	}
 	//#region Initialization
@@ -318,7 +317,9 @@ export class FileSystem {
 
 		// Get our Directories
 		this.topLevelDirectories = await fse.readdir(this.projectDirectory);
+	}
 
+	public async initialParseYYP() {
 		// Attempt to Index by YYP
 		let yypDir = [];
 		for (const thisDir of this.topLevelDirectories) {
@@ -336,6 +337,7 @@ export class FileSystem {
 			return;
 		}
 
+		// Do We only have 1 YYFile? Good, we should only ahve one. 
 		if (yypDir.length == 1) {
 			this.projectYYPPath = path.join(this.projectDirectory, yypDir[0]);
 			this.projectName = path.basename(this.projectYYPPath, ".yyp");
@@ -349,7 +351,10 @@ export class FileSystem {
 			// basic set up:
 			this.projectYYP = JSON.parse(await fse.readFile(this.projectYYPPath, "utf8"));
 			if (this.projectYYP) {
+				// Index the YYP
 				await this.indexYYP(this.projectYYP, true);
+
+				// Notify your dingus user that their index is done:
 				this.lsp.connection.window.showInformationMessage(
 					"Index Complete. GML-Tools is in beta; always back up your project."
 				);
@@ -625,7 +630,11 @@ export class FileSystem {
 		};
 	}
 
-	public retrieveThisNodeChildren(nodeUUID: string): ClientViewNode[] | null {
+	public getInitialViews() {
+		return this.getThisViewsChildren(this.views[this.defaultView].id);
+	}
+
+	public getThisViewsChildren(nodeUUID: string): ClientViewNode[] | null {
 		const ourNode = this.searchViewsForUUID(this.views[this.defaultView], nodeUUID);
 		if (!ourNode) return [];
 
@@ -753,11 +762,11 @@ export class FileSystem {
 	private async initCheckCache() {
 		// Try to Read the Cache
 		if (this.topLevelDirectories.includes(".gml-tools")) {
-			this.cachedFileNames = await fse.readdir(path.join(this.projectDirectory, ".gml-tools"));
+			return await fse.readdir(path.join(this.projectDirectory, ".gml-tools"));
 		} else {
 			// Create the Cache:
 			await this.createCache(path.join(this.projectDirectory, ".gml-tools"));
-			this.cachedFileNames = [];
+			return [];
 		}
 	}
 
@@ -781,7 +790,7 @@ export class FileSystem {
 	public async isFileCached(fileName: string): Promise<boolean> {
 		// Make sure our Cache is initialized:
 		if (!this.cachedFileNames) {
-			await this.initCheckCache();
+			this.cachedFileNames = await this.initCheckCache();
 		}
 
 		return this.cachedFileNames.includes(fileName);

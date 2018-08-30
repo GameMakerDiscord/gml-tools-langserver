@@ -11,9 +11,11 @@ import {
 	CompletionItem,
 	CompletionList,
 	TextDocumentSyncKind,
-	DidChangeConfigurationNotification
+	DidChangeConfigurationNotification,
+	RequestType
 } from "vscode-languageserver/lib/main";
 import { LangServ } from "./langserv";
+import { ClientViewNode } from "./sharedTypes";
 
 // Create a connection for the server. The connection uses Node's IPC as a transport
 let connection: IConnection = createConnection(new IPCMessageReader(process), new IPCMessageWriter(process));
@@ -24,7 +26,7 @@ const lsp = new LangServ(connection);
 connection.onInitialize((params) => {
 	// Tell the FS to begin indexing
 	if (params.workspaceFolders) {
-		lsp.beginIndex(params.workspaceFolders);
+		lsp.workspaceBegin(params.workspaceFolders);
 	}
 
 	return {
@@ -59,6 +61,9 @@ connection.onInitialize((params) => {
 connection.onInitialized(() => {
 	// Register for configuration changes:
 	connection.client.register(DidChangeConfigurationNotification.type);
+
+	// Perform initial index:
+	lsp.initialIndex();
 });
 
 //#region Commands
@@ -110,6 +115,24 @@ connection.onExecuteCommand(async (params) => {
 			lsp.forceReIndex();
 			break;
 	}
+});
+
+connection.onRequest(new RequestType<string, ClientViewNode[], void, void>("getViewsAtUUID"), (uuid) => {
+	// If initial views
+	if (uuid == "init") {
+		const ourViews = lsp.fsManager.getInitialViews();
+		if (ourViews) {
+			return ourViews;
+		}
+	} else {
+		const ourViews = lsp.fsManager.getThisViewsChildren(uuid);
+		if (ourViews) {
+			return ourViews;
+		}
+	}
+
+	// Failure:
+	return [];
 });
 
 //#endregion
