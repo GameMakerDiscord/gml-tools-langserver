@@ -151,6 +151,7 @@ export namespace GMLToolsSettings {
 	export interface Config {
 		preferredSpellings: SpellingSettings;
 		numberOfDocumentationSentences: number;
+		[someString: string]: any;
 	}
 
 	export const enum SpellingSettings {

@@ -11,8 +11,9 @@ import {
 	TextDocumentContentChangeEvent,
 	TextDocumentPositionParams,
 	WorkspaceFolder,
-	Connection,
-	DidOpenTextDocumentParams
+	DidOpenTextDocumentParams,
+	CompletionParams,
+	CompletionItem
 } from "vscode-languageserver/lib/main";
 import { DiagnosticHandler, LintPackageFactory, DiagnosticsPackage, LintPackage } from "./diagnostic";
 import { Reference, IObjVar } from "./reference";
@@ -60,6 +61,12 @@ export class LangServ {
 		this.gmlSignatureProvider = new GMLSignatureProvider(this.reference, this.fsManager);
 		this.gmlCompletionProvider = new GMLCompletionProvider(this.reference, this.fsManager);
 		this.timer = new timeUtil();
+
+		// Basic User Settings
+		this.userSettings = {
+			numberOfDocumentationSentences: 1,
+			preferredSpellings: GMLToolsSettings.SpellingSettings.american
+		};
 		//#endregion
 	}
 
@@ -73,13 +80,10 @@ export class LangServ {
 		});
 
 		// Assign our settings, per setting:
-		this.gmlHoverProvider.numberOfSentences =
-			this.userSettings.numberOfDocumentationSentences == -1
-				? undefined
-				: this.userSettings.numberOfDocumentationSentences;
+		this.gmlHoverProvider.numberOfSentences = this.userSettings.numberOfDocumentationSentences;
 
 		// Check or Create the Manual:
-		let ourManual: GMLDocs.DocFile;
+		let ourManual: GMLDocs.DocFile | null;
 		let cacheManual = false;
 		if ((await this.fsManager.isFileCached("gmlDocs.json")) == false) {
 			ourManual = await this.documentationImporter.createManual();
@@ -113,7 +117,7 @@ export class LangServ {
 
 		// Iterate over to find our changed settings:
 		const ourSettings = Object.keys(newSettings);
-		let changedSettings = {};
+		let changedSettings: any = {};
 
 		for (const thisSetting of ourSettings) {
 			if (JSON.stringify(newSettings[thisSetting]) != JSON.stringify(this.userSettings[thisSetting])) {
@@ -125,7 +129,7 @@ export class LangServ {
 		return changedSettings;
 	}
 
-	public async updateSettings(changedSettings: { [key: string]: string }) {
+	public async updateSettings(changedSettings: { [key: string]: any }) {
 		const newSettings = Object.keys(changedSettings);
 
 		// Iterate on the settings
@@ -136,7 +140,7 @@ export class LangServ {
 					changedSettings[thisSetting] == GMLToolsSettings.SpellingSettings.british ||
 					changedSettings[thisSetting] == GMLToolsSettings.SpellingSettings.noPref
 				) {
-					this.userSettings.preferredSpellings = newSettings[thisSetting];
+					this.userSettings.preferredSpellings = changedSettings[thisSetting];
 
 					this.connection.window.showWarningMessage("Please Restart VSCode for Setting to Take Effect.");
 
@@ -149,12 +153,9 @@ export class LangServ {
 			}
 
 			if (thisSetting == "numberOfDocumentationSentences") {
-				this.userSettings.numberOfDocumentationSentences = newSettings[thisSetting];
+				this.userSettings.numberOfDocumentationSentences = changedSettings[thisSetting];
 				// Assign our settings, per setting:
-				this.gmlHoverProvider.numberOfSentences =
-					this.userSettings.numberOfDocumentationSentences == -1
-						? undefined
-						: this.userSettings.numberOfDocumentationSentences;
+				this.gmlHoverProvider.numberOfSentences = this.userSettings.numberOfDocumentationSentences;
 			}
 		}
 	}
@@ -169,7 +170,7 @@ export class LangServ {
 		// Commit to open Q if indexing still...
 		if (this.isServerReady() == false) {
 			this.originalOpenDocuments.push(params);
-			return null;
+			return;
 		}
 
 		const uri = params.textDocument.uri;
@@ -187,7 +188,7 @@ export class LangServ {
 	}
 
 	public async changedTextDocument(uri: string, contentChanges: Array<TextDocumentContentChangeEvent>) {
-		if (this.isServerReady() == false) return null;
+		if (this.isServerReady() == false) return;
 
 		// Find our Diagnostic:
 		const thisDiagnostic = await this.fsManager.getDiagnosticHandler(uri);
@@ -281,7 +282,10 @@ export class LangServ {
 		diagnosticArray: Diagnostic[]
 	) {
 		// Run Semantics on Existing MatchResults.
-		await thisDiagnostic.runSemanticLintOperation(lintPackage.getMatchResults());
+		const theseMatchResults= lintPackage.getMatchResults();
+		if (theseMatchResults) {
+			await thisDiagnostic.runSemanticLintOperation(theseMatchResults);
+		}
 		diagnosticArray = diagnosticArray.concat(thisDiagnostic.popSemanticDiagnostics());
 
 		return diagnosticArray;
@@ -289,7 +293,9 @@ export class LangServ {
 
 	public async semanticVariableIndex(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage) {
 		const thisURI = thisDiagnostic.getURI;
-		const varPackage = await thisDiagnostic.runSemanticIndexVariableOperation(lintPackage.getMatchResults());
+		const theseMatchResults = lintPackage.getMatchResults();
+		if (!theseMatchResults) return;
+		const varPackage = await thisDiagnostic.runSemanticIndexVariableOperation(theseMatchResults);
 		const URIInformation = await this.fsManager.getDocumentFolder(thisURI);
 
 		// Instance Variables
@@ -326,7 +332,9 @@ export class LangServ {
 	}
 
 	public async semanticEnumsAndMacros(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage) {
-		const enumsAndMacros = await thisDiagnostic.runSemanticEnumsAndMacros(lintPackage.getMatchResults());
+		const matches = lintPackage.getMatchResults();
+		if (!matches) return;
+		const enumsAndMacros = await thisDiagnostic.runSemanticEnumsAndMacros(matches);
 		const ourEnumsThisCycle = enumsAndMacros[0];
 		const ourMacosThisCycle = enumsAndMacros[1];
 
@@ -379,19 +387,21 @@ export class LangServ {
 	}
 
 	public async semanticJSDOC(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, docInfo: DocumentFolder) {
-		const ourJSDOC = await thisDiagnostic.runSemanticJSDOC(lintPackage.getMatchResults(), docInfo.name);
+		const matchResults = lintPackage.getMatchResults();
+		if (!matchResults) return;
+		const ourJSDOC = await thisDiagnostic.runSemanticJSDOC(matchResults, docInfo.name);
 
 		this.reference.scriptAddJSDOC(docInfo.name, ourJSDOC);
 	}
 	//#endregion
 
 	//#region Type Service Calls
-	public async hoverOnHover(params: TextDocumentPositionParams): Promise<Hover> {
+	public async hoverOnHover(params: TextDocumentPositionParams): Promise<Hover|null> {
 		if (this.isServerReady() == false) return null;
 		return await this.gmlHoverProvider.provideHover(params);
 	}
 
-	public onDefinitionRequest(params) {
+	public onDefinitionRequest(params: TextDocumentPositionParams) {
 		if (this.isServerReady() == false) return null;
 		return this.gmlDefinitionProvider.onDefinitionRequest(params);
 	}
@@ -401,13 +411,13 @@ export class LangServ {
 		return await this.gmlSignatureProvider.onSignatureRequest(params);
 	}
 
-	public onCompletionRequest(params) {
+	public onCompletionRequest(params: CompletionParams) {
 		if (this.isServerReady() == false) return null;
 		return this.gmlCompletionProvider.onCompletionRequest(params);
 	}
 
-	public async onCompletionResolveRequest(params) {
-		if (this.isServerReady() == false) return null;
+	public async onCompletionResolveRequest(params: CompletionItem) {
+		if (this.isServerReady() == false) return params;
 		return await this.gmlCompletionProvider.onCompletionResolveRequest(params);
 	}
 
@@ -473,7 +483,7 @@ export class LangServ {
 
 	public async addEvents(eventsPackage: { uri: string; events: string }) {
 		let eventsArray = eventsPackage.events.toLowerCase().split(",");
-		eventsArray = eventsArray.map(function (x) {
+		eventsArray = eventsArray.map(function(x) {
 			return x.trim();
 		});
 

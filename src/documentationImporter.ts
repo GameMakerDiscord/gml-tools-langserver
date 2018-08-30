@@ -13,7 +13,6 @@ import * as cheerio from "cheerio";
  */
 export class DocumentationImporter {
 	private lsp: LangServ;
-	private reference: Reference;
 	private functionValidator: Ajv.ValidateFunction;
 	private variableValidator: Ajv.ValidateFunction;
 	private UKSpellings: {
@@ -23,7 +22,6 @@ export class DocumentationImporter {
 	private UKSpellingsA: string[];
 	constructor(lsp: LangServ, reference: Reference) {
 		this.lsp = lsp;
-		this.reference = reference;
 
 		// Create our Schema Validators
 		// const docsSchema = JSON.parse(fse.readFileSync(path.join(__dirname, path.normalize("../lib/schema/gmlDocsSchema.json")), "utf-8"));
@@ -38,7 +36,7 @@ export class DocumentationImporter {
 		let check;
 		try {
 			check = ajv.getSchema("http://json-schema.org/draft-06/schema");
-		} catch (error) { }
+		} catch (error) {}
 		if (!check) {
 			ajv.addMetaSchema(require("ajv/lib/refs/json-schema-draft-06.json"));
 		}
@@ -54,7 +52,7 @@ export class DocumentationImporter {
 		this.UKSpellingsA = Object.getOwnPropertyNames(this.UKSpellings);
 	}
 
-	public async createManual(): Promise<GMLDocs.DocFile> {
+	public async createManual(): Promise<GMLDocs.DocFile | null> {
 		// Get our path to the GMS2 Program folder. If nothing there,
 		// exit early.
 		const gms2FPath = await this.getManualPath();
@@ -75,7 +73,7 @@ export class DocumentationImporter {
 			functions: [],
 			variables: []
 		};
-		let failureList = {
+		let failureList: { [stupid: string]: string[] } = {
 			"May have been parsed incorrectly:": [],
 			"Was not Parsed; likely not a function:": []
 		};
@@ -125,14 +123,14 @@ export class DocumentationImporter {
 					},
 					name: "",
 					parameters: [],
-					minParameters: null,
-					maxParameters: null,
+					minParameters: -999,
+					maxParameters: 999,
 					return: "",
 					signature: "",
 					link: "https://docs2.yoyogames.com/" + thisZipEntry.entryName
 				};
 
-				let resourceType: GMLDocs.DocType;
+				let resourceType: GMLDocs.DocType | undefined;
 
 				try {
 					const docType = $("h3");
@@ -141,9 +139,10 @@ export class DocumentationImporter {
 					if (docType.length >= 3) {
 						docType.each((i, element) => {
 							let lastNode = this.loopTilData(element);
-							let data = "";
+							let data: string | undefined = "";
 							if (lastNode) data = lastNode.data;
 
+							// Get rid of undefined
 							if (data === undefined) {
 								return;
 							}
@@ -155,7 +154,7 @@ export class DocumentationImporter {
 								for (let i = 0; i < ourSignature.childNodes.length; i++) {
 									const thisChild = ourSignature.childNodes[i];
 									const thisData = this.loopTilData(thisChild);
-									if (thisData) {
+									if (thisData && thisData.data) {
 										thisFunction.signature += thisData.data.trim();
 									}
 
@@ -218,7 +217,10 @@ export class DocumentationImporter {
 
 							if (data.includes("Returns")) {
 								// Jump forward in the HTML two lines. This is really stupid if it works on everything.
-								thisFunction.return = element.next.next.firstChild.data;
+								const possibleReturn = element.next.next.firstChild.data;
+								if (possibleReturn) {
+									thisFunction.return = possibleReturn;
+								}
 							}
 
 							if (data.includes("Description")) {
@@ -236,16 +238,23 @@ export class DocumentationImporter {
 													output += thisGrandChild.data;
 												} else if (thisGrandChild.name == "a") {
 													let referenceName = this.loopTilData(thisGrandChild);
-
-													const link = thisGrandChild.attribs["href"];
-													output += "[" + referenceName.data + "](" + link + ")";
+													if (referenceName && referenceName.data) {
+														const link = thisGrandChild.attribs["href"];
+														output += "[" + referenceName.data + "](" + link + ")";
+													}
 												} else if (thisGrandChild.name == "b") {
-													output += "**" + this.loopTilData(thisGrandChild).data + "**";
+													const thisGrand = this.loopTilData(thisGrandChild);
+													if (thisGrand && thisGrand.data) {
+														output += "**" + thisGrand.data + "**";
+													}
 												} else if (thisGrandChild.name == "i") {
-													output += "*" + this.loopTilData(thisGrandChild).data + "*";
+													const thisGrand = this.loopTilData(thisGrandChild);
+													if (thisGrand && thisGrand.data) {
+														output += "*" + thisGrand.data + "*";
+													}
 												} else {
 													const isData = this.loopTilData(thisGrandChild);
-													if (isData) {
+													if (isData && isData.data) {
 														output += isData.data;
 													}
 												}
@@ -306,8 +315,11 @@ export class DocumentationImporter {
 							const returns = this.loopTilData(element);
 
 							if (returns && returns.data == "Returns:") {
-								thisFunction.return = element.childNodes[1].data.trim();
-								return;
+								const check = element.childNodes[1].data;
+								if (check) {
+									thisFunction.return = check.trim();
+									return;
+								}
 							}
 						});
 					}
@@ -421,12 +433,11 @@ export class DocumentationImporter {
 							thisParam.documentation = this.clearLineTerminators(thisParam.documentation);
 						}
 
-
 						// HARDCODED CHECKS: One day we'll abstract there, but here are errors we couldn't fix.
 						if (hardCodedChecks.includes(thisFunction.name)) {
 							const h2 = $("h2");
 							const ourText = this.loopTilData(h2[0]);
-							if (ourText) {
+							if (ourText && ourText.data) {
 								thisFunction.name = ourText.data;
 							}
 						}

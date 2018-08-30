@@ -119,10 +119,15 @@ export class GMLHoverProvider {
 		rMarkup.push(jsdoc.returns == "" ? "" : "\n\n" + "*@returns* " + jsdoc.returns);
 
 		// Documentation
-		let desc =
-			jsdoc.description == "" ? "" : "\n\n" + jsdoc.description.split(".", this.numberOfSentences).join(".");
-		desc += jsdoc.link === undefined ? "" : " " + "[Documentation.](" + jsdoc.link + ")";
-		rMarkup.push(desc);
+		if (jsdoc.description) {
+			let desc = "\n\n" + jsdoc.description;
+			if (this.numberOfSentences != -1) {
+				desc = desc.split(".", this.numberOfSentences).join(".");
+			}
+
+			desc += jsdoc.link === undefined ? "" : " " + "[Documentation.](" + jsdoc.link + ")";
+			rMarkup.push(desc);
+		}
 
 		return { contents: rMarkup };
 	}

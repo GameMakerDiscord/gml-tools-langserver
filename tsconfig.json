@@ -1,7 +1,12 @@
 {
 	"compilerOptions": {
 		"noImplicitReturns": true,
-		"target": "es2018",
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitAny": true,
+		"noUnusedLocals": true,
+		"strict": true,
+		"alwaysStrict": true,
+		"target": "es6",
 		"module": "commonjs",
 		"moduleResolution": "node",
 		"outDir": "out",
@@ -10,7 +15,7 @@
 		"declaration": true,
 		"declarationDir": "./out/declarations/",
 		"sourceMap": true,
-		"sourceRoot": ""
+		"sourceRoot": "C:/Node Projects/gml-tools-ls/src/"
 	},
 	"include": ["./src/**/*.ts"]
 }

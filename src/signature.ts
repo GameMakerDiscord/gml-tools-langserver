@@ -16,7 +16,9 @@ export class GMLSignatureProvider {
 	public async onSignatureRequest(params: TextDocumentPositionParams): Promise<SignatureHelp | null> {
 		const uri = params.textDocument.uri;
 		const tokenList = await (await this.fs.getDiagnosticHandler(uri)).getTokenList();
-		const thisPos = getIndexFromPosition(await this.fs.getDocument(uri), params.position);
+		const thisDoc = await this.fs.getDocument(uri);
+		if (!thisDoc) return null;
+		const thisPos = getIndexFromPosition(thisDoc, params.position);
 
 		//Early exit for very first word!
 		if (tokenList.length == 0) return null;
@@ -36,7 +38,7 @@ export class GMLSignatureProvider {
 		let ourCommas = 0;
 		let functionDepth = 0;
 		let state: SignatureWalkState = SignatureWalkState.FINAL_OPEN;
-		let ourFunc: Token = null;
+		let ourFunc: Token|undefined;
 
 		// Iterate backwards:
 		for (let i = thisIndex; i > -1; i--) {
@@ -94,7 +96,7 @@ export class GMLSignatureProvider {
 
 		if (ourFunc) {
 			// Find our word
-			const textDocument = normalizeEoLSequences(await this.fs.getDocument(uri));
+			const textDocument = normalizeEoLSequences(thisDoc);
 			const thisWord = await getWordAtIndex(textDocument, ourFunc.startIdx);
 
 			// Get

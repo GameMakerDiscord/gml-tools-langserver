@@ -59,7 +59,7 @@ export class GMLCompletionProvider {
         const docInformation = await this.fs.getDocumentFolder(params.textDocument.uri);
 
         // Iterate on the Instance Variables:
-        if (docInformation.type == ResourceType.Object) {
+        if (docInformation && docInformation.type == ResourceType.Object) {
             const variableList = this.reference.getAllObjectVariables(docInformation.name);
 
             for (const thisVar of variableList) {

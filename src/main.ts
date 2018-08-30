@@ -23,8 +23,10 @@ const lsp = new LangServ(connection);
 // Initalize the Server
 connection.onInitialize((params) => {
 	// Tell the FS to begin indexing
-	lsp.beginIndex(params.workspaceFolders);
-	
+	if (params.workspaceFolders) {
+		lsp.beginIndex(params.workspaceFolders);
+	}
+
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
@@ -97,7 +99,11 @@ connection.onExecuteCommand(async (params) => {
 
 		case "GMLTools.compileExport":
 			const ourExports: any = await connection.sendRequest("compileExport");
-			lsp.beginCompile(ourExports.type === "Zip" ? "zip" : "installer", ourExports.yyc === "YYC", "project_name.zip");
+			lsp.beginCompile(
+				ourExports.type === "Zip" ? "zip" : "installer",
+				ourExports.yyc === "YYC",
+				"project_name.zip"
+			);
 			break;
 
 		case "GMLTools.forceReindex":

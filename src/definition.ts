@@ -47,7 +47,7 @@ export class GMLDefinitionProvider {
         // Scripts
         if (this.reference.scriptExists(thisWord)) {
             const scriptPack = this.reference.scriptGetScriptPackage(thisWord);
-            if (scriptPack.JSDOC.isScript) {
+            if (scriptPack.JSDOC.isScript && scriptPack.uri) {
                 return Location.create(scriptPack.uri.toString(), Range.create(0, 0, 0, 0));
             }
         }
@@ -70,11 +70,14 @@ export class GMLDefinitionProvider {
 
         // Last Ditch -- are we a variable of this object itself?
         const fs: FileSystem = this.lsp.requestLanguageServiceHandler(LanguageService.FileSystem);
-        const ourObject = [(await fs.getDocumentFolder(params.textDocument.uri)).name, thisWord];
-        const foundVar = await this.objectVariableLocation(ourObject);
+        const docInfo = await fs.getDocumentFolder(params.textDocument.uri);
+        if (docInfo) {
+            const ourObject = [docInfo.name, thisWord];
+            const foundVar = await this.objectVariableLocation(ourObject);
 
-        if (foundVar) {
-            return foundVar;
+            if (foundVar) {
+                return foundVar;
+            }
         }
 
         return null;

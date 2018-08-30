@@ -72,7 +72,7 @@ export abstract class LintPackageFactory {
 	}
 	static createBlank(): LintPackage {
 		let diag: Diagnostic[] = [];
-		let matchRes: MatchResultsPackage[] = undefined;
+		let matchRes: undefined = undefined;
 
 		return new LintPackage(diag, matchRes);
 	}
@@ -103,9 +103,9 @@ export interface MacroPackage {
 
 export class LintPackage {
 	private diagnostics: Diagnostic[];
-	private matchResults: MatchResultsPackage[];
+	private matchResults: MatchResultsPackage[] | undefined;
 
-	constructor(diag: Diagnostic[], matchRess: MatchResultsPackage[]) {
+	constructor(diag: Diagnostic[], matchRess: MatchResultsPackage[] | undefined) {
 		this.diagnostics = diag;
 		this.matchResults = matchRess;
 	}
@@ -174,12 +174,23 @@ export class DiagnosticHandler {
 		this.semanticIndex = 0;
 		this.currentFullTextDocument = "";
 		this.actionDictionaries = [];
+		this.instanceQuickCheck = [];
+		this.localQuickCheck = [];
+		this.globalQuickCheck = [];
+		this.enumsAddedThisCycle = [];
+		this.macrosAddedThisCycle = [];
+		this.tokenList = [];
+		this.jsdocGenerated = {
+			description: "",
+			isScript: true,
+			maxParameters: 999,
+			minParameters: -999,
+			parameters: [],
+			returns: "",
+			signature: ""
+		}
 
-		this.initActionDictionaries(grammar);
-	}
-
-	private initActionDictionaries(grammar: Grammar) {
-		// Add Action-Dictionary:
+		// Init the Grammar:
 		this.actionDictionaries.push({
 			name: "lint",
 			actionDict: {
@@ -206,7 +217,7 @@ export class DiagnosticHandler {
 						this.functionStack.push({
 							name: funcName,
 							interval: funcId.source,
-							isScript: null,
+							isScript: false,
 							exists: false
 						});
 					}
@@ -238,91 +249,93 @@ export class DiagnosticHandler {
 					}
 
 					// Pop our function...
-					var currentFunc = this.functionStack.pop();
+					const currentFunc = this.functionStack.pop();
 
 					// If our function doesn't exist, we call an error on the whole function...
-					if (currentFunc.exists == false) {
-						let eMessage = 'Unknown function/script "' + currentFunc.name + '".';
-						this.semanticDiagnostics.push(
-							this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
-						);
-					}
-					// Confirm we have the right number of arguments...
-					else {
-						// First we push an error if the Array is longer than the number of arguments we want:
-						// This is for the case of `two_arg_function(arg0, arg1,  )` where an extra comma/blank
-						// argument is present.
-						if (providedArguments.length > currentFunc.maxParams) {
-							const eMessage =
-								"Expected " +
-								currentFunc.maxParams +
-								" arguments, but got " +
-								providedArguments.length +
-								".";
+					if (currentFunc) {
+						if (currentFunc.exists == false) {
+							let eMessage = 'Unknown function/script "' + currentFunc.name + '".';
 							this.semanticDiagnostics.push(
 								this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
 							);
 						}
-
-						// Next, we find the number of empty arguments. We do this both so `two_arg_func(arg0, )`
-						// correctly errors and `three_arg(arg0, , arg2)` errors.
-
-						// Create an Array of boolean and a running total of non-empty arguments. Once we
-						// encounter an empty argument, we stop counting arguments, and we check if we are at
-						// a sufficient number of arguments.
-						let argsAreEmpty: boolean[] = [],
-							nonEmptyArgs = 0,
-							combo = true;
-
-						for (const thisArg of providedArguments) {
-							const check = thisArg == "";
-							argsAreEmpty.push(check);
-
-							// Increment or Break our Combo here:
-							if (!check && combo) {
-								nonEmptyArgs++;
-							} else {
-								combo = false;
+						// Confirm we have the right number of arguments...
+						else if (currentFunc.maxParams && currentFunc.minParams) {
+							// First we push an error if the Array is longer than the number of arguments we want:
+							// This is for the case of `two_arg_function(arg0, arg1,  )` where an extra comma/blank
+							// argument is present.
+							if (providedArguments.length > currentFunc.maxParams) {
+								const eMessage =
+									"Expected " +
+									currentFunc.maxParams +
+									" arguments, but got " +
+									providedArguments.length +
+									".";
+								this.semanticDiagnostics.push(
+									this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
+								);
 							}
-						}
 
-						// Check how many nonEmptyArgs we have, and if it's enough (we don't check
-						// for ">" because the first check should have caught it):
-						if (nonEmptyArgs < currentFunc.minParams) {
-							const eMessage =
-								"Expected " + currentFunc.minParams + " arguments, but got " + nonEmptyArgs + ".";
+							// Next, we find the number of empty arguments. We do this both so `two_arg_func(arg0, )`
+							// correctly errors and `three_arg(arg0, , arg2)` errors.
 
-							// Create our Diagnostic:
-							this.semanticDiagnostics.push(
-								this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
-							);
-						}
+							// Create an Array of boolean and a running total of non-empty arguments. Once we
+							// encounter an empty argument, we stop counting arguments, and we check if we are at
+							// a sufficient number of arguments.
+							let argsAreEmpty: boolean[] = [],
+								nonEmptyArgs = 0,
+								combo = true;
 
-						// Finally, check if we've got a blank and send an "expression needed" error
-						// to the sorry bastard
-						const eMessage = "Argument expression expected.";
-						for (let i = 0, l = argsAreEmpty.length; i < l; i++) {
-							const thisArgIsEmpty = argsAreEmpty[i];
+							for (const thisArg of providedArguments) {
+								const check = thisArg == "";
+								argsAreEmpty.push(check);
 
-							if (thisArgIsEmpty) {
-								if (i == 0) {
-									this.semanticDiagnostics.push(
-										this.getFunctionDiagnostic(
-											this.currentFullTextDocument,
-											iterArray[0],
-											currentFunc,
-											eMessage
-										)
-									);
+								// Increment or Break our Combo here:
+								if (!check && combo) {
+									nonEmptyArgs++;
 								} else {
-									this.semanticDiagnostics.push(
-										this.getFunctionDiagnostic(
-											this.currentFullTextDocument,
-											iterArray[2].child(i - 1),
-											currentFunc,
-											eMessage
-										)
-									);
+									combo = false;
+								}
+							}
+
+							// Check how many nonEmptyArgs we have, and if it's enough (we don't check
+							// for ">" because the first check should have caught it):
+							if (nonEmptyArgs < currentFunc.minParams) {
+								const eMessage =
+									"Expected " + currentFunc.minParams + " arguments, but got " + nonEmptyArgs + ".";
+
+								// Create our Diagnostic:
+								this.semanticDiagnostics.push(
+									this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
+								);
+							}
+
+							// Finally, check if we've got a blank and send an "expression needed" error
+							// to the sorry bastard
+							const eMessage = "Argument expression expected.";
+							for (let i = 0, l = argsAreEmpty.length; i < l; i++) {
+								const thisArgIsEmpty = argsAreEmpty[i];
+
+								if (thisArgIsEmpty) {
+									if (i == 0) {
+										this.semanticDiagnostics.push(
+											this.getFunctionDiagnostic(
+												this.currentFullTextDocument,
+												iterArray[0],
+												currentFunc,
+												eMessage
+											)
+										);
+									} else {
+										this.semanticDiagnostics.push(
+											this.getFunctionDiagnostic(
+												this.currentFullTextDocument,
+												iterArray[2].child(i - 1),
+												currentFunc,
+												eMessage
+											)
+										);
+									}
 								}
 							}
 						}
@@ -338,7 +351,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
@@ -392,7 +405,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
@@ -439,7 +452,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
@@ -460,13 +473,13 @@ export class DiagnosticHandler {
 				},
 
 				jsdocParam: (decl, _, typeDecl: Node, _1, paramEntry: Node) => {
-					const ourType = typeDecl.sourceString;
+					// const ourType = typeDecl.sourceString;
 					const ourParam = paramEntry.sourceString;
 
 					// Set up
 					let thisParam: JSDOCParameter = {
 						documentation: "",
-						label: "",
+						label: ""
 					};
 
 					// // Add a type
@@ -476,8 +489,10 @@ export class DiagnosticHandler {
 
 					// Add our ParamEntry's first word
 					const ourWords = ourParam.match(/\S+/g);
-					thisParam.label = ourWords[0];
-					thisParam.documentation = ourWords.slice(1, ourWords.length).join(" ");
+					if (ourWords) {
+						thisParam.label = ourWords[0];
+						thisParam.documentation = ourWords.slice(1, ourWords.length).join(" ");
+					}
 
 					// Push it all:
 					this.jsdocGenerated.parameters.push(thisParam);
@@ -511,7 +526,7 @@ export class DiagnosticHandler {
 					for (const thisArg of args) {
 						this.jsdocGenerated.parameters.push({
 							label: thisArg,
-							documentation: "",
+							documentation: ""
 							// type: ""
 						});
 					}
@@ -542,7 +557,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}

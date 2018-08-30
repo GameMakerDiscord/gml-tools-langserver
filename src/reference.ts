@@ -2,7 +2,7 @@ import { Range, Location } from "vscode-languageserver/lib/main";
 import { JSDOC } from "./fileSystem";
 import { VariablesPackage, GMLVariableLocation } from "./diagnostic";
 import URI from "vscode-uri/lib/umd";
-import { IGMLDocumentation, GMLDocs } from "./declarations";
+import { GMLDocs } from "./declarations";
 
 export interface IScriptsAndFunctions {
 	[key: string]: IEachScript;
@@ -10,8 +10,8 @@ export interface IScriptsAndFunctions {
 
 export interface IEachScript {
 	JSDOC: JSDOC;
-	uri: URI;
-	callBackLocation: number;
+	uri?: URI;
+	callBackLocation?: number;
 	isBritish?: boolean;
 }
 
@@ -82,7 +82,7 @@ export class Reference {
 	private scriptsAndFunctions: IScriptsAndFunctions;
 	private scriptsAndFunctionsList: Array<string>;
 	private globalVariables: IVars;
-	private gmlDocs: GMLDocs.DocFile;
+	private gmlDocs: GMLDocs.DocFile | undefined;
 	private enums: IEnums;
 	private enum2URI: enum2uri;
 	private macros: IMacros;
@@ -101,7 +101,6 @@ export class Reference {
 	public paths: string[];
 
 	constructor() {
-		this.gmlDocs = null;
 		this.objects = {};
 		this.objectList = [];
 		this.localVariableDictionary = {};
@@ -140,7 +139,7 @@ export class Reference {
 				link: thisFunction.link
 			};
 			// Add to the Reference Chart
-			this.scriptAddScript(thisFunction.name, null, jsdoc, thisFunction.doNotAutoComplete);
+			this.scriptAddScript(thisFunction.name, undefined, jsdoc, thisFunction.doNotAutoComplete);
 		}
 	}
 
@@ -179,15 +178,11 @@ export class Reference {
 		this.sprites = [];
 		this.allResourceNames = [];
 
-		this.indexGMLDocs(this.gmlDocs);
+		if (this.gmlDocs) this.indexGMLDocs(this.gmlDocs);
 	}
 	//#endregion
 
 	//#region Local Variables
-	private localAddLocalURI(uri: string) {
-		this.localVariableDictionary[uri] = [];
-	}
-
 	public localAddVariables(uri: string, locals: GMLVariableLocation[]) {
 		this.localVariableDictionary[uri] = [];
 
@@ -210,22 +205,25 @@ export class Reference {
 
 		let exists = false;
 
-		for (const thisLocal of allLocals) {
-			if (thisLocal.value == name) {
-				exists = true;
-				break;
+		if (allLocals) {
+			for (const thisLocal of allLocals) {
+				if (thisLocal.value == name) {
+					exists = true;
+					break;
+				}
 			}
 		}
-
 		return exists;
 	}
 
 	public localGetLocation(uri: string, name: string) {
 		const allLocals = this.getAllLocalsAtURI(uri);
 
-		for (const thisLocal of allLocals) {
-			if (thisLocal.value == name) {
-				return thisLocal.location;
+		if (allLocals) {
+			for (const thisLocal of allLocals) {
+				if (thisLocal.value == name) {
+					return thisLocal.location;
+				}
 			}
 		}
 		return null;
@@ -233,19 +231,19 @@ export class Reference {
 	//#endregion
 
 	//#region Scripts
-	public scriptAddScript(name: string, uri: URI, jsdoc?: JSDOC, doNotAutocomplete?: boolean) {
+	public scriptAddScript(name: string, uri?: URI, jsdoc?: JSDOC, doNotAutocomplete?: boolean) {
 		this.scriptsAndFunctions[name] = {
 			JSDOC: jsdoc || {
-				description: null,
+				description: "",
 				isScript: true,
 				minParameters: 0,
 				maxParameters: 9999,
-				parameters: null,
-				returns: null,
-				signature: null
+				parameters: [],
+				returns: "",
+				signature: ""
 			},
 			uri: uri,
-			callBackLocation: doNotAutocomplete === undefined ? this.scriptsAndFunctionsList.push(name) : null,
+			callBackLocation: doNotAutocomplete === undefined ? this.scriptsAndFunctionsList.push(name) : -1,
 			isBritish: doNotAutocomplete
 		};
 	}
