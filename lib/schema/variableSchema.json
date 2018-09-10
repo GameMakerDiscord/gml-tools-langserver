@@ -7,28 +7,38 @@
 			"additionalProperties": false,
 			"properties": {
 				"name": {
-					"$ref": "#/definitions/non-empty-string"
+					"$ref": "#/definitions/non-empty-string",
+					"description": "This is the name of the variable as it will appear in any script, not as a full location. So use `attackValue` not `objPlayer.attackValue`."
 				},
 				"example": {
 					"$ref": "#/definitions/Example"
 				},
 				"documentation": {
-					"type": "string"
+					"type": "string",
+					"description": "This is the basic documentation for any variable."
 				},
 				"type": {
-					"type": "string"
+					"type": "string",
+					"description": "The type of the variable, i.e. 'array' or 'int'. GMS2 programmers do not have a standard way to refer to types."
 				},
 				"link": {
-					"$ref": "#/definitions/non-empty-string"
+					"$ref": "#/definitions/non-empty-string",
+					"description": "Used for built-in variables to a documentation page. If you are loading documentation with an external database, you can link to it here."
 				},
 				"object": {
-					"type": "string"
+					"type": "string",
+					"description": "Name of the object the instance belongs to. For a built-in variable, use '*'."
 				},
 				"isBritish": {
-					"type": "boolean"
+					"type": "boolean",
+					"description": "Used in built-in variables which are idiotically British."
 				}
 			},
-			"required": ["documentation", "example", "name", "type", "object"],
+			"required": [
+				"documentation",
+				"name",
+				"object"
+			],
 			"title": "Variable"
 		},
 		"Example": {
@@ -42,7 +52,10 @@
 					"type": "string"
 				}
 			},
-			"required": ["code", "description"],
+			"required": [
+				"code",
+				"description"
+			],
 			"title": "Example"
 		},
 		"non-empty-string": {

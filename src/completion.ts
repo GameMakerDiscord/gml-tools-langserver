@@ -310,8 +310,10 @@ export class GMLCompletionProvider {
 
     private resolveMacro(thisItem: CompletionItem) {
         if (this.reference.macroExists(thisItem.label)) {
-            const thisMacro = this.reference.getMacroValue(thisItem.label);
-            thisItem.detail = "(macro) " + thisItem.label + " == " + thisMacro;
+            const thisMacro = this.reference.macroGetMacroInformation(thisItem.label);
+            if (thisMacro) {
+                thisItem.detail = "(macro) " + thisItem.label + " == " + thisMacro.value.trim();
+            }
         }
         return thisItem;
     }

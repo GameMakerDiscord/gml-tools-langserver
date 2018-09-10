@@ -31,7 +31,7 @@ export function getWordAtIndex(str: string, pos: number): any {
 
 	// Search for the word's beginning and end.
 	const leftArray = str.slice(0, pos + 1).match(/\W*([A-Za-z0-9_.]+$)/);
-	if (!leftArray || !leftArray.index) return null;
+	if (!leftArray || leftArray.index === undefined) return null;
 	let leftNonWords = leftArray[0].length - leftArray[1].length;
 
 	const left = leftArray.index + leftNonWords;

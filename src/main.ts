@@ -12,21 +12,24 @@ import {
 	CompletionList,
 	TextDocumentSyncKind,
 	DidChangeConfigurationNotification,
-	RequestType
+	RequestType,
+	RequestType0
 } from "vscode-languageserver/lib/main";
 import { LangServ } from "./langserv";
-import { ClientViewNode } from "./sharedTypes";
+import { ClientViewNode, EventsPackage } from "./sharedTypes";
+import { CreateObjPackage } from "./declarations";
 
 // Create a connection for the server. The connection uses Node's IPC as a transport
 let connection: IConnection = createConnection(new IPCMessageReader(process), new IPCMessageWriter(process));
 
-const lsp = new LangServ(connection);
+const ls = new LangServ(connection);
 
 // Initalize the Server
 connection.onInitialize((params) => {
 	// Tell the FS to begin indexing
+	// We've got no backup plan if the client doesn't support Workspaces!
 	if (params.workspaceFolders) {
-		lsp.workspaceBegin(params.workspaceFolders);
+		ls.workspaceBegin(params.workspaceFolders);
 	}
 
 	return {
@@ -42,6 +45,7 @@ connection.onInitialize((params) => {
 			signatureHelpProvider: {
 				triggerCharacters: ["(", ","]
 			},
+			foldingRangeProvider: true,
 
 			executeCommandProvider: {
 				commands: [
@@ -63,48 +67,52 @@ connection.onInitialized(() => {
 	connection.client.register(DidChangeConfigurationNotification.type);
 
 	// Perform initial index:
-	lsp.initialIndex();
+	ls.initialIndex();
 });
 
 //#region Commands
+const CREATE_OBJECT = new RequestType<{ sprites: string[] }, CreateObjPackage | null, void, void>("createObject");
+const CREATE_SCRIPT = new RequestType0<string | null, void, void>("createScript");
+const ADD_EVENTS = new RequestType0<EventsPackage | null, void, void>("addEvents");
+
 connection.onExecuteCommand(async (params) => {
 	switch (params.command) {
 		case "GMLTools.createObject":
-			const ourSprites = lsp.reference.spriteGetAllSprites().slice();
+			const ourSprites = ls.reference.spriteGetAllSprites().slice();
 			ourSprites.push("No Sprite");
-			const objInfo: any = await connection.sendRequest("createObject", { sprites: ourSprites });
+			const objInfo = await connection.sendRequest(CREATE_OBJECT, { sprites: ourSprites });
 
 			// Actually Create the Object
 			if (objInfo) {
-				lsp.createObject(objInfo);
+				ls.createObject(objInfo);
 			}
 			break;
 
 		case "GMLTools.createScript":
-			const myScript: any = await connection.sendRequest("createScript");
+			const myScript = await connection.sendRequest(CREATE_SCRIPT);
 
 			// Actually Create the Script
 			if (myScript) {
-				lsp.createScript(myScript);
+				ls.createScript(myScript);
 			}
 			break;
 
 		case "GMLTools.addEvents":
-			const ourEvents: any = await connection.sendNotification("addEvents");
-			lsp.addEvents(ourEvents);
+			const ourEvents: any = await connection.sendRequest(ADD_EVENTS);
+			ls.addEvents(ourEvents);
 			break;
 
 		case "GMLTools.compileTestVM":
-			lsp.beginCompile("test", false);
+			ls.beginCompile("test", false);
 			break;
 
 		case "GMLTools.compileTestYYC":
-			lsp.beginCompile("test", true);
+			ls.beginCompile("test", true);
 			break;
 
 		case "GMLTools.compileExport":
 			const ourExports: any = await connection.sendRequest("compileExport");
-			lsp.beginCompile(
+			ls.beginCompile(
 				ourExports.type === "Zip" ? "zip" : "installer",
 				ourExports.yyc === "YYC",
 				"project_name.zip"
@@ -112,7 +120,7 @@ connection.onExecuteCommand(async (params) => {
 			break;
 
 		case "GMLTools.forceReindex":
-			lsp.forceReIndex();
+			ls.forceReIndex();
 			break;
 	}
 });
@@ -120,12 +128,12 @@ connection.onExecuteCommand(async (params) => {
 connection.onRequest(new RequestType<string, ClientViewNode[], void, void>("getViewsAtUUID"), (uuid) => {
 	// If initial views
 	if (uuid == "init") {
-		const ourViews = lsp.fsManager.getInitialViews();
+		const ourViews = ls.fsManager.viewsGetInitialViews();
 		if (ourViews) {
 			return ourViews;
 		}
 	} else {
-		const ourViews = lsp.fsManager.getThisViewsChildren(uuid);
+		const ourViews = ls.fsManager.viewsGetThisViewClient(uuid);
 		if (ourViews) {
 			return ourViews;
 		}
@@ -140,45 +148,49 @@ connection.onRequest(new RequestType<string, ClientViewNode[], void, void>("getV
 //#region Type Services:
 connection.onCompletion(
 	async (params): Promise<CompletionList | CompletionItem[] | null> => {
-		return await lsp.onCompletionRequest(params);
+		return await ls.onCompletionRequest(params);
 	}
 );
 connection.onCompletionResolve(
 	async (params): Promise<CompletionItem> => {
-		return await lsp.onCompletionResolveRequest(params);
+		return await ls.onCompletionResolveRequest(params);
 	}
 );
 connection.onSignatureHelp(async (params) => {
-	return await lsp.onSignatureRequest(params);
+	return await ls.onSignatureRequest(params);
 });
 
 connection.onHover((params) => {
-	return lsp.hoverOnHover(params);
+	return ls.hoverOnHover(params);
 });
 
 connection.onDefinition((params) => {
-	return lsp.onDefinitionRequest(params);
+	return ls.onDefinitionRequest(params);
 });
+
+connection.onFoldingRanges((params) => {
+	return ls.onFoldingRanges(params);
+})
 //#endregion
 
 //#region Text Events
 connection.onDidChangeConfiguration(async (params) => {
-	const changedImplementation = await lsp.findNewSettings();
+	const changedImplementation = await ls.findNewSettings();
 
-	lsp.updateSettings(changedImplementation);
+	ls.updateSettings(changedImplementation);
 });
 
 connection.onDidOpenTextDocument(async (params) => {
-	await lsp.openTextDocument(params);
+	await ls.openTextDocument(params);
 });
 
 connection.onDidChangeTextDocument(async (params) => {
-	lsp.changedTextDocument(params.textDocument.uri, params.contentChanges);
+	ls.changedTextDocument(params.textDocument.uri, params.contentChanges);
 });
 
 connection.onDidCloseTextDocument((params) => {
 	connection.console.log(`${params.textDocument.uri} closed.`);
-	lsp.fsManager.closeOpenDocument(params.textDocument.uri);
+	ls.fsManager.closeOpenDocument(params.textDocument.uri);
 });
 
 // Cache on shutdown:

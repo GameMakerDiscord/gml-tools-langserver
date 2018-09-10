@@ -12,7 +12,9 @@ export interface ClientViewNode {
     fpath: string;
 }
 
-export declare type ResourceNames =
-    "objects"
-    | "rooms" | "sprites" | "sounds" | "paths" | "views" | "scripts"
-    | "fonts" | "timelines" | "tilesets" | "notes" | "extensions" | "shaders" | "datafiles_yy"
+
+
+export interface EventsPackage {
+    uri: string;
+    events: string;
+}

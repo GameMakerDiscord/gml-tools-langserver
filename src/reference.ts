@@ -1,8 +1,9 @@
-import { Range, Location } from "vscode-languageserver/lib/main";
+import { Range, Location, FoldingRangeKind } from "vscode-languageserver/lib/main";
 import { JSDOC } from "./fileSystem";
 import { VariablesPackage, GMLVariableLocation } from "./diagnostic";
 import URI from "vscode-uri/lib/umd";
 import { GMLDocs } from "./declarations";
+import { FoldingRange } from "vscode-languageserver-protocol/lib/protocol.foldingRange";
 
 export interface IScriptsAndFunctions {
 	[key: string]: IEachScript;
@@ -41,16 +42,9 @@ export interface IEnum {
 	enumEntries: Array<EnumMembers>;
 }
 
-export interface IMacros {
-	[thisURI: string]: URIMacros;
-}
-
-export interface URIMacros {
-	[thisMacro: string]: GenericValueLocation;
-}
-
 export interface GenericValueLocation {
 	location: Location;
+	name: string;
 	value: string;
 }
 
@@ -72,8 +66,19 @@ export interface IObjVar {
 	variable: string;
 }
 
-export interface ILocalDictionary {
-	[thisURI: string]: Array<GenericValueLocation>;
+export interface IURIDictionary {
+	[thisURI: string]: URIDictionary;
+}
+
+export interface URIDictionary {
+	localVariables: GenericValueLocation[];
+	foldingRanges: FoldingRange[];
+	macros: GenericValueLocation[];
+}
+
+interface GMLDocOverrides {
+	name: string;
+	originalEntry?: IEachScript;
 }
 
 export class Reference {
@@ -85,12 +90,11 @@ export class Reference {
 	private gmlDocs: GMLDocs.DocFile | undefined;
 	private enums: IEnums;
 	private enum2URI: enum2uri;
-	private macros: IMacros;
 	private macros2uri: enum2uri;
 	private URI2ObjectVariables: IURI2ObjVariables;
 	private sprites: Array<string>;
 	private allResourceNames: Array<string>;
-	private localVariableDictionary: ILocalDictionary;
+	private URIDictionary: IURIDictionary;
 	public rooms: string[];
 	public tilesets: string[];
 	public fonts: string[];
@@ -99,18 +103,17 @@ export class Reference {
 	public sounds: string[];
 	public timeline: string[];
 	public paths: string[];
+	private gmlDocOverrides: GMLDocOverrides[];
 
 	constructor() {
 		this.objects = {};
 		this.objectList = [];
-		this.localVariableDictionary = {};
 		this.URI2ObjectVariables = {};
 		this.scriptsAndFunctions = {};
 		this.scriptsAndFunctionsList = [];
 		this.globalVariables = {};
 		this.enums = {};
 		this.enum2URI = {};
-		this.macros = {};
 		this.macros2uri = {};
 		this.sprites = [];
 		this.allResourceNames = [];
@@ -122,9 +125,11 @@ export class Reference {
 		this.timeline = [];
 		this.paths = [];
 		this.rooms = [];
+		this.URIDictionary = {};
+		this.gmlDocOverrides = [];
 	}
 
-	public indexGMLDocs(gmlDocs: GMLDocs.DocFile) {
+	public initGMLDocs(gmlDocs: GMLDocs.DocFile) {
 		this.gmlDocs = gmlDocs;
 		// Add our docs into our scriptsAndFunctions.
 		for (const thisFunction of this.gmlDocs.functions) {
@@ -141,6 +146,54 @@ export class Reference {
 			// Add to the Reference Chart
 			this.scriptAddScript(thisFunction.name, undefined, jsdoc, thisFunction.doNotAutoComplete);
 		}
+	}
+
+	public docsAddSecondaryDocs(gmlDocs: GMLDocs.DocFile) {
+		for (const thisFunction of gmlDocs.functions) {
+			// Add to Overrides List:
+			if (this.scriptExists(thisFunction.name)) {
+				this.gmlDocOverrides.push({
+					name: thisFunction.name,
+					originalEntry: this.scriptGetScriptPackage(thisFunction.name)
+				});
+
+				// Remove its listing from ScriptsAndFunctions:
+				const ourIndex = this.scriptsAndFunctionsList.indexOf(thisFunction.name);
+				if (ourIndex) {
+					this.scriptsAndFunctionsList.splice(ourIndex, 1);
+				}
+			} else {
+				this.gmlDocOverrides.push({
+					name: thisFunction.name
+				});
+			}
+
+			// Add to Normal Script/Function:
+			const jsdoc: JSDOC = {
+				signature: thisFunction.signature,
+				returns: thisFunction.return,
+				maxParameters: thisFunction.maxParameters,
+				minParameters: thisFunction.minParameters,
+				parameters: thisFunction.parameters,
+				description: thisFunction.documentation,
+				isScript: false,
+				link: thisFunction.link
+			}
+			this.scriptAddScript(thisFunction.name, undefined, jsdoc, thisFunction.doNotAutoComplete);
+		}
+	}
+
+	public docsClearSecondaryDocs() {
+		for (const thisFunctionName of this.gmlDocOverrides) {
+			if (thisFunctionName.originalEntry) {
+				this.scriptsAndFunctions[thisFunctionName.name] = thisFunctionName.originalEntry;
+			} else {
+				this.scriptDelete(thisFunctionName.name);
+			}
+		}
+
+		// clear our list:
+		this.gmlDocOverrides = [];
 	}
 
 	//#region All Resources
@@ -173,30 +226,74 @@ export class Reference {
 		this.globalVariables = {};
 		this.enums = {};
 		this.enum2URI = {};
-		this.macros = {};
 		this.macros2uri = {};
 		this.sprites = [];
 		this.allResourceNames = [];
+		this.URIDictionary = {};
 
-		if (this.gmlDocs) this.indexGMLDocs(this.gmlDocs);
+		if (this.gmlDocs) this.initGMLDocs(this.gmlDocs);
 	}
+
+	private createURIDictEntry(uri: string) {
+		this.URIDictionary[uri] = {
+			localVariables: [],
+			foldingRanges: [],
+			macros: []
+		}
+	}
+	//#endregion
+
+	//#region Folding Ranges
+	public foldingAddFoldingRange(uri: string, thisRange: Range, kind: FoldingRangeKind) {
+		if (!this.URIDictionary[uri]) {
+			this.createURIDictEntry(uri);
+		}
+
+		this.URIDictionary[uri].foldingRanges.push({
+			startLine: thisRange.start.line,
+			endLine: thisRange.end.line,
+			kind: kind
+		})
+	}
+
+	public foldingClearAllFoldingRange(uri: string) {
+		if (this.URIDictionary[uri]) {
+			this.URIDictionary[uri].foldingRanges = [];
+		}
+	}
+
+	public foldingGetFoldingRange(uri: string): FoldingRange[] | null {
+		if (!this.URIDictionary[uri]) {
+			return null;
+		} else {
+			return this.URIDictionary[uri].foldingRanges;
+		}
+	}
+
 	//#endregion
 
 	//#region Local Variables
 	public localAddVariables(uri: string, locals: GMLVariableLocation[]) {
-		this.localVariableDictionary[uri] = [];
+		// check if we have a URI dictionary at all:
+		if (this.URIDictionary[uri] === undefined) {
+			this.createURIDictEntry(uri);
+		}
+
+		// Clear our locals:
+		this.URIDictionary[uri].localVariables = [];
 
 		for (const thisThing of locals) {
-			this.localVariableDictionary[uri].push({
+			this.URIDictionary[uri].localVariables.push({
 				value: thisThing.name,
-				location: Location.create(uri, thisThing.range)
+				location: Location.create(uri, thisThing.range),
+				name: thisThing.name
 			});
 		}
 	}
 
 	public getAllLocalsAtURI(uri: string) {
-		if (this.localVariableDictionary[uri]) {
-			return this.localVariableDictionary[uri];
+		if (this.URIDictionary[uri] !== undefined) {
+			return this.URIDictionary[uri].localVariables;
 		} else return null;
 	}
 
@@ -243,7 +340,10 @@ export class Reference {
 				signature: ""
 			},
 			uri: uri,
-			callBackLocation: doNotAutocomplete === undefined ? this.scriptsAndFunctionsList.push(name) : -1,
+			callBackLocation:
+				doNotAutocomplete === undefined ? this.scriptsAndFunctionsList.push(name)
+					: doNotAutocomplete === true ? this.scriptsAndFunctionsList.push(name)
+						: -1,
 			isBritish: doNotAutocomplete
 		};
 	}
@@ -280,6 +380,21 @@ export class Reference {
 	 */
 	public scriptGetScriptPackage(name: string): IEachScript {
 		return this.scriptsAndFunctions[name];
+	}
+
+	/**
+	 * Deletes a script entirely from the internal model, including
+	 * any references to it. It is **not safe** to use without checking
+	 * that the script exists first.
+	 * @param name This is the script to the delete.
+	 */
+	public scriptDelete(name: string) {
+		if (this.scriptsAndFunctions[name].callBackLocation && this.scriptsAndFunctions[name].callBackLocation !== -1) {
+			const ourIndex = this.scriptsAndFunctionsList.indexOf(name);
+			this.scriptsAndFunctionsList.splice(ourIndex, 1);
+		}
+
+		delete this.scriptsAndFunctions[name];
 	}
 	//#endregion
 
@@ -506,9 +621,9 @@ export class Reference {
 	//#endregion
 
 	//#region Macros
-	public getAllMacrosAtURI(uri: string): Array<string> {
-		if (this.macros[uri]) {
-			return Object.keys(this.macros[uri]);
+	public macrosGetAllMacrosAtURI(uri: string): Array<GenericValueLocation> {
+		if (this.URIDictionary[uri]) {
+			return this.URIDictionary[uri].macros
 		} else return [];
 	}
 
@@ -516,48 +631,58 @@ export class Reference {
 		return Object.keys(this.macros2uri);
 	}
 
-	public addMacro(name: string, value: string, thisRange: Range, thisURI: string) {
+	public macroAddMacro(name: string, value: string, thisRange: Range, thisURI: string) {
 		// Add our URI if it's not there:
-		if (this.macros[thisURI] == undefined) {
-			this.macros[thisURI] = {};
+		if (this.URIDictionary[thisURI] === undefined) {
+			this.createURIDictEntry(thisURI);
 		}
 
-		this.macros[thisURI][name] = {
-			location: { uri: thisURI, range: thisRange },
-			value: value
-		};
+		// Commit macro to normal dictionary
+		this.URIDictionary[thisURI].macros.push({
+			location: {
+				uri: thisURI,
+				range: thisRange
+			},
+			value: value,
+			name: name
+		});
 
+		// Add to helper dictionary
 		this.macros2uri[name] = thisURI;
 	}
 
-	public getMacroValue(name: string) {
+	public macroGetMacroInformation(name: string): GenericValueLocation | null {
 		const thisUri = this.macros2uri[name];
+		if (!thisUri) return null;
 
-		return this.macros[thisUri][name].value;
-	}
+		const theseMacros = this.macrosGetAllMacrosAtURI(thisUri);
+		if (!theseMacros) return null;
 
-	public getMacroLocation(name: string) {
-		const thisUri = this.macros2uri[name];
+		// Find our Macro
+		for (const thisMacro of theseMacros) {
+			if (thisMacro.name == name) {
+				return thisMacro;
+			}
+		}
 
-		return this.macros[thisUri][name].location;
+		return null;
 	}
 
 	public macroExists(name: string) {
-		return !(this.macros2uri[name] == undefined);
+		return !(this.macros2uri[name] === undefined);
 	}
 
-	public clearTheseMacrosAtURI(macroArray: string[], uri: string) {
-		if (this.macros[uri]) {
-			for (const macroName of macroArray) {
-				const macroObject = this.macros[uri][macroName];
-				if (macroObject) {
-					if (this.macros2uri[macroName]) {
-						delete this.macros2uri[macroName];
-					}
-					delete this.macros[uri][macroName];
-				}
+	public macroClearMacrosAtURI(uri: string) {
+		// Iterate through the Macro List and delete from helper list
+		if (!this.URIDictionary[uri]) return;
+		for (const thisMacro of this.URIDictionary[uri].macros) {
+			// kill our helper entry
+			if (this.macros2uri[thisMacro.name]) {
+				delete this.macros2uri[thisMacro.name];
 			}
 		}
+		// Just clear the macro
+		this.URIDictionary[uri].macros = [];
 	}
 
 	//#endregion

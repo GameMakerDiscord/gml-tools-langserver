@@ -102,9 +102,8 @@ gml {
         |   MembObjectVarRef
         |   identifier
     MacroDeclaration
-        =   macroWord identifier MacroValue #sc
+        =   macroWord identifier #regionName #sc
     macroWord = "#macro"
-    MacroValue = identifier | PrimaryExpression | ConditionalExpression
     EnumDeclaration
         =   enumDeclararer enumName oCurly ListOf<EnumEntries,comma> cCurly
     EnumEntries

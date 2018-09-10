@@ -80,15 +80,17 @@ export class GMLHoverProvider {
 
 			// Check if it's a Macro:
 			if (this.reference.macroExists(hoveredText)) {
-				const thisMac = this.reference.getMacroValue(hoveredText);
-				let mrkString: MarkedString = {
-					value: "(macro) " + hoveredText + " = " + thisMac,
-					language: "gml"
-				};
+				const thisMacroEntry = this.reference.macroGetMacroInformation(hoveredText);
+				if (thisMacroEntry) {
+					let mrkString: MarkedString = {
+						value: "(macro) " + hoveredText + " == " + thisMacroEntry.value.trim(),
+						language: "gml"
+					};
 
-				return {
-					contents: mrkString
-				};
+					return {
+						contents: mrkString
+					};
+				}
 			}
 		}
 

@@ -9,10 +9,11 @@ import * as upath from "upath";
 import * as uuidv4 from "uuid/v4";
 import URI from "vscode-uri/lib/umd";
 import * as chokidar from "chokidar";
-import { SemanticsOption, CreateObjPackage, AddEventsPackage, ResourceType } from "./declarations";
+import { SemanticsOption, CreateObjPackage, AddEventsPackage, ResourceType, ResourceNames } from "./declarations";
 import * as rubber from "gamemaker-rubber";
 import { Resource, EventType, EventNumber, YYP, YYPResource } from "yyp-typings";
-import { ClientViewNode, ResourceNames } from "./sharedTypes";
+import { ClientViewNode } from "./sharedTypes";
+import * as Ajv from "ajv";
 
 export interface GMLScriptContainer {
 	[propName: string]: GMLScript;
@@ -125,7 +126,7 @@ export interface GMLFolder {
 	isDefaultView: boolean;
 
 	/** A code, likely used for adding localizations. */
-	localisedFolderName: string;
+	localisedFolderName: Resource.localisedNames;
 }
 
 export interface TempFolder {
@@ -578,7 +579,7 @@ export class FileSystem {
 
 	//#endregion
 
-	//#region Walk View Tree
+	//#region Views
 	private sortViews(root: Array<Resource.GMFolder>) {
 		// Iterate on our Roots:
 		for (const thisRoot of root) {
@@ -616,26 +617,12 @@ export class FileSystem {
 		return finalView;
 	}
 
-	private constructGMLFolderFromGMFolder(init: Resource.GMFolder): GMLFolder {
-		return {
-			name: init.name,
-			mvc: init.mvc,
-			modelName: "GMLFolder",
-			localisedFolderName: init.localisedFolderName,
-			isDefaultView: init.isDefaultView,
-			id: init.id,
-			folderName: init.folderName,
-			filterType: init.filterType,
-			children: []
-		};
+	public viewsGetInitialViews() {
+		return this.viewsGetThisViewClient(this.views[this.defaultView].id);
 	}
 
-	public getInitialViews() {
-		return this.getThisViewsChildren(this.views[this.defaultView].id);
-	}
-
-	public getThisViewsChildren(nodeUUID: string): ClientViewNode[] | null {
-		const ourNode = this.searchViewsForUUID(this.views[this.defaultView], nodeUUID);
+	public viewsGetThisViewClient(nodeUUID: string): ClientViewNode[] | null {
+		const ourNode = this.searchViewsForUUID(nodeUUID);
 		if (!ourNode) return [];
 
 		if (ourNode.modelName == "GMLFolder") {
@@ -704,7 +691,77 @@ export class FileSystem {
 		return [];
 	}
 
-	private searchViewsForUUID(thisNode: GMResourcePlus, targetNodeUUID: string): GMResourcePlus | null {
+	public async viewsInsertViewsAtNode(parentUUID: string, yysToInstert: GMResourcePlus[]) {
+		const thisNode = this.searchViewsForUUID(parentUUID);
+		if (!thisNode || thisNode.modelName != "GMLFolder") return;
+
+		// Update our Internally held model of the views:
+		const ourStringChildren: string[] = [];
+
+		for (const thisView of yysToInstert) {
+			thisNode.children.push(thisView);
+			ourStringChildren.push(thisView.id);
+		}
+
+		// Create our dummy YY which we'll save to disk:
+		const ourYY: Resource.GMFolder = {
+			children: ourStringChildren,
+			filterType: thisNode.filterType,
+			folderName: thisNode.folderName,
+			id: thisNode.id,
+			isDefaultView: thisNode.isDefaultView,
+			localisedFolderName: thisNode.localisedFolderName,
+			modelName: "GMFolder",
+			mvc: thisNode.mvc,
+			name: thisNode.name
+		}
+
+		// Save it to disk:
+		const fpath = path.join(this.projectDirectory, "views", ourYY.id + ".yy");
+		try {
+			await fse.writeFile(fpath, JSON.stringify(ourYY, null, 4));
+		} catch (err) {
+			console.log("Failed to write to file at: " + fpath);
+		}
+	}
+
+	private viewsFindDefaultViewFolders(viewType: string): GMLFolder | Resource.GMFolder | null {
+		const checkArray = [
+			"sprites",
+			"sounds",
+			"paths",
+			"scripts",
+			"shaders",
+			"fonts",
+			"timelines",
+			"objects",
+			"rooms",
+			"notes",
+			"extensions",
+			"options",
+			"tilesets",
+			"datafiles",
+			"configs"
+		];
+
+		if (checkArray.includes(viewType) == false) {
+			return null;
+		}
+
+		// Find our view by Iterating on our default view:
+		for (const thisChildView of this.views[this.defaultView].children) {
+			if ((thisChildView.modelName == "GMLFolder" || thisChildView.modelName == "GMFolder") && thisChildView.folderName == viewType) {
+				return thisChildView;
+			}
+		}
+
+		return null;
+	}
+
+	private searchViewsForUUID(targetNodeUUID: string, thisNode?: GMResourcePlus): GMResourcePlus | null {
+		// Default Node:
+		thisNode = thisNode || this.views[this.defaultView];
+
 		if (thisNode.id == targetNodeUUID) {
 			return thisNode;
 		} else if (thisNode.modelName == "GMLFolder" && thisNode.children != null) {
@@ -712,11 +769,25 @@ export class FileSystem {
 
 			for (let i = 0, l = thisNode.children.length; result == null && i < l; i++) {
 				const thisChildNode = thisNode.children[i];
-				result = this.searchViewsForUUID(thisChildNode, targetNodeUUID);
+				result = this.searchViewsForUUID(targetNodeUUID, thisChildNode);
 			}
 			return result;
 		}
 		return null;
+	}
+
+	private constructGMLFolderFromGMFolder(init: Resource.GMFolder): GMLFolder {
+		return {
+			name: init.name,
+			mvc: init.mvc,
+			modelName: "GMLFolder",
+			localisedFolderName: init.localisedFolderName,
+			isDefaultView: init.isDefaultView,
+			id: init.id,
+			folderName: init.folderName,
+			filterType: init.filterType,
+			children: []
+		};
 	}
 
 	private makePrettyFileNames(fn: string): string {
@@ -824,6 +895,72 @@ export class FileSystem {
 	public async deleteCache() {
 		await fse.rmdir(path.join(this.projectDirectory, ".gml-tools"));
 	}
+
+	public async initProjDocs(dirname: string) {
+		// Create the Actual File:
+		this.setCachedFileText("project-documentation.json", JSON.stringify({
+			$schema: URI.file(path.join(dirname, path.normalize("../lib/schema/gmlDocsSchema.json"))).toString(),
+			functions: [],
+			instanceVariables: [],
+			objectsAndInstanceVariables: []
+		}, null, 4));
+	}
+
+	public async installProjectDocWatcher(dirname: string) {
+		// Add our File Watcher:
+		const fpath = path.join(this.projectDirectory, ".gml-tools", "project-documentation.json");
+		const ourDocsWatch = chokidar.watch(fpath);
+
+		// Creat our JSON validator:
+		const ajv = new Ajv();
+		// On Mac and Linux, ajv has the schema for draft 6, and on Windows, it doesn't. 
+		// Very strange behavior.
+		let check;
+		try {
+			check = ajv.getSchema("http://json-schema.org/draft-06/schema");
+		} catch (error) { }
+		if (!check) {
+			ajv.addMetaSchema(require("ajv/lib/refs/json-schema-draft-06.json"));
+		}
+		const schemaPath = path.join(dirname, path.normalize("../lib/schema/gmlDocsSchema.json"));
+		const validator = ajv.compile(JSON.parse(await fse.readFile(schemaPath, "utf-8")));
+
+		// Add in one change:
+		let ourJSON: any;
+		try {
+			ourJSON = JSON.parse(await fse.readFile(fpath, "utf8"));
+		} catch (err) {
+			console.log(err);
+		}
+		const isValid = await validator(ourJSON);
+
+		if (!isValid) return;
+		this.reference.docsClearSecondaryDocs();
+		this.reference.docsAddSecondaryDocs(ourJSON);
+
+		ourDocsWatch.on("all", async (someEvent, somePath, someStats) => {
+			switch (someEvent) {
+				case "change":
+					let ourJSON: any;
+					try {
+						ourJSON = JSON.parse(await fse.readFile(somePath, "utf8"));
+					} catch (err) {
+						console.log(err);
+						break;
+					}
+					const isValid = await validator(ourJSON);
+
+					if (!isValid) return;
+					this.reference.docsClearSecondaryDocs();
+					this.reference.docsAddSecondaryDocs(ourJSON);
+					break;
+
+				default:
+					console.log("Altered docs...");
+					break;
+			}
+		});
+	}
 	//#endregion
 
 	//#region Special Indexing Methods
@@ -850,9 +987,9 @@ export class FileSystem {
 
 		// Note: we calculate project diagnostics, but we do not currently send them anywhere. That will
 		// be a future option. TODO.
-		await this.lsp.connection.sendDiagnostics(
-			DiagnosticsPackage.create(fileURI.toString(), finalDiagnosticPackage)
-		);
+		// await this.lsp.connection.sendDiagnostics(
+		// 	DiagnosticsPackage.create(fileURI.toString(), finalDiagnosticPackage)
+		// );
 		this.diagnosticDictionary[fileURI.toString()] = thisDiagnostic;
 	}
 
@@ -928,7 +1065,12 @@ export class FileSystem {
 	//#endregion
 
 	//#region Create Resources
-	public async createScript(scriptName: string): Promise<string | null> {
+	public async createScript(scriptName: string, createAtNode?: GMResourcePlus | null): Promise<string | null> {
+		// Get parent View
+		createAtNode = createAtNode || this.viewsFindDefaultViewFolders("scripts");
+		if (!createAtNode) return null;
+
+		// Kill without YYP
 		if (!this.projectYYP) return null;
 
 		// Our YY file contents:
@@ -981,6 +1123,9 @@ export class FileSystem {
 			directoryFilepath: ourDirectoryPath
 		};
 
+		// Update Views:
+		this.viewsInsertViewsAtNode(createAtNode.id, [newScript])
+
 		await this.lsp.openTextDocument({
 			textDocument: {
 				languageId: "gml",
@@ -993,8 +1138,13 @@ export class FileSystem {
 		return ourGMLPath;
 	}
 
-	public async createObject(objPackage: CreateObjPackage): Promise<string> {
-		if (!this.projectYYP) return "";
+	public async createObject(objPackage: CreateObjPackage, createAtNode?: GMResourcePlus | null): Promise<string | null> {
+		// Get parent View
+		createAtNode = createAtNode || this.viewsFindDefaultViewFolders("objects");
+		if (!createAtNode) return null;
+
+		// Kill without YYP
+		if (!this.projectYYP) return null;
 		const ourUUID = uuidv4();
 
 		let newObject: Resource.Object = {
@@ -1077,6 +1227,9 @@ export class FileSystem {
 			events: internalEventModel
 		};
 		this.reference.addResource(newObject.name);
+
+		// Add to our Views:
+		this.viewsInsertViewsAtNode(createAtNode.id, [newObject]);
 
 		return openEditorHere;
 	}
@@ -1178,6 +1331,43 @@ export class FileSystem {
 		};
 	}
 
+	public async createView(fName: string, parentUUID?: string) {
+		parentUUID = parentUUID || this.views[this.defaultView].id;
+
+		// Get our Parent so we can get a FilterType:
+		const thisParentNode = this.searchViewsForUUID(parentUUID);
+		if (!thisParentNode || thisParentNode.modelName != "GMLFolder") return null;
+		const newFilterType = thisParentNode.filterType == "root" ? "" : thisParentNode.filterType;
+
+		// Get our ID:
+		const ourUUID = uuidv4();
+
+		// Create *this* view first:
+		const ourNewView: Resource.GMFolder = {
+			children: [],
+			filterType: newFilterType,
+			folderName: fName,
+			id: ourUUID,
+			isDefaultView: false,
+			localisedFolderName: "",
+			mvc: "1.1",
+			modelName: "GMFolder",
+			name: ourUUID
+		}
+
+		// Create view file:
+		const fp = path.join(this.projectDirectory, "views", ourNewView.id + ".yy");
+		try {
+			await fse.writeFile(fp, JSON.stringify(ourNewView, null, 4));
+		} catch (err) {
+			console.log("View '" + ourNewView.folderName + "' not created.");
+			console.log(err);
+			return null;
+		}
+
+		return ourNewView;
+	}
+
 	private convertEventEnumToFPath(thisEvent: Resource.ObjectEvent, dirPath: string): string {
 		switch (thisEvent.eventtype) {
 			case EventType.Create:
@@ -1212,13 +1402,13 @@ export class FileSystem {
 		}
 		console.log(
 			"NonGML file indexed by YYP? Serious error. \n" +
-				"This event: " +
-				thisEvent.eventtype +
-				"/" +
-				thisEvent.enumb +
-				"\n" +
-				"This directory: " +
-				dirPath
+			"This event: " +
+			thisEvent.eventtype +
+			"/" +
+			thisEvent.enumb +
+			"\n" +
+			"This directory: " +
+			dirPath
 		);
 		return "";
 	}

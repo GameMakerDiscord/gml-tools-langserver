@@ -1,6 +1,7 @@
 import { MacroPackage } from "./diagnostic";
 import { CompletionItemKind } from "vscode-languageserver";
 
+
 export const enum ResourceType {
 	Object = 0,
 	Script = 1,
@@ -160,3 +161,7 @@ export namespace GMLToolsSettings {
 		noPref = "No Preference"
 	}
 }
+export declare type ResourceNames =
+	"objects"
+	| "rooms" | "sprites" | "sounds" | "paths" | "views" | "scripts"
+	| "fonts" | "timelines" | "tilesets" | "notes" | "extensions" | "shaders" | "datafiles_yy"

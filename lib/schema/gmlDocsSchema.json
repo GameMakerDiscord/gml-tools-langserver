@@ -6,29 +6,37 @@
 			"type": "object",
 			"additionalProperties": false,
 			"properties": {
+				"$schema": {
+					"type": "string"
+				},
 				"functions": {
 					"type": "array",
 					"items": {
-						"$ref": "functionSchema.json#/definitions/Function"
+						"$ref": "#/definitions/Function"
 					}
 				},
-				"objectsAndInstanceVariables": {
+				"objects": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/ObjectsAndInstanceVariable"
+						"$ref": "#/definitions/Objects"
 					}
 				},
 				"instanceVariables": {
-					"type":"array",
+					"type": "array",
 					"items": {
-						"$ref": "#/definitions/InstanceVariable"
+						"$ref": "#/definitions/Variable"
 					}
 				}
 			},
-			"required": ["functions", "objectsAndInstanceVariables"],
+			"required": [
+				"functions",
+				"objects",
+				"instanceVariables",
+				"$schema"
+			],
 			"title": "GMLDocSchema"
 		},
-		"ObjectsAndInstanceVariable": {
+		"Objects": {
 			"type": "object",
 			"additionalProperties": false,
 			"properties": {
@@ -37,30 +45,134 @@
 				},
 				"description": {
 					"type": "string"
-				},
-				"instanceVariables": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/InstanceVariable"
-					}
 				}
 			},
-			"required": ["description", "instanceVariables", "name"],
-			"title": "ObjectsAndInstanceVariable"
+			"required": [
+				"description",
+				"name"
+			],
+			"title": "Objects"
 		},
-		"InstanceVariable": {
+		"Variable": {
 			"type": "object",
 			"additionalProperties": false,
 			"properties": {
-				"label": {
+				"name": {
+					"$ref": "#/definitions/non-empty-string",
+					"description": "This is the name of the variable as it will appear in any script, not as a full location. So use `attackValue` not `objPlayer.attackValue`."
+				},
+				"example": {
+					"$ref": "#/definitions/Example"
+				},
+				"documentation": {
+					"type": "string",
+					"description": "This is the basic documentation for any variable."
+				},
+				"type": {
+					"type": "string",
+					"description": "The type of the variable, i.e. 'array' or 'int'. GMS2 programmers do not have a standard way to refer to types."
+				},
+				"link": {
+					"$ref": "#/definitions/non-empty-string",
+					"description": "Used for built-in variables to a documentation page. If you are loading documentation with an external database, you can link to it here."
+				},
+				"object": {
+					"type": "string",
+					"description": "Name of the object the instance belongs to. For a built-in variable, use '*'."
+				},
+				"isBritish": {
+					"type": "boolean",
+					"description": "Used in built-in variables which are idiotically British."
+				}
+			},
+			"required": [
+				"documentation",
+				"name",
+				"object"
+			],
+			"title": "Variable"
+		},
+		"Function": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"$ref": "#/definitions/non-empty-string"
+				},
+				"signature": {
+					"type": "string"
+				},
+				"parameters": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/Parameter"
+					}
+				},
+				"example": {
+					"$ref": "#/definitions/Example"
+				},
+				"documentation": {
+					"type": "string"
+				},
+				"return": {
+					"type": "string"
+				},
+				"link": {
+					"$ref": "#/definitions/non-empty-string"
+				},
+				"minParameters": {
+					"type": "number"
+				},
+				"maxParameters": {
+					"type": "number"
+				},
+				"isBritish": {
+					"type": "boolean"
+				}
+			},
+			"required": [
+				"documentation",
+				"example",
+				"name",
+				"parameters",
+				"return",
+				"signature",
+				"minParameters",
+				"maxParameters"
+			],
+			"title": "Function"
+		},
+		"Example": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"code": {
 					"type": "string"
 				},
 				"description": {
 					"type": "string"
 				}
 			},
-			"required": ["description", "label"],
-			"title": "InstanceVariable"
+			"required": ["code", "description"],
+			"title": "Example"
+		},
+		"Parameter": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"label": {
+					"$ref": "#/definitions/non-empty-string"
+				},
+				"documentation": {
+					"$ref": "#/definitions/non-empty-string"
+				}
+			},
+			"required": ["documentation", "label"],
+			"title": "Parameter"
+		},
+		"non-empty-string": {
+			"type": "string",
+			"minLength": 1
 		}
 	}
 }

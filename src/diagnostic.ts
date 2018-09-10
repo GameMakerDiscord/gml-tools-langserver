@@ -1,5 +1,5 @@
 import { Interval, Node, Grammar, MatchResult, ActionDict, Semantics } from "ohm-js";
-import { Diagnostic, Range, DiagnosticSeverity } from "vscode-languageserver/lib/main";
+import { Diagnostic, Range, DiagnosticSeverity, FoldingRangeKind } from "vscode-languageserver/lib/main";
 import {
 	lastIndexOfArray,
 	normalizeEoLSequences,
@@ -343,6 +343,15 @@ export class DiagnosticHandler {
 					list.lint();
 				},
 
+				RegionStatement: (startRegion, regionName, list, endRegion) => {
+					const startPosition = getPositionFromIndex(this.currentFullTextDocument, startRegion.source.startIdx);
+					const endPosition = getPositionFromIndex(this.currentFullTextDocument, endRegion.source.endIdx);
+
+					// Add this Folding Range:
+					this.reference.foldingAddFoldingRange(this.uri, Range.create(startPosition, endPosition), FoldingRangeKind.Region);
+					list.lint();
+				},
+
 				// Generic for all non-terminal nodes
 				_nonterminal: (children: any) => {
 					children.forEach((element: any) => {
@@ -351,7 +360,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}
@@ -405,7 +414,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}
@@ -441,7 +450,7 @@ export class DiagnosticHandler {
 						getPositionFromIndex(this.currentFullTextDocument, macroValue.source.endIdx)
 					);
 
-					this.reference.addMacro(name, val, thisRange, this.uri);
+					this.reference.macroAddMacro(name, val, thisRange, this.uri);
 				},
 
 				// Generic for all non-terminal nodes
@@ -452,7 +461,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}
@@ -557,7 +566,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}

@@ -13,7 +13,8 @@ import {
 	WorkspaceFolder,
 	DidOpenTextDocumentParams,
 	CompletionParams,
-	CompletionItem
+	CompletionItem,
+	FoldingRangeRequestParam
 } from "vscode-languageserver/lib/main";
 import { DiagnosticHandler, LintPackageFactory, DiagnosticsPackage, LintPackage } from "./diagnostic";
 import { Reference, IObjVar } from "./reference";
@@ -29,6 +30,8 @@ import {
 	GMLToolsSettings
 } from "./declarations";
 import { DocumentationImporter } from "./documentationImporter";
+import { EventsPackage } from "./sharedTypes";
+import { FoldingRange } from "vscode-languageserver-protocol/lib/protocol.foldingRange";
 
 export class LangServ {
 	readonly gmlGrammar: Grammar;
@@ -42,6 +45,7 @@ export class LangServ {
 	public timer: timeUtil;
 	public userSettings: GMLToolsSettings.Config;
 	private originalOpenDocuments: DidOpenTextDocumentParams[];
+	readonly __dirName: string;
 
 	constructor(public connection: IConnection) {
 		this.connection = connection;
@@ -49,6 +53,7 @@ export class LangServ {
 		this.gmlGrammar = grammar(
 			fse.readFileSync(path.join(__dirname, path.normalize("../lib/gmlGrammar.ohm")), "utf-8")
 		);
+		this.__dirName = path.normalize(__dirname);
 
 		// Create our tools:
 		this.reference = new Reference();
@@ -78,23 +83,34 @@ export class LangServ {
 		// Check or Create the Manual:
 		let ourManual: GMLDocs.DocFile | null;
 		let cacheManual = false;
-		if ((await this.fsManager.isFileCached("gmlDocs.json")) == false) {
+		try {
+			const encodedText = fse.readFileSync(path.join(this.__dirName, path.normalize("../lib/gmlDocs.json")), "utf8");
+			ourManual = JSON.parse(encodedText);
+		} catch (err) {
 			ourManual = await this.documentationImporter.createManual();
 			cacheManual = true;
-		} else {
-			ourManual = JSON.parse(await this.fsManager.getCachedFileText("gmlDocs.json", "utf-8"));
 		}
 
 		// If we have a manual, load it into memory:
 		if (ourManual) {
 			// Load our Manual into Memory
-			this.reference.indexGMLDocs(ourManual);
+			this.reference.initGMLDocs(ourManual);
 
 			// Cache the Manual:
 			if (cacheManual) {
-				this.fsManager.setCachedFileText("gmlDocs.json", JSON.stringify(ourManual, null, 4));
+				fse.writeFileSync(path.join(this.__dirName, path.normalize("../lib/gmlDocs.json")), JSON.stringify(ourManual, null, 4));
 			}
+		} else {
+			console.log("OH NO -- manual not found or loaded. Big errors.")
 		}
+
+		// Create project-documentation
+		if (await this.fsManager.isFileCached("project-documentation.json") == false) {
+			this.fsManager.initProjDocs(this.__dirName);
+		}
+
+		// Install Watcher:
+		this.fsManager.installProjectDocWatcher(this.__dirName);
 
 		// Get our Configuration
 		this.userSettings = await this.connection.workspace.getConfiguration({
@@ -236,12 +252,8 @@ export class LangServ {
 
 	public async lint(thisDiagnostic: DiagnosticHandler, bit: SemanticsOption) {
 		let lintPack = await this.initLint(thisDiagnostic);
-		this.timer.setTimeFast();
 		const initDiagnostics = await this.getMatchResultsPackage(thisDiagnostic, lintPack);
-		console.log("Our normal syntax lint took " + this.timer.timeDifferenceNowNice());
-		this.timer.setTimeFast();
 		const semDiagnostics = await this.runSemantics(thisDiagnostic, lintPack, bit);
-		console.log("Our Semantics took " + this.timer.timeDifferenceNowNice());
 
 		return initDiagnostics.concat(semDiagnostics);
 	}
@@ -282,6 +294,9 @@ export class LangServ {
 		lintPackage: LintPackage,
 		diagnosticArray: Diagnostic[]
 	) {
+		// Clear our Ranges:
+		this.reference.foldingClearAllFoldingRange(thisDiagnostic.getURI);
+
 		// Run Semantics on Existing MatchResults.
 		const theseMatchResults = lintPackage.getMatchResults();
 		if (theseMatchResults) {
@@ -335,12 +350,12 @@ export class LangServ {
 	public async semanticEnumsAndMacros(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage) {
 		const matches = lintPackage.getMatchResults();
 		if (!matches) return;
+		const ourURI = thisDiagnostic.getURI;
+		this.reference.macroClearMacrosAtURI(ourURI);
+
+
 		const enumsAndMacros = await thisDiagnostic.runSemanticEnumsAndMacros(matches);
 		const ourEnumsThisCycle = enumsAndMacros[0];
-		const ourMacosThisCycle = enumsAndMacros[1];
-
-		const ourURI = thisDiagnostic.getURI;
-
 		// Enum Work
 		const supposedEnums = this.reference.getAllEnumsAtURI(ourURI);
 		let enumsNotFound = [];
@@ -360,31 +375,6 @@ export class LangServ {
 			this.reference.clearTheseEnumsAtThisURI(enumsNotFound, ourURI);
 		}
 
-		// Macro Work
-		const supposedMacros = this.reference.getAllMacrosAtURI(ourURI);
-		let macrosNotFound = [];
-
-		if (ourMacosThisCycle.length > 0) {
-			for (const thisMacro of supposedMacros) {
-				let found = false;
-				for (const thisFoundMacro of ourMacosThisCycle) {
-					if (thisFoundMacro.macroName == thisMacro) {
-						found = true;
-						break;
-					}
-				}
-				if (found == false) {
-					macrosNotFound.push(thisMacro);
-				}
-			}
-		} else {
-			macrosNotFound = supposedMacros;
-		}
-
-		// Clear our missing Macros
-		if (macrosNotFound.length > 0) {
-			this.reference.clearTheseMacrosAtURI(macrosNotFound, ourURI);
-		}
 	}
 
 	public async semanticJSDOC(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, docInfo: DocumentFolder) {
@@ -421,59 +411,72 @@ export class LangServ {
 		if (this.isServerReady() == false) return params;
 		return await this.gmlCompletionProvider.onCompletionResolveRequest(params);
 	}
-
+	/**
+	 * How Folding Works in this LSP: GML only provides dynamic folding with
+	 * #region and #endregion syntax. Our grammar uses these as if they were 
+	 * part of the language (which can, if one tries hard, produce strange 
+	 * false positives), and, as such, we parse them with a visitor during the 
+	 * "Lint" operation.
+	 * In that operation, the DiagnosticHandler sends the parsed ranges to the 
+	 * Reference, who keeps them. Here, all we do is retrieve them from the
+	 * reference. 
+	 * @param params Essentially, the URI of the document. 
+	 */
+	public async onFoldingRanges(params: FoldingRangeRequestParam): Promise<FoldingRange[] | null> {
+		const ranges = this.reference.foldingGetFoldingRange(params.textDocument.uri);
+		if (ranges) {
+			return ranges;
+		}
+		return null;
+	}
 	//#endregion
 
 	//#region Commands
 	public async createObject(objectPackage: CreateObjPackage) {
-		console.log("DON'T LET THIS TRHOUGH DINGUS");
-		return;
-		// // Basic Conversions straight here:
-		// if (typeof objectPackage.objectEvents == "string") {
-		// 	objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(",");
-		// 	objectPackage.objectEvents = objectPackage.objectEvents.map(function(x) {
-		// 		return x.trim();
-		// 	});
-		// }
+		// Basic Conversions straight here:
+		if (typeof objectPackage.objectEvents == "string") {
+			objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(",");
+			objectPackage.objectEvents = objectPackage.objectEvents.map(function (x) {
+				return x.trim();
+			});
+		}
 
-		// objectPackage.objectName = objectPackage.objectName.trim();
+		objectPackage.objectName = objectPackage.objectName.trim();
 
-		// // Valid name
-		// if (this.isValidResourceName(objectPackage.objectName) == false) {
-		// 	this.connection.window.showErrorMessage(
-		// 		"Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9."
-		// 	);
-		// 	return null;
-		// }
+		// Valid name
+		if (this.isValidResourceName(objectPackage.objectName) == false) {
+			this.connection.window.showErrorMessage(
+				"Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9."
+			);
+			return;
+		}
 
-		// // Check for duplicate resources:
-		// if (this.resourceExistsAlready(objectPackage.objectName)) {
-		// 	this.connection.window.showErrorMessage("Invalid object name given. Resource already exists.");
-		// 	return null;
-		// }
+		// Check for duplicate resources:
+		if (this.resourceExistsAlready(objectPackage.objectName)) {
+			this.connection.window.showErrorMessage("Invalid object name given. Resource already exists.");
+			return;
+		}
 
-		// // If we made it here, send to the FS for the rest.
-		// const ourGMLFilePath = await this.fsManager.createObject(objectPackage);
-		// if (ourGMLFilePath) {
-		// 	this.connection.sendNotification("goToURI", ourGMLFilePath);
-		// }
+		// If we made it here, send to the FS for the rest.
+		const ourGMLFilePath = await this.fsManager.createObject(objectPackage);
+		if (ourGMLFilePath) {
+			this.connection.sendNotification("goToURI", ourGMLFilePath);
+		}
 	}
 
 	public async createScript(scriptName: string) {
-		console.log("WE MADE IT HERE GET RID OF THIS DON'T SHIP IT.");
-		return;
 		// Basic Check
 		if (this.isValidResourceName(scriptName) == false) {
 			this.connection.window.showErrorMessage(
 				"Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9."
 			);
-			return null;
+			return;
 		}
 
 		// Check for duplicate resources:
 		if (this.resourceExistsAlready(scriptName)) {
 			this.connection.window.showErrorMessage("Invalid script name given. Resource already exists.");
-			return null;
+			return;
 		}
 
 		const ourGMLFilePath = await this.fsManager.createScript(scriptName);
@@ -482,16 +485,16 @@ export class LangServ {
 		}
 	}
 
-	public async addEvents(eventsPackage: { uri: string; events: string }) {
-		let eventsArray = eventsPackage.events.toLowerCase().split(",");
-		eventsArray = eventsArray.map(function(x) {
+	public async addEvents(events: EventsPackage) {
+		let eventsArray = events.events.toLowerCase().split(",");
+		eventsArray = eventsArray.map(function (x) {
 			return x.trim();
 		});
 
 		// Send it to fs_manager
 		const ourGMLFilePath = await this.fsManager.addEvents({
 			events: eventsArray,
-			uri: eventsPackage.uri
+			uri: events.uri
 		});
 		if (ourGMLFilePath) {
 			this.connection.sendNotification("goToURI", ourGMLFilePath);

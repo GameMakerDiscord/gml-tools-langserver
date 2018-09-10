@@ -59,7 +59,8 @@ export class GMLDefinitionProvider {
 
         // Macros
         if (this.reference.macroExists(thisWord)) {
-            return this.reference.getMacroLocation(thisWord);
+            const macroEntry = this.reference.macroGetMacroInformation(thisWord);
+            if (macroEntry) return macroEntry.location;
         }
 
         // Local Variables

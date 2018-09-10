@@ -33,10 +33,13 @@ export class DocumentationImporter {
 		);
 
 		const ajv = new Ajv();
+
+		// On Mac and Linux, ajv has the schema for draft 6, and on Windows, it doesn't. 
+		// Very strange behavior.
 		let check;
 		try {
 			check = ajv.getSchema("http://json-schema.org/draft-06/schema");
-		} catch (error) {}
+		} catch (error) { }
 		if (!check) {
 			ajv.addMetaSchema(require("ajv/lib/refs/json-schema-draft-06.json"));
 		}
@@ -123,7 +126,7 @@ export class DocumentationImporter {
 					},
 					name: "",
 					parameters: [],
-					minParameters: -999,
+					minParameters: 0,
 					maxParameters: 999,
 					return: "",
 					signature: "",
