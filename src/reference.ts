@@ -1,6 +1,6 @@
 import { Range, Location, FoldingRangeKind } from "vscode-languageserver/lib/main";
 import { JSDOC } from "./fileSystem";
-import { VariablesPackage, GMLVariableLocation } from "./diagnostic";
+import { VariablesPackage, GMLVarParse, GMLLocalVarParse } from "./diagnostic";
 import URI from "vscode-uri/lib/umd";
 import { GMLDocs } from "./declarations";
 import { FoldingRange } from "vscode-languageserver-protocol/lib/protocol.foldingRange";
@@ -17,16 +17,30 @@ export interface IEachScript {
 }
 
 export interface IObjects {
-	[key: string]: IVars;
+	[objectName: string]: IVars;
 }
 
 export interface IVars {
-	[variableName: string]: IVar;
+	[variableName: string]: VariableModel;
 }
 
-export interface IVar {
-	uri: string;
-	range: Range;
+export interface VariableModel {
+	originLocation: IOriginVar;
+	referenceLocations: Array<Location>;
+}
+
+export interface IOriginVar {
+	arrayIndex: number;
+	supremacy: VariableRank;
+	self: boolean;
+}
+
+export enum VariableRank {
+	Create,
+	BegStep,
+	Step,
+	EndStep,
+	Other
 }
 
 export interface IEnums {
@@ -178,7 +192,7 @@ export class Reference {
 				description: thisFunction.documentation,
 				isScript: false,
 				link: thisFunction.link
-			}
+			};
 			this.scriptAddScript(thisFunction.name, undefined, jsdoc, thisFunction.doNotAutoComplete);
 		}
 	}
@@ -239,7 +253,7 @@ export class Reference {
 			localVariables: [],
 			foldingRanges: [],
 			macros: []
-		}
+		};
 	}
 	//#endregion
 
@@ -253,7 +267,7 @@ export class Reference {
 			startLine: thisRange.start.line,
 			endLine: thisRange.end.line,
 			kind: kind
-		})
+		});
 	}
 
 	public foldingClearAllFoldingRange(uri: string) {
@@ -273,7 +287,7 @@ export class Reference {
 	//#endregion
 
 	//#region Local Variables
-	public localAddVariables(uri: string, locals: GMLVariableLocation[]) {
+	public localAddVariables(uri: string, locals: GMLLocalVarParse[]) {
 		// check if we have a URI dictionary at all:
 		if (this.URIDictionary[uri] === undefined) {
 			this.createURIDictEntry(uri);
@@ -341,8 +355,10 @@ export class Reference {
 			},
 			uri: uri,
 			callBackLocation:
-				doNotAutocomplete === undefined ? this.scriptsAndFunctionsList.push(name)
-					: doNotAutocomplete === true ? this.scriptsAndFunctionsList.push(name)
+				doNotAutocomplete === undefined
+					? this.scriptsAndFunctionsList.push(name)
+					: doNotAutocomplete === true
+						? this.scriptsAndFunctionsList.push(name)
 						: -1,
 			isBritish: doNotAutocomplete
 		};
@@ -414,7 +430,7 @@ export class Reference {
 	 * @param obj Object to add/check.
 	 * @param vars The variable array to add. If none, pass empty array.
 	 */
-	public addVariablesToObject(obj: string, vars: Array<GMLVariableLocation>, uri: string) {
+	public addVariablesToObject(obj: string, vars: Array<GMLVarParse>, uri: string) {
 		// Create object if necessary
 		if (this.objects.hasOwnProperty(obj) == false) {
 			this.addObject(obj);
@@ -445,7 +461,7 @@ export class Reference {
 	 * @param globvars The global variable array to add. If none,
 	 * pass empty array.
 	 */
-	public addGlobalVariablesToObject(objName: string, globvars: Array<GMLVariableLocation>, uri: string) {
+	public addGlobalVariablesToObject(objName: string, globvars: Array<GMLVarParse>, uri: string) {
 		// Create object if necessary
 		if (this.objects.hasOwnProperty(objName) == false) {
 			this.addObject(objName);
@@ -623,7 +639,7 @@ export class Reference {
 	//#region Macros
 	public macrosGetAllMacrosAtURI(uri: string): Array<GenericValueLocation> {
 		if (this.URIDictionary[uri]) {
-			return this.URIDictionary[uri].macros
+			return this.URIDictionary[uri].macros;
 		} else return [];
 	}
 

@@ -7,9 +7,10 @@ import {
 	getIndexFromPosition,
 	getPositionFromIndex
 } from "./utils";
-import { Reference } from "./reference";
-import { JSDOC, JSDOCParameter } from "./fileSystem";
+import { Reference, VariableRank } from "./reference";
+import { JSDOC, JSDOCParameter, DocumentFolder, EventInfo } from "./fileSystem";
 import { Token, enumsMacros } from "./declarations";
+import { EventType, EventNumber } from "yyp-typings";
 
 export enum EIterArray {
 	InitExpression,
@@ -61,9 +62,9 @@ export interface ohmLineAndColum {
 }
 
 export interface VariablesPackage {
-	variables: Array<GMLVariableLocation>;
-	globalVariables: Array<GMLVariableLocation>;
-	localVariables: Array<GMLVariableLocation>;
+	variables: Array<GMLVarParse>;
+	globalVariables: Array<GMLVarParse>;
+	localVariables: Array<GMLLocalVarParse>;
 }
 
 export abstract class LintPackageFactory {
@@ -83,7 +84,12 @@ export interface IActionDict {
 	name: string;
 }
 
-export interface GMLVariableLocation {
+export interface GMLVarParse extends GMLLocalVarParse {
+	object: string | null;
+	supremacy: VariableRank;
+}
+
+export interface GMLLocalVarParse {
 	name: string;
 	range: Range;
 }
@@ -135,16 +141,15 @@ export class LintPackage {
 export class DiagnosticHandler {
 	// Declarations:
 	private uri: string;
-	private localVariables: Array<GMLVariableLocation>;
-	private instanceVariables: Array<GMLVariableLocation>;
+	private localVariables: Array<GMLLocalVarParse>;
+	private instanceVariables: Array<GMLVarParse>;
 	private localQuickCheck: Array<string>;
 	private instanceQuickCheck: Array<string>;
-	private globalVariables: Array<GMLVariableLocation>;
+	private globalVariables: Array<GMLVarParse>;
 	private globalQuickCheck: Array<string>;
 	private functionStack: Array<GMLFunctionStack>;
 	private semanticDiagnostics: Diagnostic[];
 	private matcher: any; // Matcher, but with more stuff.
-	private actionDictionaries: Array<IActionDict>;
 	private matchResult: any; // MatchResult but with more stuff.
 	private semantics: Semantics;
 	private semanticIndex: number;
@@ -158,6 +163,8 @@ export class DiagnosticHandler {
 	/** If this is a script, it will run this and try to generate JsDoc. */
 	private jsdocGenerated: JSDOC;
 	private tokenList: Token[];
+	private currentObjectName: string | null;
+	private currentRank: VariableRank;
 
 	// Constructor:
 	constructor(grammar: Grammar, uri: string, reference: Reference) {
@@ -173,7 +180,7 @@ export class DiagnosticHandler {
 		this.matcher = grammar.matcher();
 		this.semanticIndex = 0;
 		this.currentFullTextDocument = "";
-		this.actionDictionaries = [];
+
 		this.instanceQuickCheck = [];
 		this.localQuickCheck = [];
 		this.globalQuickCheck = [];
@@ -188,10 +195,13 @@ export class DiagnosticHandler {
 			parameters: [],
 			returns: "",
 			signature: ""
-		}
+		};
+		this.currentObjectName = null;
+		this.currentRank = 0;
 
 		// Init the Grammar:
-		this.actionDictionaries.push({
+		const actionDictionaries: Array<IActionDict> = [];
+		actionDictionaries.push({
 			name: "lint",
 			actionDict: {
 				// Identify functions and get argument counts
@@ -272,7 +282,12 @@ export class DiagnosticHandler {
 									providedArguments.length +
 									".";
 								this.semanticDiagnostics.push(
-									this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
+									this.getFunctionDiagnostic(
+										this.currentFullTextDocument,
+										list,
+										currentFunc,
+										eMessage
+									)
 								);
 							}
 
@@ -306,7 +321,12 @@ export class DiagnosticHandler {
 
 								// Create our Diagnostic:
 								this.semanticDiagnostics.push(
-									this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
+									this.getFunctionDiagnostic(
+										this.currentFullTextDocument,
+										list,
+										currentFunc,
+										eMessage
+									)
 								);
 							}
 
@@ -344,11 +364,18 @@ export class DiagnosticHandler {
 				},
 
 				RegionStatement: (startRegion, regionName, list, endRegion) => {
-					const startPosition = getPositionFromIndex(this.currentFullTextDocument, startRegion.source.startIdx);
+					const startPosition = getPositionFromIndex(
+						this.currentFullTextDocument,
+						startRegion.source.startIdx
+					);
 					const endPosition = getPositionFromIndex(this.currentFullTextDocument, endRegion.source.endIdx);
 
 					// Add this Folding Range:
-					this.reference.foldingAddFoldingRange(this.uri, Range.create(startPosition, endPosition), FoldingRangeKind.Region);
+					this.reference.foldingAddFoldingRange(
+						this.uri,
+						Range.create(startPosition, endPosition),
+						FoldingRangeKind.Region
+					);
 					list.lint();
 				},
 
@@ -360,12 +387,12 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
 		});
-		this.actionDictionaries.push({
+		actionDictionaries.push({
 			name: "indexVariables",
 			actionDict: {
 				// Handle local variable identification here
@@ -390,7 +417,9 @@ export class DiagnosticHandler {
 						// Add our new object
 						this.instanceVariables.push({
 							name: variableName,
-							range: this.getVariableIndex(this.currentFullTextDocument, variable)
+							range: this.getVariableIndex(this.currentFullTextDocument, variable),
+							object: this.currentObjectName,
+							supremacy: this.currentRank
 						});
 						this.instanceQuickCheck.push(variableName);
 					}
@@ -400,10 +429,20 @@ export class DiagnosticHandler {
 					if (this.globalQuickCheck.includes(globVariable.sourceString) == false) {
 						this.globalVariables.push({
 							name: globVariable.sourceString,
-							range: this.getVariableIndex(this.currentFullTextDocument, globVariable)
+							range: this.getVariableIndex(this.currentFullTextDocument, globVariable),
+							object: "global",
+							supremacy: this.currentRank
 						});
 						this.globalQuickCheck.push(globVariable.sourceString);
 					}
+				},
+
+				WithStatement: (_, objectName: Node, Statement: Node) => {
+					const currObj = this.currentObjectName;
+
+					// FIGURE OUT HOW WE GET OBJECT NAMES HERE!!!
+
+					
 				},
 
 				// Generic for all non-terminal nodes
@@ -414,12 +453,12 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
 		});
-		this.actionDictionaries.push({
+		actionDictionaries.push({
 			name: "enumsAndMacros",
 			actionDict: {
 				EnumDeclaration: (enumWord: Node, enumName: Node, _: Node, enumList: Node, cCurly: Node) => {
@@ -461,12 +500,12 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
 		});
-		this.actionDictionaries.push({
+		actionDictionaries.push({
 			name: "jsdoc",
 			actionDict: {
 				jsdocFunction: (funcDec: Node, _, functionEntry: Node) => {
@@ -566,7 +605,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
@@ -574,7 +613,7 @@ export class DiagnosticHandler {
 
 		// Create our Semantic (general) and add all our operations.
 		this.semantics = grammar.createSemantics();
-		for (const thisActionDict of this.actionDictionaries) {
+		for (const thisActionDict of actionDictionaries) {
 			this.semantics.addOperation(thisActionDict.name, thisActionDict.actionDict);
 		}
 	}
@@ -858,11 +897,40 @@ export class DiagnosticHandler {
 		});
 	}
 
-	public async runSemanticIndexVariableOperation(matchArray: MatchResultsPackage[]): Promise<VariablesPackage> {
+	public async runSemanticIndexVariableOperation(
+		matchArray: MatchResultsPackage[],
+		currObjInfo: DocumentFolder
+	): Promise<VariablesPackage> {
 		// Clear the quick check
 		this.instanceQuickCheck = [];
 		this.globalQuickCheck = [];
 		this.localQuickCheck = [];
+
+		// Set our Object Name Here:
+		this.currentObjectName = currObjInfo.name;
+
+		// Figure our our Variable Type for this Event/Script and this Object:
+		if (currObjInfo.eventInfo) {
+			if (currObjInfo.eventInfo.eventType == EventType.Create) {
+				this.currentRank = VariableRank.Create;
+			} else if (currObjInfo.eventInfo.eventType == EventType.Step) {
+				switch (currObjInfo.eventInfo.eventNumb) {
+					case EventNumber.StepBegin:
+						this.currentRank = VariableRank.BegStep;
+						break;
+
+					case EventNumber.StepNormal:
+						this.currentRank = VariableRank.Step;
+						break;
+
+					case EventNumber.StepEnd:
+						this.currentRank = VariableRank.EndStep;
+						break;
+				}
+			} else {
+				this.currentRank = VariableRank.Other;
+			}
+		} else this.currentRank = VariableRank.Other;
 
 		// Main loop
 		for (const element of matchArray) {
