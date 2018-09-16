@@ -8,7 +8,7 @@ import {
 	getPositionFromIndex
 } from "./utils";
 import { Reference, VariableRank } from "./reference";
-import { JSDOC, JSDOCParameter, DocumentFolder, EventInfo } from "./fileSystem";
+import { JSDOC, JSDOCParameter, DocumentFolder } from "./fileSystem";
 import { Token, enumsMacros } from "./declarations";
 import { EventType, EventNumber } from "yyp-typings";
 
@@ -87,6 +87,7 @@ export interface IActionDict {
 export interface GMLVarParse extends GMLLocalVarParse {
 	object: string | null;
 	supremacy: VariableRank;
+	isSelf: boolean;
 }
 
 export interface GMLLocalVarParse {
@@ -165,6 +166,7 @@ export class DiagnosticHandler {
 	private tokenList: Token[];
 	private currentObjectName: string | null;
 	private currentRank: VariableRank;
+	private isSelf: boolean;
 
 	// Constructor:
 	constructor(grammar: Grammar, uri: string, reference: Reference) {
@@ -198,6 +200,7 @@ export class DiagnosticHandler {
 		};
 		this.currentObjectName = null;
 		this.currentRank = 0;
+		this.isSelf = true;
 
 		// Init the Grammar:
 		const actionDictionaries: Array<IActionDict> = [];
@@ -407,6 +410,15 @@ export class DiagnosticHandler {
 					}
 				},
 
+				ObjDotVar: (ObjDecl, _, variable) => {
+					console.log("oh hi");
+					ObjDecl.indexVariables();
+				},
+
+				MembObjectVarRef: (_, __, ___) => {
+					console.log("oh hi");
+				},
+
 				variable: (variable: Node) => {
 					const variableName = variable.sourceString;
 
@@ -419,7 +431,8 @@ export class DiagnosticHandler {
 							name: variableName,
 							range: this.getVariableIndex(this.currentFullTextDocument, variable),
 							object: this.currentObjectName,
-							supremacy: this.currentRank
+							supremacy: this.currentRank,
+							isSelf: this.isSelf
 						});
 						this.instanceQuickCheck.push(variableName);
 					}
@@ -431,7 +444,8 @@ export class DiagnosticHandler {
 							name: globVariable.sourceString,
 							range: this.getVariableIndex(this.currentFullTextDocument, globVariable),
 							object: "global",
-							supremacy: this.currentRank
+							supremacy: this.currentRank,
+							isSelf: false
 						});
 						this.globalQuickCheck.push(globVariable.sourceString);
 					}
@@ -439,10 +453,6 @@ export class DiagnosticHandler {
 
 				WithStatement: (_, objectName: Node, Statement: Node) => {
 					const currObj = this.currentObjectName;
-
-					// FIGURE OUT HOW WE GET OBJECT NAMES HERE!!!
-
-					
 				},
 
 				// Generic for all non-terminal nodes

@@ -442,8 +442,14 @@ export class Reference {
 		// Iterate on the variables
 		for (const variable of vars) {
 			this.objects[obj][variable.name] = {
-				uri: uri,
-				range: variable.range
+				originLocation: {
+					arrayIndex: 0,
+					self: variable.isSelf,
+					supremacy: variable.supremacy
+				},
+				referenceLocations: [
+					Location.create(uri, variable.range)
+				]
 			};
 
 			this.URI2ObjectVariables[uri].push({
@@ -471,9 +477,15 @@ export class Reference {
 		for (const globvar of globvars) {
 			// Store the global into the global reference.
 			this.globalVariables[globvar.name] = {
-				uri: uri,
-				range: globvar.range
-			};
+				originLocation: {
+					arrayIndex: 0,
+					self: globvar.isSelf,
+					supremacy: globvar.supremacy
+				},
+				referenceLocations: [
+					Location.create(uri, globvar.range)
+				]
+			}
 		}
 	}
 
@@ -503,7 +515,7 @@ export class Reference {
 		return this.URI2ObjectVariables[uri];
 	}
 
-	public getObjectVariablePackage(objName: string, variableName: string): IVar | null {
+	public getObjectVariablePackage(objName: string, variableName: string) {
 		const thisObjVariables = this.objects[objName];
 
 		if (thisObjVariables) {
