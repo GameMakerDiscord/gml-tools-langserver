@@ -25,14 +25,14 @@ export interface IVars {
 }
 
 export interface VariableModel {
-	originLocation: IOriginVar;
+	origin: IOriginVar;
 	referenceLocations: Array<Location>;
 }
 
 export interface IOriginVar {
 	arrayIndex: number;
 	supremacy: VariableRank;
-	self: boolean;
+	isSelf: boolean;
 }
 
 export enum VariableRank {
@@ -296,11 +296,14 @@ export class Reference {
 		// Clear our locals:
 		this.URIDictionary[uri].localVariables = [];
 
-		for (const thisThing of locals) {
+		for (const thisLocal of locals) {
+			// Slice off the first two, since we add "*." to locals.
+			const thisName = thisLocal.name.slice(2);
+
 			this.URIDictionary[uri].localVariables.push({
-				value: thisThing.name,
-				location: Location.create(uri, thisThing.range),
-				name: thisThing.name
+				value: thisLocal.name,
+				location: Location.create(uri, thisLocal.range),
+				name: thisLocal.name
 			});
 		}
 	}
@@ -430,33 +433,72 @@ export class Reference {
 	 * @param obj Object to add/check.
 	 * @param vars The variable array to add. If none, pass empty array.
 	 */
-	public addVariablesToObject(obj: string, vars: Array<GMLVarParse>, uri: string) {
-		// Create object if necessary
-		if (this.objects.hasOwnProperty(obj) == false) {
-			this.addObject(obj);
-		}
-
+	public addVariablesToObject(vars: Array<GMLVarParse>, uri: string) {
 		// Create our URI object/clear it
 		this.URI2ObjectVariables[uri] = [];
 
 		// Iterate on the variables
-		for (const variable of vars) {
-			this.objects[obj][variable.name] = {
-				originLocation: {
-					arrayIndex: 0,
-					self: variable.isSelf,
-					supremacy: variable.supremacy
-				},
-				referenceLocations: [
-					Location.create(uri, variable.range)
-				]
-			};
+		for (const thisVar of vars) {
+			// Create object if necessary
+			if (this.objects.hasOwnProperty(thisVar.object) == false) {
+				this.addObject(thisVar.object);
+			}
 
+			// Create Variable location if necessary
+			if (this.objects[thisVar.object].hasOwnProperty(thisVar.name) == false) {
+				this.objects[thisVar.object][thisVar.name] = {
+					origin: {
+						arrayIndex: 0,
+						isSelf: thisVar.isSelf,
+						supremacy: thisVar.supremacy
+					},
+					referenceLocations: [Location.create(uri, thisVar.range)]
+				};
+			} else {
+				// Figure out if this is our Origin Variable
+				let overrideOrigin = false;
+				const previousOrigin = this.varGetOriginVar(thisVar.object, thisVar.name);
+				if (previousOrigin) {
+					if (previousOrigin.isSelf == false && thisVar.isSelf == true) {
+						overrideOrigin = true;
+					} else if (previousOrigin.isSelf == thisVar.isSelf) {
+						// Compare their respective events, essentially.
+						// Remember, smaller is better!
+						if (previousOrigin.supremacy > thisVar.supremacy) {
+							overrideOrigin = true;
+						}
+					}
+				}
+
+				// Push what we have to the stack no matter what:
+				const ourIndex = this.objects[thisVar.object][thisVar.name].referenceLocations.push(
+					Location.create(uri, thisVar.range)
+				);
+
+				// Override Origin
+				if (overrideOrigin) {
+					this.objects[thisVar.object][thisVar.name].origin = {
+						arrayIndex: ourIndex,
+						isSelf: thisVar.isSelf,
+						supremacy: thisVar.supremacy
+					};
+				}
+			}
+
+			//REDO THIS PART BECAUSE WE NEED TO DELETE *EVERY* VARIABLE REFERENCE AND RE-INDEX EVERY
 			this.URI2ObjectVariables[uri].push({
-				object: obj,
-				variable: variable.name
+				object: thisVar.object,
+				variable: thisVar.name
 			});
 		}
+	}
+
+	private varGetOriginVar(objName: string, varName: string): IOriginVar | null {
+		if (this.objects[objName] && this.objects[objName][varName]) {
+			return this.objects[objName][varName].origin;
+		}
+
+		return null;
 	}
 
 	/**
@@ -467,7 +509,7 @@ export class Reference {
 	 * @param globvars The global variable array to add. If none,
 	 * pass empty array.
 	 */
-	public addGlobalVariablesToObject(objName: string, globvars: Array<GMLVarParse>, uri: string) {
+	public addGlobalVariablesToObject(globvars: Array<GMLVarParse>, uri: string) {
 		// Create object if necessary
 		if (this.objects.hasOwnProperty(objName) == false) {
 			this.addObject(objName);
@@ -477,15 +519,13 @@ export class Reference {
 		for (const globvar of globvars) {
 			// Store the global into the global reference.
 			this.globalVariables[globvar.name] = {
-				originLocation: {
+				origin: {
 					arrayIndex: 0,
-					self: globvar.isSelf,
+					isSelf: globvar.isSelf,
 					supremacy: globvar.supremacy
 				},
-				referenceLocations: [
-					Location.create(uri, globvar.range)
-				]
-			}
+				referenceLocations: [Location.create(uri, globvar.range)]
+			};
 		}
 	}
 
@@ -493,9 +533,9 @@ export class Reference {
 	 * Simply does both addVariables and addGlobals at the same time. Prefer
 	 * using this for simplicity later.
 	 */
-	public addAllVariablesToObject(obj: string, uri: string, vars: VariablesPackage) {
-		this.addVariablesToObject(obj, vars.variables, uri);
-		this.addGlobalVariablesToObject(obj, vars.globalVariables, uri);
+	public addAllVariablesToObject(uri: string, vars: VariablesPackage) {
+		this.addVariablesToObject(vars.variables, uri);
+		this.addGlobalVariablesToObject(vars.globalVariables, uri);
 	}
 
 	public clearAllVariablesAtURI(uri: string) {

@@ -85,7 +85,7 @@ export interface IActionDict {
 }
 
 export interface GMLVarParse extends GMLLocalVarParse {
-	object: string | null;
+	object: string;
 	supremacy: VariableRank;
 	isSelf: boolean;
 }
@@ -164,7 +164,7 @@ export class DiagnosticHandler {
 	/** If this is a script, it will run this and try to generate JsDoc. */
 	private jsdocGenerated: JSDOC;
 	private tokenList: Token[];
-	private currentObjectName: string | null;
+	private currentObjectName: string;
 	private currentRank: VariableRank;
 	private isSelf: boolean;
 
@@ -198,7 +198,7 @@ export class DiagnosticHandler {
 			returns: "",
 			signature: ""
 		};
-		this.currentObjectName = null;
+		this.currentObjectName = "*";
 		this.currentRank = 0;
 		this.isSelf = true;
 
@@ -398,34 +398,99 @@ export class DiagnosticHandler {
 		actionDictionaries.push({
 			name: "indexVariables",
 			actionDict: {
+				// This is the subject in the declaration/set statement: OBJ.VAR = 10;
+				ObjDotVar: (thisObject: Node, _, thisVariable: Node) => {
+					const objName = thisObject.sourceString;
+
+					// Right now, we don't walk this
+					// Next update, we'll add types to try to walk this:
+					if (objName.includes(".") == false) {
+						if (this.reference.objectExists(objName) && this.currentObjectName != objName) {
+							// Save our Current Var Parsing State
+							const oldObj = this.currentObjectName;
+							const oldSelf = this.isSelf;
+
+							// Set to new Stuff
+							this.currentObjectName = objName;
+							this.isSelf = false;
+
+							// Do the variable thing
+							thisVariable.indexVariables();
+
+							// Reset
+							this.currentObjectName = oldObj;
+							this.isSelf = oldSelf;
+						}
+					}
+				},
+
+				// This is the predicate in a setting statement: x = OBJ.VAR;
+				MembObjectVarRef: (thisObject: Node, _, thisVariable: Node) => {
+					const objName = thisObject.sourceString;
+
+					// Right now, we don't walk this
+					// Next update, we'll add types to try to walk this:
+					if (objName.includes(".") == false) {
+						if (this.reference.objectExists(objName) && this.currentObjectName != objName) {
+							// Save our Current Var Parsing State
+							const oldObj = this.currentObjectName;
+							const oldSelf = this.isSelf;
+
+							// Set to new Stuff
+							this.currentObjectName = objName;
+							this.isSelf = false;
+
+							// Do the variable thing
+							thisVariable.indexVariables();
+
+							// Reset
+							this.currentObjectName = oldObj;
+							this.isSelf = oldSelf;
+						}
+					}
+				},
+
+				WithStatement: (_, thisObject: Node, Statement: Node) => {
+					// Figure out our Object Name:
+					let objName = thisObject.child(0).sourceString;
+					if (objName.charAt(0) == "(" && objName.charAt(objName.length - 1) == ")") {
+						objName = objName.slice(1, objName.length - 1);
+					}
+
+					if (this.reference.objectExists(objName) && this.currentObjectName != objName) {
+						// Save our Current Var Parsing State
+						const oldObj = this.currentObjectName;
+						const oldSelf = this.isSelf;
+
+						// Set to new Stuff
+						this.currentObjectName = objName;
+						this.isSelf = false;
+
+						// Do the variable thing
+						Statement.indexVariables();
+
+						// Reset
+						this.currentObjectName = oldObj;
+						this.isSelf = oldSelf;
+					}
+				},
+
 				// Handle local variable identification here
 				localVariable: (variable: Node) => {
 					const varName = variable.sourceString;
-					if (this.localQuickCheck.includes(variable.sourceString) == false) {
+					if (this.localQuickCheck.includes("*." + variable.sourceString) == false) {
 						this.localQuickCheck.push(varName);
 						this.localVariables.push({
-							name: varName,
+							name: "*." + varName,
 							range: this.getVariableIndex(this.currentFullTextDocument, variable)
 						});
 					}
 				},
 
-				ObjDotVar: (ObjDecl, _, variable) => {
-					console.log("oh hi");
-					ObjDecl.indexVariables();
-				},
-
-				MembObjectVarRef: (_, __, ___) => {
-					console.log("oh hi");
-				},
-
 				variable: (variable: Node) => {
 					const variableName = variable.sourceString;
 
-					if (
-						this.instanceQuickCheck.includes(variableName) == false &&
-						this.localQuickCheck.includes(variableName) == false
-					) {
+					if (this.localQuickCheck.includes(variableName) == false) {
 						// Add our new object
 						this.instanceVariables.push({
 							name: variableName,
@@ -434,25 +499,17 @@ export class DiagnosticHandler {
 							supremacy: this.currentRank,
 							isSelf: this.isSelf
 						});
-						this.instanceQuickCheck.push(variableName);
 					}
 				},
 
 				globalVariable: (globVariable: Node) => {
-					if (this.globalQuickCheck.includes(globVariable.sourceString) == false) {
-						this.globalVariables.push({
-							name: globVariable.sourceString,
-							range: this.getVariableIndex(this.currentFullTextDocument, globVariable),
-							object: "global",
-							supremacy: this.currentRank,
-							isSelf: false
-						});
-						this.globalQuickCheck.push(globVariable.sourceString);
-					}
-				},
-
-				WithStatement: (_, objectName: Node, Statement: Node) => {
-					const currObj = this.currentObjectName;
+					this.globalVariables.push({
+						name: globVariable.sourceString,
+						range: this.getVariableIndex(this.currentFullTextDocument, globVariable),
+						object: "global",
+						supremacy: this.currentRank,
+						isSelf: false
+					});
 				},
 
 				// Generic for all non-terminal nodes

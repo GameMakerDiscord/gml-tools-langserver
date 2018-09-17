@@ -333,7 +333,7 @@ export class LangServ {
 						// Loop here cause I don't get array.prototype.filter cause I'm a fool:
 						let found = false;
 						for (const varFound of varPackage.variables) {
-							if (varFound.name == varShouldHaveFound.variable) {
+							if (varFound.object == varShouldHaveFound.object && varFound.name == varShouldHaveFound.variable) {
 								found = true;
 								break;
 							}
@@ -346,7 +346,7 @@ export class LangServ {
 				}
 
 				this.reference.clearTheseVariablesAtURI(thisURI, variablesNotFound);
-				this.reference.addAllVariablesToObject(URIInformation.name, thisURI, varPackage);
+				this.reference.addAllVariablesToObject(thisURI, varPackage);
 			}
 		}
 
