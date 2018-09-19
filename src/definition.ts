@@ -89,7 +89,7 @@ export class GMLDefinitionProvider {
             const varPack = this.reference.getObjectVariablePackage(ourWord[ws.beforePeriod], ourWord[ws.afterPeriod]);
 
             if (varPack) {
-                return Location.create(varPack.uri, varPack.range);
+                return varPack.referenceLocations[varPack.origin.arrayIndex];
             }
         }
         return undefined;

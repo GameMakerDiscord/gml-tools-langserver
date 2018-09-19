@@ -1,8 +1,8 @@
-import { WorkspaceFolder, Diagnostic } from "vscode-languageserver/lib/main";
+import { WorkspaceFolder } from "vscode-languageserver/lib/main";
 import * as fse from "fs-extra";
 import * as path from "path";
 import { Grammar } from "ohm-js";
-import { DiagnosticHandler, DiagnosticsPackage } from "./diagnostic";
+import { DiagnosticHandler } from "./diagnostic";
 import { LangServ } from "./langserv";
 import { Reference } from "./reference";
 import * as upath from "upath";
@@ -62,8 +62,10 @@ export interface GMLSprite {
 
 export interface EventInfo {
 	eventType: EventType;
-	eventNumb: number;
+	eventNumb: EventNumber;
+	/** This is the UUID of the event. */
 	eventID: string;
+	/** This is the relative path to the event's  */
 	eventPath: string;
 }
 
@@ -931,7 +933,7 @@ export class FileSystem {
 		let check;
 		try {
 			check = ajv.getSchema("http://json-schema.org/draft-06/schema");
-		} catch (error) {}
+		} catch (error) { }
 		if (!check) {
 			ajv.addMetaSchema(require("ajv/lib/refs/json-schema-draft-06.json"));
 		}
@@ -991,9 +993,9 @@ export class FileSystem {
 		const thisDiagnostic = await this.getDiagnosticHandler(fileURI.toString());
 		await thisDiagnostic.setInput(fileText);
 
-		let finalDiagnosticPackage: Diagnostic[] = [];
+		// let finalDiagnosticPackage: Diagnostic[] = [];
 		try {
-			finalDiagnosticPackage = await this.lsp.lint(thisDiagnostic, semanticsToRun);
+			await this.lsp.lint(thisDiagnostic, semanticsToRun);
 		} catch (error) {
 			console.log("Error at " + fpath + ". Error: " + error);
 		}
@@ -1424,13 +1426,13 @@ export class FileSystem {
 		}
 		console.log(
 			"NonGML file indexed by YYP? Serious error. \n" +
-				"This event: " +
-				thisEvent.eventtype +
-				"/" +
-				thisEvent.enumb +
-				"\n" +
-				"This directory: " +
-				dirPath
+			"This event: " +
+			thisEvent.eventtype +
+			"/" +
+			thisEvent.enumb +
+			"\n" +
+			"This directory: " +
+			dirPath
 		);
 		return "";
 	}

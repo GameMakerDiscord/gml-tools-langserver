@@ -17,7 +17,7 @@ import {
 	FoldingRangeRequestParam
 } from "vscode-languageserver/lib/main";
 import { DiagnosticHandler, LintPackageFactory, DiagnosticsPackage, LintPackage } from "./diagnostic";
-import { Reference, IObjVar } from "./reference";
+import { Reference } from "./reference";
 import { GMLDefinitionProvider } from "./definition";
 import { GMLSignatureProvider } from "./signature";
 import { GMLCompletionProvider } from "./completion";
@@ -56,7 +56,7 @@ export class LangServ {
 		this.__dirName = path.normalize(__dirname);
 
 		// Create our tools:
-		this.reference = new Reference();
+		this.reference = new Reference(this);
 		this.documentationImporter = new DocumentationImporter(this, this.reference);
 		this.fsManager = new FileSystem(this.gmlGrammar, this);
 
@@ -324,28 +324,10 @@ export class LangServ {
 		// Instance Variables
 		if (URIInformation) {
 			if (URIInformation.type == ResourceType.Object) {
-				// Figure out the missing Variables
-				const ourVariablesWeShouldHaveFound = this.reference.getAllVariablesAtURI(thisURI);
-				let variablesNotFound: IObjVar[] = [];
+				// Delete our Old Variable Cache
+				await this.reference.clearAllVariablesAtURI(thisURI);
 
-				if (ourVariablesWeShouldHaveFound) {
-					for (const varShouldHaveFound of ourVariablesWeShouldHaveFound) {
-						// Loop here cause I don't get array.prototype.filter cause I'm a fool:
-						let found = false;
-						for (const varFound of varPackage.variables) {
-							if (varFound.object == varShouldHaveFound.object && varFound.name == varShouldHaveFound.variable) {
-								found = true;
-								break;
-							}
-						}
-
-						if (found == false) {
-							variablesNotFound.push(varShouldHaveFound);
-						}
-					}
-				}
-
-				this.reference.clearTheseVariablesAtURI(thisURI, variablesNotFound);
+				// Add our Objects to the URI
 				this.reference.addAllVariablesToObject(thisURI, varPackage);
 			}
 		}
@@ -441,7 +423,7 @@ export class LangServ {
 		// Basic Conversions straight here:
 		if (typeof objectPackage.objectEvents == "string") {
 			objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(",");
-			objectPackage.objectEvents = objectPackage.objectEvents.map(function(x) {
+			objectPackage.objectEvents = objectPackage.objectEvents.map(function (x) {
 				return x.trim();
 			});
 		}
@@ -492,7 +474,7 @@ export class LangServ {
 
 	public async addEvents(events: EventsPackage) {
 		let eventsArray = events.events.toLowerCase().split(",");
-		eventsArray = eventsArray.map(function(x) {
+		eventsArray = eventsArray.map(function (x) {
 			return x.trim();
 		});
 

@@ -63,7 +63,6 @@ export interface ohmLineAndColum {
 
 export interface VariablesPackage {
 	variables: Array<GMLVarParse>;
-	globalVariables: Array<GMLVarParse>;
 	localVariables: Array<GMLLocalVarParse>;
 }
 
@@ -145,9 +144,6 @@ export class DiagnosticHandler {
 	private localVariables: Array<GMLLocalVarParse>;
 	private instanceVariables: Array<GMLVarParse>;
 	private localQuickCheck: Array<string>;
-	private instanceQuickCheck: Array<string>;
-	private globalVariables: Array<GMLVarParse>;
-	private globalQuickCheck: Array<string>;
 	private functionStack: Array<GMLFunctionStack>;
 	private semanticDiagnostics: Diagnostic[];
 	private matcher: any; // Matcher, but with more stuff.
@@ -172,7 +168,6 @@ export class DiagnosticHandler {
 	constructor(grammar: Grammar, uri: string, reference: Reference) {
 		this.localVariables = [];
 		this.instanceVariables = [];
-		this.globalVariables = [];
 		this.functionStack = [];
 		this.semanticDiagnostics = [];
 		this.uri = uri;
@@ -183,9 +178,7 @@ export class DiagnosticHandler {
 		this.semanticIndex = 0;
 		this.currentFullTextDocument = "";
 
-		this.instanceQuickCheck = [];
 		this.localQuickCheck = [];
-		this.globalQuickCheck = [];
 		this.enumsAddedThisCycle = [];
 		this.macrosAddedThisCycle = [];
 		this.tokenList = [];
@@ -503,7 +496,7 @@ export class DiagnosticHandler {
 				},
 
 				globalVariable: (globVariable: Node) => {
-					this.globalVariables.push({
+					this.instanceVariables.push({
 						name: globVariable.sourceString,
 						range: this.getVariableIndex(this.currentFullTextDocument, globVariable),
 						object: "global",
@@ -969,8 +962,6 @@ export class DiagnosticHandler {
 		currObjInfo: DocumentFolder
 	): Promise<VariablesPackage> {
 		// Clear the quick check
-		this.instanceQuickCheck = [];
-		this.globalQuickCheck = [];
 		this.localQuickCheck = [];
 
 		// Set our Object Name Here:
@@ -1007,8 +998,7 @@ export class DiagnosticHandler {
 
 		return {
 			localVariables: this.localVariables.splice(0),
-			variables: this.instanceVariables.splice(0, this.instanceVariables.length),
-			globalVariables: this.globalVariables.splice(0, this.globalVariables.length)
+			variables: this.instanceVariables.splice(0, this.instanceVariables.length)
 		};
 	}
 

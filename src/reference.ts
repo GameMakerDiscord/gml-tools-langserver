@@ -1,9 +1,11 @@
 import { Range, Location, FoldingRangeKind } from "vscode-languageserver/lib/main";
-import { JSDOC } from "./fileSystem";
+import { JSDOC, FileSystem } from "./fileSystem";
 import { VariablesPackage, GMLVarParse, GMLLocalVarParse } from "./diagnostic";
 import URI from "vscode-uri/lib/umd";
-import { GMLDocs } from "./declarations";
+import { GMLDocs, LanguageService, ResourceType } from "./declarations";
 import { FoldingRange } from "vscode-languageserver-protocol/lib/protocol.foldingRange";
+import { LangServ } from "./langserv";
+import { EventType, EventNumber } from "yyp-typings";
 
 export interface IScriptsAndFunctions {
 	[key: string]: IEachScript;
@@ -31,7 +33,7 @@ export interface VariableModel {
 
 export interface IOriginVar {
 	arrayIndex: number;
-	supremacy: VariableRank;
+	varRank: VariableRank;
 	isSelf: boolean;
 }
 
@@ -40,7 +42,8 @@ export enum VariableRank {
 	BegStep,
 	Step,
 	EndStep,
-	Other
+	Other,
+	Num
 }
 
 export interface IEnums {
@@ -71,13 +74,15 @@ export interface enum2uri {
 	[thisEnumName: string]: string;
 }
 
-export interface IURI2ObjVariables {
-	[thisUri: string]: Array<IObjVar>;
+export interface URIInstRecords {
+	[thisUri: string]: Array<InstVarRecord>;
 }
 
-export interface IObjVar {
+export interface InstVarRecord {
 	object: string;
 	variable: string;
+	index: number;
+	isOrigin: boolean;
 }
 
 export interface IURIDictionary {
@@ -96,6 +101,7 @@ interface GMLDocOverrides {
 }
 
 export class Reference {
+	private lsp: LangServ;
 	private objects: IObjects;
 	private objectList: Array<string>;
 	private scriptsAndFunctions: IScriptsAndFunctions;
@@ -105,7 +111,7 @@ export class Reference {
 	private enums: IEnums;
 	private enum2URI: enum2uri;
 	private macros2uri: enum2uri;
-	private URI2ObjectVariables: IURI2ObjVariables;
+	private variablesRecord: URIInstRecords;
 	private sprites: Array<string>;
 	private allResourceNames: Array<string>;
 	private URIDictionary: IURIDictionary;
@@ -119,10 +125,10 @@ export class Reference {
 	public paths: string[];
 	private gmlDocOverrides: GMLDocOverrides[];
 
-	constructor() {
+	constructor(lsp: LangServ) {
 		this.objects = {};
 		this.objectList = [];
-		this.URI2ObjectVariables = {};
+		this.variablesRecord = {};
 		this.scriptsAndFunctions = {};
 		this.scriptsAndFunctionsList = [];
 		this.globalVariables = {};
@@ -141,6 +147,7 @@ export class Reference {
 		this.rooms = [];
 		this.URIDictionary = {};
 		this.gmlDocOverrides = [];
+		this.lsp = lsp;
 	}
 
 	public initGMLDocs(gmlDocs: GMLDocs.DocFile) {
@@ -234,7 +241,7 @@ export class Reference {
 	public clearAllData() {
 		this.objects = {};
 		this.objectList = [];
-		this.URI2ObjectVariables = {};
+		this.variablesRecord = {};
 		this.scriptsAndFunctions = {};
 		this.scriptsAndFunctionsList = [];
 		this.globalVariables = {};
@@ -301,9 +308,9 @@ export class Reference {
 			const thisName = thisLocal.name.slice(2);
 
 			this.URIDictionary[uri].localVariables.push({
-				value: thisLocal.name,
+				value: thisName,
 				location: Location.create(uri, thisLocal.range),
-				name: thisLocal.name
+				name: thisName
 			});
 		}
 	}
@@ -435,7 +442,7 @@ export class Reference {
 	 */
 	public addVariablesToObject(vars: Array<GMLVarParse>, uri: string) {
 		// Create our URI object/clear it
-		this.URI2ObjectVariables[uri] = [];
+		this.variablesRecord[uri] = [];
 
 		// Iterate on the variables
 		for (const thisVar of vars) {
@@ -446,14 +453,23 @@ export class Reference {
 
 			// Create Variable location if necessary
 			if (this.objects[thisVar.object].hasOwnProperty(thisVar.name) == false) {
+				// Extend/Update our internal model
 				this.objects[thisVar.object][thisVar.name] = {
 					origin: {
 						arrayIndex: 0,
 						isSelf: thisVar.isSelf,
-						supremacy: thisVar.supremacy
+						varRank: thisVar.supremacy
 					},
 					referenceLocations: [Location.create(uri, thisVar.range)]
 				};
+
+				// Create a Record of this Object
+				this.variablesRecord[uri].push({
+					object: thisVar.object,
+					variable: thisVar.name,
+					index: 0,
+					isOrigin: true
+				});
 			} else {
 				// Figure out if this is our Origin Variable
 				let overrideOrigin = false;
@@ -464,10 +480,14 @@ export class Reference {
 					} else if (previousOrigin.isSelf == thisVar.isSelf) {
 						// Compare their respective events, essentially.
 						// Remember, smaller is better!
-						if (previousOrigin.supremacy > thisVar.supremacy) {
+						if (previousOrigin.varRank > thisVar.supremacy) {
 							overrideOrigin = true;
 						}
 					}
+				} else {
+					// We the new origin in town boys:
+					console.log("ERROR: Floating variable with no Origin set. Origin randomly reapplied. Please post an issue on the Github.")
+					overrideOrigin = true;
 				}
 
 				// Push what we have to the stack no matter what:
@@ -480,16 +500,18 @@ export class Reference {
 					this.objects[thisVar.object][thisVar.name].origin = {
 						arrayIndex: ourIndex,
 						isSelf: thisVar.isSelf,
-						supremacy: thisVar.supremacy
+						varRank: thisVar.supremacy
 					};
 				}
-			}
 
-			//REDO THIS PART BECAUSE WE NEED TO DELETE *EVERY* VARIABLE REFERENCE AND RE-INDEX EVERY
-			this.URI2ObjectVariables[uri].push({
-				object: thisVar.object,
-				variable: thisVar.name
-			});
+				// Create our Record
+				this.variablesRecord[uri].push({
+					object: thisVar.object,
+					variable: thisVar.name,
+					index: ourIndex,
+					isOrigin: overrideOrigin
+				});
+			}
 		}
 	}
 
@@ -502,57 +524,114 @@ export class Reference {
 	}
 
 	/**
-	 * We add the global to the objects property, and to
-	 * the property `globalVariables.` We do this for speed in
-	 * language services.
-	 * @param objName Object to add/check.
-	 * @param globvars The global variable array to add. If none,
-	 * pass empty array.
-	 */
-	public addGlobalVariablesToObject(globvars: Array<GMLVarParse>, uri: string) {
-		// Create object if necessary
-		if (this.objects.hasOwnProperty(objName) == false) {
-			this.addObject(objName);
-		}
-
-		// Iterate on the variables
-		for (const globvar of globvars) {
-			// Store the global into the global reference.
-			this.globalVariables[globvar.name] = {
-				origin: {
-					arrayIndex: 0,
-					isSelf: globvar.isSelf,
-					supremacy: globvar.supremacy
-				},
-				referenceLocations: [Location.create(uri, globvar.range)]
-			};
-		}
-	}
-
-	/**
 	 * Simply does both addVariables and addGlobals at the same time. Prefer
 	 * using this for simplicity later.
 	 */
 	public addAllVariablesToObject(uri: string, vars: VariablesPackage) {
 		this.addVariablesToObject(vars.variables, uri);
-		this.addGlobalVariablesToObject(vars.globalVariables, uri);
 	}
 
-	public clearAllVariablesAtURI(uri: string) {
-		const ourVariables = this.URI2ObjectVariables[uri];
+	public async clearAllVariablesAtURI(uri: string) {
+		const ourRecords = this.variablesRecord[uri];
 
-		if (ourVariables) {
-			for (const thisVariable of ourVariables) {
-				delete this.objects[thisVariable.object][thisVariable.variable];
+		if (ourRecords) {
+			for (const thisRecord of ourRecords) {
+				// Get our Variable Info:
+				const thisVarEntry = this.objects[thisRecord.object][thisRecord.variable];
+
+				// Splice out the Record from this Var:
+				this.objects[thisRecord.object][thisRecord.variable].
+					referenceLocations.splice(thisRecord.index, 1);
+
+				if (thisRecord.isOrigin) {
+					const newOrigin = await this.varsAssignNewOrigin(thisVarEntry.referenceLocations, uri);
+					if (newOrigin === null) {
+						// Delete the variable entirely -- we've lost all reference to it.
+						delete this.objects[thisRecord.object][thisRecord.variable];
+					} else {
+						thisVarEntry.origin = newOrigin;
+					}
+				}
 			}
-			delete this.URI2ObjectVariables[uri];
+			
+			delete this.variablesRecord[uri];
 		}
+	}
+
+	private async varsAssignNewOrigin(referenceArray: Location[], uri: string): Promise<IOriginVar | null> {
+		const fsManager: FileSystem = this.lsp.requestLanguageServiceHandler(LanguageService.FileSystem);
+		const URIInfo = await fsManager.getDocumentFolder(uri);
+		if (!URIInfo) return null;
+		const objName = URIInfo.name;
+
+		// Our Dummy "Best Candidate"
+		let bestCandidate = {
+			arrayIndex: 0,
+			isSelf: false,
+			varRank: VariableRank.Num,
+			location: Location.create("", Range.create(0, 0, 0, 0))
+		}
+		let dummyURI = "";
+
+		for (let i = 0, l = referenceArray.length; i < l; i++) {
+			const thisVar = referenceArray[i];
+
+			const thisURIInfo = await fsManager.getDocumentFolder(thisVar.uri);
+			if (!thisURIInfo || !thisURIInfo.eventInfo || thisURIInfo.type !== ResourceType.Object) continue;
+			const isSelf = thisURIInfo.name == objName;
+			if (bestCandidate.isSelf == true && isSelf == false) continue;
+
+			// Get our Supremacy; (HOLY SHIT THIS IS A RATS NEST. I guess there is such a thing as too many enums)
+			let thisRank = VariableRank.Num;
+			if (thisURIInfo.eventInfo.eventType == EventType.Create) {
+				thisRank = VariableRank.Create;
+			} else {
+				if (bestCandidate.varRank < VariableRank.BegStep) continue;
+				if (thisURIInfo.eventInfo.eventType == EventType.Step) {
+					thisRank = thisURIInfo.eventInfo.eventNumb === EventNumber.StepBegin ? VariableRank.BegStep :
+						thisURIInfo.eventInfo.eventNumb === EventNumber.StepNormal ? VariableRank.Step :
+							thisURIInfo.eventInfo.eventNumb === EventNumber.StepEnd ? VariableRank.EndStep : VariableRank.Other;
+					if (bestCandidate.varRank < thisRank) continue;
+				} else {
+					thisRank = VariableRank.Other;
+					if (bestCandidate.varRank < thisRank) continue;
+				}
+			}
+
+			// If we've just found a better URI/Var, then we make our leading Candidate
+			if (dummyURI === thisVar.uri) {
+				// Okay we've got the same URI. We go with the higher line number:
+				if (bestCandidate.location.range.start.line > thisVar.range.start.line) continue;
+				// If we're equal, literally fuck this dude but I shall support him.
+				if (bestCandidate.location.range.start.line == thisVar.range.start.line) {
+					if (bestCandidate.location.range.start.character <= thisVar.range.start.line) continue;
+				}
+			}
+			// ReAsign Best Candidate:
+			bestCandidate = {
+				arrayIndex: i,
+				isSelf: isSelf,
+				varRank: thisRank,
+				location: thisVar
+			}
+		}
+
+		if (bestCandidate.varRank < VariableRank.Num) {
+			return {
+				arrayIndex: bestCandidate.arrayIndex,
+				isSelf: bestCandidate.isSelf,
+				varRank: bestCandidate.varRank
+			}
+		}
+
+
+		return null;
 	}
 
 	/** Returns all variables set/declared at the URI. Note: because of GML syntax,
 	 * a variable can have multiple set/declaration lines. */
 	public getAllVariablesAtURI(uri: string) {
-		return this.URI2ObjectVariables[uri];
+		return this.variablesRecord[uri];
 	}
 
 	public getObjectVariablePackage(objName: string, variableName: string) {
@@ -581,15 +660,6 @@ export class Reference {
 
 	public getGlobalVariables() {
 		return Object.getOwnPropertyNames(this.globalVariables);
-	}
-
-	public clearTheseVariablesAtURI(uri: string, ourVars: IObjVar[]) {
-		if (ourVars) {
-			for (const thisVariable of ourVars) {
-				delete this.objects[thisVariable.object][thisVariable.variable];
-			}
-			delete this.URI2ObjectVariables[uri];
-		}
 	}
 
 	//#endregion
