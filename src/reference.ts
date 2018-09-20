@@ -90,7 +90,7 @@ export interface IURIDictionary {
 }
 
 export interface URIDictionary {
-	localVariables: GenericValueLocation[];
+	localVariables: { [name: string]: VariableModel };
 	foldingRanges: FoldingRange[];
 	macros: GenericValueLocation[];
 }
@@ -257,7 +257,7 @@ export class Reference {
 
 	private createURIDictEntry(uri: string) {
 		this.URIDictionary[uri] = {
-			localVariables: [],
+			localVariables: {},
 			foldingRanges: [],
 			macros: []
 		};
@@ -301,53 +301,49 @@ export class Reference {
 		}
 
 		// Clear our locals:
-		this.URIDictionary[uri].localVariables = [];
+		this.URIDictionary[uri].localVariables = {};
 
 		for (const thisLocal of locals) {
 			// Slice off the first two, since we add "*." to locals.
 			const thisName = thisLocal.name.slice(2);
 
-			this.URIDictionary[uri].localVariables.push({
-				value: thisName,
-				location: Location.create(uri, thisLocal.range),
-				name: thisName
-			});
+			// Create a new Entry if we have a var declaration:
+			if (thisLocal.isOrigin) {
+				this.URIDictionary[uri].localVariables[thisName] = {
+					origin: {
+						arrayIndex: 0,
+						isSelf: true,
+						varRank: 0
+					},
+					referenceLocations: [Location.create(uri, thisLocal.range)]
+				};
+			} else {
+				this.URIDictionary[uri].localVariables[thisName].referenceLocations.push(
+					Location.create(uri, thisLocal.range)
+				);
+			}
 		}
 	}
 
 	public getAllLocalsAtURI(uri: string) {
 		if (this.URIDictionary[uri] !== undefined) {
-			return this.URIDictionary[uri].localVariables;
+			return Object.getOwnPropertyNames(this.URIDictionary[uri].localVariables);
 		} else return null;
 	}
 
 	public localExists(uri: string, name: string) {
-		const allLocals = this.getAllLocalsAtURI(uri);
-
-		let exists = false;
-
-		if (allLocals) {
-			for (const thisLocal of allLocals) {
-				if (thisLocal.value == name) {
-					exists = true;
-					break;
-				}
-			}
-		}
-		return exists;
+		if (this.URIDictionary[uri] && this.URIDictionary[uri].localVariables[name] !== undefined) {
+			return true;
+		} else return false;
 	}
 
-	public localGetLocation(uri: string, name: string) {
-		const allLocals = this.getAllLocalsAtURI(uri);
+	public localGetDeclaration(uri: string, name: string) {
+		const varModel = this.URIDictionary[uri].localVariables[name];
+		return varModel.referenceLocations[varModel.origin.arrayIndex];
+	}
 
-		if (allLocals) {
-			for (const thisLocal of allLocals) {
-				if (thisLocal.value == name) {
-					return thisLocal.location;
-				}
-			}
-		}
-		return null;
+	public localGetAllReferences(uri: string, name: string) {
+		return this.URIDictionary[uri].localVariables[name].referenceLocations;
 	}
 	//#endregion
 
@@ -486,14 +482,17 @@ export class Reference {
 					}
 				} else {
 					// We the new origin in town boys:
-					console.log("ERROR: Floating variable with no Origin set. Origin randomly reapplied. Please post an issue on the Github.")
+					console.log(
+						"ERROR: Floating variable with no Origin set. Origin randomly reapplied. Please post an issue on the Github."
+					);
 					overrideOrigin = true;
 				}
 
 				// Push what we have to the stack no matter what:
-				const ourIndex = this.objects[thisVar.object][thisVar.name].referenceLocations.push(
-					Location.create(uri, thisVar.range)
-				);
+				const ourIndex =
+					this.objects[thisVar.object][thisVar.name].referenceLocations.push(
+						Location.create(uri, thisVar.range)
+					) - 1;
 
 				// Override Origin
 				if (overrideOrigin) {
@@ -538,10 +537,12 @@ export class Reference {
 			for (const thisRecord of ourRecords) {
 				// Get our Variable Info:
 				const thisVarEntry = this.objects[thisRecord.object][thisRecord.variable];
+				if (!thisVarEntry) {
+					continue;
+				}
 
 				// Splice out the Record from this Var:
-				this.objects[thisRecord.object][thisRecord.variable].
-					referenceLocations.splice(thisRecord.index, 1);
+				this.objects[thisRecord.object][thisRecord.variable].referenceLocations.splice(thisRecord.index, 1);
 
 				if (thisRecord.isOrigin) {
 					const newOrigin = await this.varsAssignNewOrigin(thisVarEntry.referenceLocations, uri);
@@ -553,7 +554,7 @@ export class Reference {
 					}
 				}
 			}
-			
+
 			delete this.variablesRecord[uri];
 		}
 	}
@@ -570,7 +571,7 @@ export class Reference {
 			isSelf: false,
 			varRank: VariableRank.Num,
 			location: Location.create("", Range.create(0, 0, 0, 0))
-		}
+		};
 		let dummyURI = "";
 
 		for (let i = 0, l = referenceArray.length; i < l; i++) {
@@ -588,9 +589,14 @@ export class Reference {
 			} else {
 				if (bestCandidate.varRank < VariableRank.BegStep) continue;
 				if (thisURIInfo.eventInfo.eventType == EventType.Step) {
-					thisRank = thisURIInfo.eventInfo.eventNumb === EventNumber.StepBegin ? VariableRank.BegStep :
-						thisURIInfo.eventInfo.eventNumb === EventNumber.StepNormal ? VariableRank.Step :
-							thisURIInfo.eventInfo.eventNumb === EventNumber.StepEnd ? VariableRank.EndStep : VariableRank.Other;
+					thisRank =
+						thisURIInfo.eventInfo.eventNumb === EventNumber.StepBegin
+							? VariableRank.BegStep
+							: thisURIInfo.eventInfo.eventNumb === EventNumber.StepNormal
+								? VariableRank.Step
+								: thisURIInfo.eventInfo.eventNumb === EventNumber.StepEnd
+									? VariableRank.EndStep
+									: VariableRank.Other;
 					if (bestCandidate.varRank < thisRank) continue;
 				} else {
 					thisRank = VariableRank.Other;
@@ -613,7 +619,7 @@ export class Reference {
 				isSelf: isSelf,
 				varRank: thisRank,
 				location: thisVar
-			}
+			};
 		}
 
 		if (bestCandidate.varRank < VariableRank.Num) {
@@ -621,9 +627,8 @@ export class Reference {
 				arrayIndex: bestCandidate.arrayIndex,
 				isSelf: bestCandidate.isSelf,
 				varRank: bestCandidate.varRank
-			}
+			};
 		}
-
 
 		return null;
 	}

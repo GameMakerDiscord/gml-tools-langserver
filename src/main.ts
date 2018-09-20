@@ -45,7 +45,7 @@ connection.onInitialize((params) => {
 			signatureHelpProvider: {
 				triggerCharacters: ["(", ","]
 			},
-			foldingRangeProvider: true,
+			referencesProvider: true,
 
 			executeCommandProvider: {
 				commands: [
@@ -168,9 +168,9 @@ connection.onDefinition((params) => {
 	return ls.onDefinitionRequest(params);
 });
 
-connection.onFoldingRanges((params) => {
-	return ls.onFoldingRanges(params);
-})
+connection.onReferences(async (params) => {
+	return await ls.onShowAllReferences(params);
+});
 //#endregion
 
 //#region Text Events

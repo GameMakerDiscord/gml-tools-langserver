@@ -14,7 +14,8 @@ import {
 	DidOpenTextDocumentParams,
 	CompletionParams,
 	CompletionItem,
-	FoldingRangeRequestParam
+	FoldingRangeRequestParam,
+	ReferenceParams
 } from "vscode-languageserver/lib/main";
 import { DiagnosticHandler, LintPackageFactory, DiagnosticsPackage, LintPackage } from "./diagnostic";
 import { Reference } from "./reference";
@@ -416,6 +417,10 @@ export class LangServ {
 		}
 		return null;
 	}
+
+	public async onShowAllReferences(params: ReferenceParams) {
+		return await this.gmlDefinitionProvider.onShowAllReferencesRequest(params);
+	}
 	//#endregion
 
 	//#region Commands
@@ -423,7 +428,7 @@ export class LangServ {
 		// Basic Conversions straight here:
 		if (typeof objectPackage.objectEvents == "string") {
 			objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(",");
-			objectPackage.objectEvents = objectPackage.objectEvents.map(function (x) {
+			objectPackage.objectEvents = objectPackage.objectEvents.map(function(x) {
 				return x.trim();
 			});
 		}
@@ -474,7 +479,7 @@ export class LangServ {
 
 	public async addEvents(events: EventsPackage) {
 		let eventsArray = events.events.toLowerCase().split(",");
-		eventsArray = eventsArray.map(function (x) {
+		eventsArray = eventsArray.map(function(x) {
 			return x.trim();
 		});
 

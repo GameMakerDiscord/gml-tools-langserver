@@ -80,12 +80,12 @@ export class GMLCompletionProvider {
         const locals = this.reference.getAllLocalsAtURI(params.textDocument.uri);
         if (locals) {
             for (const thisVar of locals) {
-                if (thisVar.value.match(rx) !== null) {
+                if (thisVar.match(rx) !== null) {
                     workingArray.push( {
-                        label: thisVar.value,
+                        label: thisVar,
                         kind: CompletionItemKind.Field,
                         textEdit: {
-                            newText : thisVar.value.replace(thisWord, ""),
+                            newText : thisVar.replace(thisWord, ""),
                             range : thisRange
                         },
                     })

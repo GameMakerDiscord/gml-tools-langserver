@@ -270,7 +270,7 @@ gml {
         = ConditionalExpression | empty
 
     PrimaryExpression
-        =   identifier
+        =   possibleVariable
         |   literal
         |   ParentExpression
     
@@ -458,6 +458,7 @@ gml {
     
 
     // variable tokens
+    possibleVariable    = identifier
     enumName            = identifier
     variable            = identifier
     localVariable       = identifier

@@ -83,15 +83,18 @@ export interface IActionDict {
 	name: string;
 }
 
-export interface GMLVarParse extends GMLLocalVarParse {
+export interface GMLVarParse {
 	object: string;
 	supremacy: VariableRank;
 	isSelf: boolean;
+	name: string;
+	range: Range;
 }
 
 export interface GMLLocalVarParse {
 	name: string;
 	range: Range;
+	isOrigin: boolean;
 }
 
 export interface SignaturePackage {
@@ -475,18 +478,34 @@ export class DiagnosticHandler {
 						this.localQuickCheck.push(varName);
 						this.localVariables.push({
 							name: "*." + varName,
-							range: this.getVariableIndex(this.currentFullTextDocument, variable)
+							range: this.getVariableIndex(this.currentFullTextDocument, variable),
+							isOrigin: true
 						});
 					}
 				},
 
-				variable: (variable: Node) => {
-					const variableName = variable.sourceString;
+				/**
+				 * PossibleVariables are `x = POSSIBLE_VAR;` They are
+				 * normally just instance variables, but they could also be:
+				 * Resources, 
+				 */
+				possibleVariable: (variable: Node) => {
 
-					if (this.localQuickCheck.includes(variableName) == false) {
+				},
+
+				variable: (variable: Node) => {
+					const varName = variable.sourceString;
+
+					if (this.localQuickCheck.includes(varName)) {
+						this.localVariables.push({
+							name: "*." + varName,
+							range: this.getVariableIndex(this.currentFullTextDocument, variable),
+							isOrigin: false
+						});
+					} else {
 						// Add our new object
 						this.instanceVariables.push({
-							name: variableName,
+							name: varName,
 							range: this.getVariableIndex(this.currentFullTextDocument, variable),
 							object: this.currentObjectName,
 							supremacy: this.currentRank,
