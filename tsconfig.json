@@ -10,12 +10,17 @@
 		"module": "commonjs",
 		"moduleResolution": "node",
 		"outDir": "out",
-		"lib": ["es2018", "dom"],
+		"lib": [
+			"es2018",
+			"dom"
+		],
 		"preserveConstEnums": true,
 		"declaration": true,
 		"declarationDir": "./out/declarations/",
 		"sourceMap": true,
-		"sourceRoot": ""
+		"sourceRoot": "C:\\Users\\Jack Spira\\Documents\\NodeJS Projects\\gml-tools-langserver\\src"
 	},
-	"include": ["./src/**/*.ts"]
+	"include": [
+		"./src/**/*.ts"
+	]
 }
