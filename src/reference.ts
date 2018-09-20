@@ -1,9 +1,11 @@
 import { Range, Location, FoldingRangeKind } from "vscode-languageserver/lib/main";
-import { JSDOC } from "./fileSystem";
-import { VariablesPackage, GMLVariableLocation } from "./diagnostic";
+import { JSDOC, FileSystem } from "./fileSystem";
+import { VariablesPackage, GMLVarParse, GMLLocalVarParse } from "./diagnostic";
 import URI from "vscode-uri/lib/umd";
-import { GMLDocs } from "./declarations";
+import { GMLDocs, LanguageService, ResourceType } from "./declarations";
 import { FoldingRange } from "vscode-languageserver-protocol/lib/protocol.foldingRange";
+import { LangServ } from "./langserv";
+import { EventType, EventNumber } from "yyp-typings";
 
 export interface IScriptsAndFunctions {
 	[key: string]: IEachScript;
@@ -17,16 +19,31 @@ export interface IEachScript {
 }
 
 export interface IObjects {
-	[key: string]: IVars;
+	[objectName: string]: IVars;
 }
 
 export interface IVars {
-	[variableName: string]: IVar;
+	[variableName: string]: VariableModel;
 }
 
-export interface IVar {
-	uri: string;
-	range: Range;
+export interface VariableModel {
+	origin: IOriginVar;
+	referenceLocations: Array<Location>;
+}
+
+export interface IOriginVar {
+	arrayIndex: number;
+	varRank: VariableRank;
+	isSelf: boolean;
+}
+
+export enum VariableRank {
+	Create,
+	BegStep,
+	Step,
+	EndStep,
+	Other,
+	Num
 }
 
 export interface IEnums {
@@ -57,13 +74,15 @@ export interface enum2uri {
 	[thisEnumName: string]: string;
 }
 
-export interface IURI2ObjVariables {
-	[thisUri: string]: Array<IObjVar>;
+export interface URIInstRecords {
+	[thisUri: string]: Array<InstVarRecord>;
 }
 
-export interface IObjVar {
+export interface InstVarRecord {
 	object: string;
 	variable: string;
+	index: number;
+	isOrigin: boolean;
 }
 
 export interface IURIDictionary {
@@ -71,7 +90,7 @@ export interface IURIDictionary {
 }
 
 export interface URIDictionary {
-	localVariables: GenericValueLocation[];
+	localVariables: { [name: string]: VariableModel };
 	foldingRanges: FoldingRange[];
 	macros: GenericValueLocation[];
 }
@@ -82,6 +101,7 @@ interface GMLDocOverrides {
 }
 
 export class Reference {
+	private lsp: LangServ;
 	private objects: IObjects;
 	private objectList: Array<string>;
 	private scriptsAndFunctions: IScriptsAndFunctions;
@@ -91,7 +111,7 @@ export class Reference {
 	private enums: IEnums;
 	private enum2URI: enum2uri;
 	private macros2uri: enum2uri;
-	private URI2ObjectVariables: IURI2ObjVariables;
+	private variablesRecord: URIInstRecords;
 	private sprites: Array<string>;
 	private allResourceNames: Array<string>;
 	private URIDictionary: IURIDictionary;
@@ -105,10 +125,10 @@ export class Reference {
 	public paths: string[];
 	private gmlDocOverrides: GMLDocOverrides[];
 
-	constructor() {
+	constructor(lsp: LangServ) {
 		this.objects = {};
 		this.objectList = [];
-		this.URI2ObjectVariables = {};
+		this.variablesRecord = {};
 		this.scriptsAndFunctions = {};
 		this.scriptsAndFunctionsList = [];
 		this.globalVariables = {};
@@ -127,6 +147,7 @@ export class Reference {
 		this.rooms = [];
 		this.URIDictionary = {};
 		this.gmlDocOverrides = [];
+		this.lsp = lsp;
 	}
 
 	public initGMLDocs(gmlDocs: GMLDocs.DocFile) {
@@ -178,7 +199,7 @@ export class Reference {
 				description: thisFunction.documentation,
 				isScript: false,
 				link: thisFunction.link
-			}
+			};
 			this.scriptAddScript(thisFunction.name, undefined, jsdoc, thisFunction.doNotAutoComplete);
 		}
 	}
@@ -220,7 +241,7 @@ export class Reference {
 	public clearAllData() {
 		this.objects = {};
 		this.objectList = [];
-		this.URI2ObjectVariables = {};
+		this.variablesRecord = {};
 		this.scriptsAndFunctions = {};
 		this.scriptsAndFunctionsList = [];
 		this.globalVariables = {};
@@ -236,10 +257,10 @@ export class Reference {
 
 	private createURIDictEntry(uri: string) {
 		this.URIDictionary[uri] = {
-			localVariables: [],
+			localVariables: {},
 			foldingRanges: [],
 			macros: []
-		}
+		};
 	}
 	//#endregion
 
@@ -253,7 +274,7 @@ export class Reference {
 			startLine: thisRange.start.line,
 			endLine: thisRange.end.line,
 			kind: kind
-		})
+		});
 	}
 
 	public foldingClearAllFoldingRange(uri: string) {
@@ -273,57 +294,56 @@ export class Reference {
 	//#endregion
 
 	//#region Local Variables
-	public localAddVariables(uri: string, locals: GMLVariableLocation[]) {
+	public localAddVariables(uri: string, locals: GMLLocalVarParse[]) {
 		// check if we have a URI dictionary at all:
 		if (this.URIDictionary[uri] === undefined) {
 			this.createURIDictEntry(uri);
 		}
 
 		// Clear our locals:
-		this.URIDictionary[uri].localVariables = [];
+		this.URIDictionary[uri].localVariables = {};
 
-		for (const thisThing of locals) {
-			this.URIDictionary[uri].localVariables.push({
-				value: thisThing.name,
-				location: Location.create(uri, thisThing.range),
-				name: thisThing.name
-			});
+		for (const thisLocal of locals) {
+			// Slice off the first two, since we add "*." to locals.
+			const thisName = thisLocal.name.slice(2);
+
+			// Create a new Entry if we have a var declaration:
+			if (thisLocal.isOrigin) {
+				this.URIDictionary[uri].localVariables[thisName] = {
+					origin: {
+						arrayIndex: 0,
+						isSelf: true,
+						varRank: 0
+					},
+					referenceLocations: [Location.create(uri, thisLocal.range)]
+				};
+			} else {
+				this.URIDictionary[uri].localVariables[thisName].referenceLocations.push(
+					Location.create(uri, thisLocal.range)
+				);
+			}
 		}
 	}
 
 	public getAllLocalsAtURI(uri: string) {
 		if (this.URIDictionary[uri] !== undefined) {
-			return this.URIDictionary[uri].localVariables;
+			return Object.getOwnPropertyNames(this.URIDictionary[uri].localVariables);
 		} else return null;
 	}
 
 	public localExists(uri: string, name: string) {
-		const allLocals = this.getAllLocalsAtURI(uri);
-
-		let exists = false;
-
-		if (allLocals) {
-			for (const thisLocal of allLocals) {
-				if (thisLocal.value == name) {
-					exists = true;
-					break;
-				}
-			}
-		}
-		return exists;
+		if (this.URIDictionary[uri] && this.URIDictionary[uri].localVariables[name] !== undefined) {
+			return true;
+		} else return false;
 	}
 
-	public localGetLocation(uri: string, name: string) {
-		const allLocals = this.getAllLocalsAtURI(uri);
+	public localGetDeclaration(uri: string, name: string) {
+		const varModel = this.URIDictionary[uri].localVariables[name];
+		return varModel.referenceLocations[varModel.origin.arrayIndex];
+	}
 
-		if (allLocals) {
-			for (const thisLocal of allLocals) {
-				if (thisLocal.value == name) {
-					return thisLocal.location;
-				}
-			}
-		}
-		return null;
+	public localGetAllReferences(uri: string, name: string) {
+		return this.URIDictionary[uri].localVariables[name].referenceLocations;
 	}
 	//#endregion
 
@@ -341,8 +361,10 @@ export class Reference {
 			},
 			uri: uri,
 			callBackLocation:
-				doNotAutocomplete === undefined ? this.scriptsAndFunctionsList.push(name)
-					: doNotAutocomplete === true ? this.scriptsAndFunctionsList.push(name)
+				doNotAutocomplete === undefined
+					? this.scriptsAndFunctionsList.push(name)
+					: doNotAutocomplete === true
+						? this.scriptsAndFunctionsList.push(name)
 						: -1,
 			isBritish: doNotAutocomplete
 		};
@@ -414,80 +436,210 @@ export class Reference {
 	 * @param obj Object to add/check.
 	 * @param vars The variable array to add. If none, pass empty array.
 	 */
-	public addVariablesToObject(obj: string, vars: Array<GMLVariableLocation>, uri: string) {
-		// Create object if necessary
-		if (this.objects.hasOwnProperty(obj) == false) {
-			this.addObject(obj);
-		}
-
+	public addVariablesToObject(vars: Array<GMLVarParse>, uri: string) {
 		// Create our URI object/clear it
-		this.URI2ObjectVariables[uri] = [];
+		this.variablesRecord[uri] = [];
 
 		// Iterate on the variables
-		for (const variable of vars) {
-			this.objects[obj][variable.name] = {
-				uri: uri,
-				range: variable.range
-			};
+		for (const thisVar of vars) {
+			// Create object if necessary
+			if (this.objects.hasOwnProperty(thisVar.object) == false) {
+				this.addObject(thisVar.object);
+			}
 
-			this.URI2ObjectVariables[uri].push({
-				object: obj,
-				variable: variable.name
-			});
+			// Create Variable location if necessary
+			if (this.objects[thisVar.object].hasOwnProperty(thisVar.name) == false) {
+				// Extend/Update our internal model
+				this.objects[thisVar.object][thisVar.name] = {
+					origin: {
+						arrayIndex: 0,
+						isSelf: thisVar.isSelf,
+						varRank: thisVar.supremacy
+					},
+					referenceLocations: [Location.create(uri, thisVar.range)]
+				};
+
+				// Create a Record of this Object
+				this.variablesRecord[uri].push({
+					object: thisVar.object,
+					variable: thisVar.name,
+					index: 0,
+					isOrigin: true
+				});
+			} else {
+				// Figure out if this is our Origin Variable
+				let overrideOrigin = false;
+				const previousOrigin = this.varGetOriginVar(thisVar.object, thisVar.name);
+				if (previousOrigin) {
+					if (previousOrigin.isSelf == false && thisVar.isSelf == true) {
+						overrideOrigin = true;
+					} else if (previousOrigin.isSelf == thisVar.isSelf) {
+						// Compare their respective events, essentially.
+						// Remember, smaller is better!
+						if (previousOrigin.varRank > thisVar.supremacy) {
+							overrideOrigin = true;
+						}
+					}
+				} else {
+					// We the new origin in town boys:
+					console.log(
+						"ERROR: Floating variable with no Origin set. Origin randomly reapplied. Please post an issue on the Github."
+					);
+					overrideOrigin = true;
+				}
+
+				// Push what we have to the stack no matter what:
+				const ourIndex =
+					this.objects[thisVar.object][thisVar.name].referenceLocations.push(
+						Location.create(uri, thisVar.range)
+					) - 1;
+
+				// Override Origin
+				if (overrideOrigin) {
+					this.objects[thisVar.object][thisVar.name].origin = {
+						arrayIndex: ourIndex,
+						isSelf: thisVar.isSelf,
+						varRank: thisVar.supremacy
+					};
+				}
+
+				// Create our Record
+				this.variablesRecord[uri].push({
+					object: thisVar.object,
+					variable: thisVar.name,
+					index: ourIndex,
+					isOrigin: overrideOrigin
+				});
+			}
 		}
 	}
 
-	/**
-	 * We add the global to the objects property, and to
-	 * the property `globalVariables.` We do this for speed in
-	 * language services.
-	 * @param objName Object to add/check.
-	 * @param globvars The global variable array to add. If none,
-	 * pass empty array.
-	 */
-	public addGlobalVariablesToObject(objName: string, globvars: Array<GMLVariableLocation>, uri: string) {
-		// Create object if necessary
-		if (this.objects.hasOwnProperty(objName) == false) {
-			this.addObject(objName);
+	private varGetOriginVar(objName: string, varName: string): IOriginVar | null {
+		if (this.objects[objName] && this.objects[objName][varName]) {
+			return this.objects[objName][varName].origin;
 		}
 
-		// Iterate on the variables
-		for (const globvar of globvars) {
-			// Store the global into the global reference.
-			this.globalVariables[globvar.name] = {
-				uri: uri,
-				range: globvar.range
-			};
-		}
+		return null;
 	}
 
 	/**
 	 * Simply does both addVariables and addGlobals at the same time. Prefer
 	 * using this for simplicity later.
 	 */
-	public addAllVariablesToObject(obj: string, uri: string, vars: VariablesPackage) {
-		this.addVariablesToObject(obj, vars.variables, uri);
-		this.addGlobalVariablesToObject(obj, vars.globalVariables, uri);
+	public addAllVariablesToObject(uri: string, vars: VariablesPackage) {
+		this.addVariablesToObject(vars.variables, uri);
 	}
 
-	public clearAllVariablesAtURI(uri: string) {
-		const ourVariables = this.URI2ObjectVariables[uri];
+	public async clearAllVariablesAtURI(uri: string) {
+		const ourRecords = this.variablesRecord[uri];
 
-		if (ourVariables) {
-			for (const thisVariable of ourVariables) {
-				delete this.objects[thisVariable.object][thisVariable.variable];
+		if (ourRecords) {
+			for (const thisRecord of ourRecords) {
+				// Get our Variable Info:
+				const thisVarEntry = this.objects[thisRecord.object][thisRecord.variable];
+				if (!thisVarEntry) {
+					continue;
+				}
+
+				// Splice out the Record from this Var:
+				this.objects[thisRecord.object][thisRecord.variable].referenceLocations.splice(thisRecord.index, 1);
+
+				if (thisRecord.isOrigin) {
+					const newOrigin = await this.varsAssignNewOrigin(thisVarEntry.referenceLocations, uri);
+					if (newOrigin === null) {
+						// Delete the variable entirely -- we've lost all reference to it.
+						delete this.objects[thisRecord.object][thisRecord.variable];
+					} else {
+						thisVarEntry.origin = newOrigin;
+					}
+				}
 			}
-			delete this.URI2ObjectVariables[uri];
+
+			delete this.variablesRecord[uri];
 		}
+	}
+
+	private async varsAssignNewOrigin(referenceArray: Location[], uri: string): Promise<IOriginVar | null> {
+		const fsManager: FileSystem = this.lsp.requestLanguageServiceHandler(LanguageService.FileSystem);
+		const URIInfo = await fsManager.getDocumentFolder(uri);
+		if (!URIInfo) return null;
+		const objName = URIInfo.name;
+
+		// Our Dummy "Best Candidate"
+		let bestCandidate = {
+			arrayIndex: 0,
+			isSelf: false,
+			varRank: VariableRank.Num,
+			location: Location.create("", Range.create(0, 0, 0, 0))
+		};
+		let dummyURI = "";
+
+		for (let i = 0, l = referenceArray.length; i < l; i++) {
+			const thisVar = referenceArray[i];
+
+			const thisURIInfo = await fsManager.getDocumentFolder(thisVar.uri);
+			if (!thisURIInfo || !thisURIInfo.eventInfo || thisURIInfo.type !== ResourceType.Object) continue;
+			const isSelf = thisURIInfo.name == objName;
+			if (bestCandidate.isSelf == true && isSelf == false) continue;
+
+			// Get our Supremacy; (HOLY SHIT THIS IS A RATS NEST. I guess there is such a thing as too many enums)
+			let thisRank = VariableRank.Num;
+			if (thisURIInfo.eventInfo.eventType == EventType.Create) {
+				thisRank = VariableRank.Create;
+			} else {
+				if (bestCandidate.varRank < VariableRank.BegStep) continue;
+				if (thisURIInfo.eventInfo.eventType == EventType.Step) {
+					thisRank =
+						thisURIInfo.eventInfo.eventNumb === EventNumber.StepBegin
+							? VariableRank.BegStep
+							: thisURIInfo.eventInfo.eventNumb === EventNumber.StepNormal
+								? VariableRank.Step
+								: thisURIInfo.eventInfo.eventNumb === EventNumber.StepEnd
+									? VariableRank.EndStep
+									: VariableRank.Other;
+					if (bestCandidate.varRank < thisRank) continue;
+				} else {
+					thisRank = VariableRank.Other;
+					if (bestCandidate.varRank < thisRank) continue;
+				}
+			}
+
+			// If we've just found a better URI/Var, then we make our leading Candidate
+			if (dummyURI === thisVar.uri) {
+				// Okay we've got the same URI. We go with the higher line number:
+				if (bestCandidate.location.range.start.line > thisVar.range.start.line) continue;
+				// If we're equal, literally fuck this dude but I shall support him.
+				if (bestCandidate.location.range.start.line == thisVar.range.start.line) {
+					if (bestCandidate.location.range.start.character <= thisVar.range.start.line) continue;
+				}
+			}
+			// ReAsign Best Candidate:
+			bestCandidate = {
+				arrayIndex: i,
+				isSelf: isSelf,
+				varRank: thisRank,
+				location: thisVar
+			};
+		}
+
+		if (bestCandidate.varRank < VariableRank.Num) {
+			return {
+				arrayIndex: bestCandidate.arrayIndex,
+				isSelf: bestCandidate.isSelf,
+				varRank: bestCandidate.varRank
+			};
+		}
+
+		return null;
 	}
 
 	/** Returns all variables set/declared at the URI. Note: because of GML syntax,
 	 * a variable can have multiple set/declaration lines. */
 	public getAllVariablesAtURI(uri: string) {
-		return this.URI2ObjectVariables[uri];
+		return this.variablesRecord[uri];
 	}
 
-	public getObjectVariablePackage(objName: string, variableName: string): IVar | null {
+	public getObjectVariablePackage(objName: string, variableName: string) {
 		const thisObjVariables = this.objects[objName];
 
 		if (thisObjVariables) {
@@ -513,15 +665,6 @@ export class Reference {
 
 	public getGlobalVariables() {
 		return Object.getOwnPropertyNames(this.globalVariables);
-	}
-
-	public clearTheseVariablesAtURI(uri: string, ourVars: IObjVar[]) {
-		if (ourVars) {
-			for (const thisVariable of ourVars) {
-				delete this.objects[thisVariable.object][thisVariable.variable];
-			}
-			delete this.URI2ObjectVariables[uri];
-		}
 	}
 
 	//#endregion
@@ -623,7 +766,7 @@ export class Reference {
 	//#region Macros
 	public macrosGetAllMacrosAtURI(uri: string): Array<GenericValueLocation> {
 		if (this.URIDictionary[uri]) {
-			return this.URIDictionary[uri].macros
+			return this.URIDictionary[uri].macros;
 		} else return [];
 	}
 

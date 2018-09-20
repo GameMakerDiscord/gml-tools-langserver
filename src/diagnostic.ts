@@ -7,9 +7,11 @@ import {
 	getIndexFromPosition,
 	getPositionFromIndex
 } from "./utils";
-import { Reference } from "./reference";
-import { JSDOC, JSDOCParameter } from "./fileSystem";
+import { Reference, VariableRank } from "./reference";
+import { JSDOC, JSDOCParameter, DocumentFolder } from "./fileSystem";
 import { Token, enumsMacros } from "./declarations";
+import { EventType, EventNumber } from "yyp-typings";
+
 
 export enum EIterArray {
 	InitExpression,
@@ -61,9 +63,8 @@ export interface ohmLineAndColum {
 }
 
 export interface VariablesPackage {
-	variables: Array<GMLVariableLocation>;
-	globalVariables: Array<GMLVariableLocation>;
-	localVariables: Array<GMLVariableLocation>;
+	variables: Array<GMLVarParse>;
+	localVariables: Array<GMLLocalVarParse>;
 }
 
 export abstract class LintPackageFactory {
@@ -83,9 +84,18 @@ export interface IActionDict {
 	name: string;
 }
 
-export interface GMLVariableLocation {
+export interface GMLVarParse {
+	object: string;
+	supremacy: VariableRank;
+	isSelf: boolean;
 	name: string;
 	range: Range;
+}
+
+export interface GMLLocalVarParse {
+	name: string;
+	range: Range;
+	isOrigin: boolean;
 }
 
 export interface SignaturePackage {
@@ -135,16 +145,13 @@ export class LintPackage {
 export class DiagnosticHandler {
 	// Declarations:
 	private uri: string;
-	private localVariables: Array<GMLVariableLocation>;
-	private instanceVariables: Array<GMLVariableLocation>;
+	private localVariables: Array<GMLLocalVarParse>;
+	private instanceVariables: Array<GMLVarParse>;
 	private localQuickCheck: Array<string>;
 	private instanceQuickCheck: Array<string>;
-	private globalVariables: Array<GMLVariableLocation>;
-	private globalQuickCheck: Array<string>;
 	private functionStack: Array<GMLFunctionStack>;
 	private semanticDiagnostics: Diagnostic[];
 	private matcher: any; // Matcher, but with more stuff.
-	private actionDictionaries: Array<IActionDict>;
 	private matchResult: any; // MatchResult but with more stuff.
 	private semantics: Semantics;
 	private semanticIndex: number;
@@ -158,12 +165,14 @@ export class DiagnosticHandler {
 	/** If this is a script, it will run this and try to generate JsDoc. */
 	private jsdocGenerated: JSDOC;
 	private tokenList: Token[];
+	private currentObjectName: string;
+	private currentRank: VariableRank;
+	private isSelf: boolean;
 
 	// Constructor:
 	constructor(grammar: Grammar, uri: string, reference: Reference) {
 		this.localVariables = [];
 		this.instanceVariables = [];
-		this.globalVariables = [];
 		this.functionStack = [];
 		this.semanticDiagnostics = [];
 		this.uri = uri;
@@ -173,10 +182,9 @@ export class DiagnosticHandler {
 		this.matcher = grammar.matcher();
 		this.semanticIndex = 0;
 		this.currentFullTextDocument = "";
-		this.actionDictionaries = [];
-		this.instanceQuickCheck = [];
+
 		this.localQuickCheck = [];
-		this.globalQuickCheck = [];
+		this.instanceQuickCheck = [];
 		this.enumsAddedThisCycle = [];
 		this.macrosAddedThisCycle = [];
 		this.tokenList = [];
@@ -188,10 +196,14 @@ export class DiagnosticHandler {
 			parameters: [],
 			returns: "",
 			signature: ""
-		}
+		};
+		this.currentObjectName = "*";
+		this.currentRank = 0;
+		this.isSelf = true;
 
 		// Init the Grammar:
-		this.actionDictionaries.push({
+		const actionDictionaries: Array<IActionDict> = [];
+		actionDictionaries.push({
 			name: "lint",
 			actionDict: {
 				// Identify functions and get argument counts
@@ -272,7 +284,12 @@ export class DiagnosticHandler {
 									providedArguments.length +
 									".";
 								this.semanticDiagnostics.push(
-									this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
+									this.getFunctionDiagnostic(
+										this.currentFullTextDocument,
+										list,
+										currentFunc,
+										eMessage
+									)
 								);
 							}
 
@@ -306,7 +323,12 @@ export class DiagnosticHandler {
 
 								// Create our Diagnostic:
 								this.semanticDiagnostics.push(
-									this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
+									this.getFunctionDiagnostic(
+										this.currentFullTextDocument,
+										list,
+										currentFunc,
+										eMessage
+									)
 								);
 							}
 
@@ -344,11 +366,18 @@ export class DiagnosticHandler {
 				},
 
 				RegionStatement: (startRegion, regionName, list, endRegion) => {
-					const startPosition = getPositionFromIndex(this.currentFullTextDocument, startRegion.source.startIdx);
+					const startPosition = getPositionFromIndex(
+						this.currentFullTextDocument,
+						startRegion.source.startIdx
+					);
 					const endPosition = getPositionFromIndex(this.currentFullTextDocument, endRegion.source.endIdx);
 
 					// Add this Folding Range:
-					this.reference.foldingAddFoldingRange(this.uri, Range.create(startPosition, endPosition), FoldingRangeKind.Region);
+					this.reference.foldingAddFoldingRange(
+						this.uri,
+						Range.create(startPosition, endPosition),
+						FoldingRangeKind.Region
+					);
 					list.lint();
 				},
 
@@ -360,50 +389,175 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
 		});
-		this.actionDictionaries.push({
+		actionDictionaries.push({
 			name: "indexVariables",
 			actionDict: {
+				// This is the subject in the declaration/set statement: OBJ.VAR = 10;
+				ObjDotVar: (thisObject: Node, _, thisVariable: Node) => {
+					const objName = thisObject.sourceString;
+
+					// Right now, we don't walk this
+					// Next update, we'll add types to try to walk this:
+					if (objName.includes(".") == false) {
+						if (this.reference.objectExists(objName) && this.currentObjectName != objName) {
+							// Save our Current Var Parsing State
+							const oldObj = this.currentObjectName;
+							const oldSelf = this.isSelf;
+
+							// Set to new Stuff
+							this.currentObjectName = objName;
+							this.isSelf = false;
+
+							// Do the variable thing
+							thisVariable.indexVariables();
+
+							// Reset
+							this.currentObjectName = oldObj;
+							this.isSelf = oldSelf;
+						}
+					}
+				},
+
+				// This is the predicate in a setting statement: x = OBJ.VAR;
+				MembObjectVarRef: (thisObject: Node, _, thisVariable: Node) => {
+					const objName = thisObject.sourceString;
+
+					// Right now, we don't walk this
+					// Next update, we'll add types to try to walk this:
+					if (objName.includes(".") == false) {
+						if (this.reference.objectExists(objName) && this.currentObjectName != objName) {
+							// Save our Current Var Parsing State
+							const oldObj = this.currentObjectName;
+							const oldSelf = this.isSelf;
+
+							// Set to new Stuff
+							this.currentObjectName = objName;
+							this.isSelf = false;
+
+							// Do the variable thing
+							thisVariable.indexVariables();
+
+							// Reset
+							this.currentObjectName = oldObj;
+							this.isSelf = oldSelf;
+						}
+					}
+				},
+
+				WithStatement: (_, thisObject: Node, Statement: Node) => {
+					// Figure out our Object Name:
+					let objName = thisObject.child(0).sourceString;
+					if (objName.charAt(0) == "(" && objName.charAt(objName.length - 1) == ")") {
+						objName = objName.slice(1, objName.length - 1);
+					}
+
+					if (this.reference.objectExists(objName) && this.currentObjectName != objName) {
+						// Save our Current Var Parsing State
+						const oldObj = this.currentObjectName;
+						const oldSelf = this.isSelf;
+
+						// Set to new Stuff
+						this.currentObjectName = objName;
+						this.isSelf = false;
+
+						// Do the variable thing
+						Statement.indexVariables();
+
+						// Reset
+						this.currentObjectName = oldObj;
+						this.isSelf = oldSelf;
+					}
+				},
+
 				// Handle local variable identification here
 				localVariable: (variable: Node) => {
 					const varName = variable.sourceString;
-					if (this.localQuickCheck.includes(variable.sourceString) == false) {
+					if (this.localQuickCheck.includes("*." + variable.sourceString) == false) {
 						this.localQuickCheck.push(varName);
 						this.localVariables.push({
+							name: "*." + varName,
+							range: this.getVariableIndex(this.currentFullTextDocument, variable),
+							isOrigin: true
+						});
+					}
+				},
+
+				/**
+				 * PossibleVariables are `x = POSSIBLE_VAR;` They are
+				 * normally just instance variables, but they could also be:
+				 * Resources, Macros, script names, whatever man!
+				 */
+				possibleVariable: (variable: Node) => {
+					const varName = variable.sourceString;
+
+					// Are we a local?
+					if (this.localQuickCheck.includes("*." + varName)) {
+						this.localVariables.push({
+							name: "*." + varName,
+							range: this.getVariableIndex(this.currentFullTextDocument, variable),
+							isOrigin: true
+						});
+					}
+
+					// Are we a resource?
+					if (this.reference.resourceExists(varName)) {
+						console.log("Referenced " + varName);
+					}
+
+					// Are we a Macro?
+					if (this.reference.macroExists(varName)) {
+						console.log("Macro Referenced " + varName);
+					}
+
+					// Therefore, we are an instance variable after *all* that, yeah?
+					if (this.instanceQuickCheck.includes(varName)) {
+						this.instanceVariables.push({
 							name: varName,
-							range: this.getVariableIndex(this.currentFullTextDocument, variable)
+							range: this.getVariableIndex(this.currentFullTextDocument, variable),
+							object: this.currentObjectName,
+							supremacy: this.currentRank,
+							isSelf: this.isSelf
 						});
 					}
 				},
 
 				variable: (variable: Node) => {
-					const variableName = variable.sourceString;
+					const varName = variable.sourceString;
 
-					if (
-						this.instanceQuickCheck.includes(variableName) == false &&
-						this.localQuickCheck.includes(variableName) == false
-					) {
-						// Add our new object
-						this.instanceVariables.push({
-							name: variableName,
-							range: this.getVariableIndex(this.currentFullTextDocument, variable)
+					if (this.localQuickCheck.includes(varName)) {
+						this.localVariables.push({
+							name: "*." + varName,
+							range: this.getVariableIndex(this.currentFullTextDocument, variable),
+							isOrigin: false
 						});
-						this.instanceQuickCheck.push(variableName);
+					} else {
+						// Add our new variable
+						this.instanceVariables.push({
+							name: varName,
+							range: this.getVariableIndex(this.currentFullTextDocument, variable),
+							object: this.currentObjectName,
+							supremacy: this.currentRank,
+							isSelf: this.isSelf
+						});
+
+						// Add to qcheck
+						this.instanceQuickCheck.push(varName);
 					}
 				},
 
 				globalVariable: (globVariable: Node) => {
-					if (this.globalQuickCheck.includes(globVariable.sourceString) == false) {
-						this.globalVariables.push({
-							name: globVariable.sourceString,
-							range: this.getVariableIndex(this.currentFullTextDocument, globVariable)
-						});
-						this.globalQuickCheck.push(globVariable.sourceString);
-					}
+					this.instanceVariables.push({
+						name: globVariable.sourceString,
+						range: this.getVariableIndex(this.currentFullTextDocument, globVariable),
+						object: "global",
+						supremacy: this.currentRank,
+						isSelf: false
+					});
 				},
 
 				// Generic for all non-terminal nodes
@@ -414,12 +568,12 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
 		});
-		this.actionDictionaries.push({
+		actionDictionaries.push({
 			name: "enumsAndMacros",
 			actionDict: {
 				EnumDeclaration: (enumWord: Node, enumName: Node, _: Node, enumList: Node, cCurly: Node) => {
@@ -461,12 +615,12 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
 		});
-		this.actionDictionaries.push({
+		actionDictionaries.push({
 			name: "jsdoc",
 			actionDict: {
 				jsdocFunction: (funcDec: Node, _, functionEntry: Node) => {
@@ -566,7 +720,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
@@ -574,7 +728,7 @@ export class DiagnosticHandler {
 
 		// Create our Semantic (general) and add all our operations.
 		this.semantics = grammar.createSemantics();
-		for (const thisActionDict of this.actionDictionaries) {
+		for (const thisActionDict of actionDictionaries) {
 			this.semantics.addOperation(thisActionDict.name, thisActionDict.actionDict);
 		}
 	}
@@ -858,11 +1012,39 @@ export class DiagnosticHandler {
 		});
 	}
 
-	public async runSemanticIndexVariableOperation(matchArray: MatchResultsPackage[]): Promise<VariablesPackage> {
+	public async runSemanticIndexVariableOperation(
+		matchArray: MatchResultsPackage[],
+		currObjInfo: DocumentFolder
+	): Promise<VariablesPackage> {
 		// Clear the quick check
-		this.instanceQuickCheck = [];
-		this.globalQuickCheck = [];
 		this.localQuickCheck = [];
+		this.instanceQuickCheck = [];
+
+		// Set our Object Name Here:
+		this.currentObjectName = currObjInfo.name;
+
+		// Figure our our Variable Type for this Event/Script and this Object:
+		if (currObjInfo.eventInfo) {
+			if (currObjInfo.eventInfo.eventType == EventType.Create) {
+				this.currentRank = VariableRank.Create;
+			} else if (currObjInfo.eventInfo.eventType == EventType.Step) {
+				switch (currObjInfo.eventInfo.eventNumb) {
+					case EventNumber.StepBegin:
+						this.currentRank = VariableRank.BegStep;
+						break;
+
+					case EventNumber.StepNormal:
+						this.currentRank = VariableRank.Step;
+						break;
+
+					case EventNumber.StepEnd:
+						this.currentRank = VariableRank.EndStep;
+						break;
+				}
+			} else {
+				this.currentRank = VariableRank.Other;
+			}
+		} else this.currentRank = VariableRank.Other;
 
 		// Main loop
 		for (const element of matchArray) {
@@ -872,8 +1054,7 @@ export class DiagnosticHandler {
 
 		return {
 			localVariables: this.localVariables.splice(0),
-			variables: this.instanceVariables.splice(0, this.instanceVariables.length),
-			globalVariables: this.globalVariables.splice(0, this.globalVariables.length)
+			variables: this.instanceVariables.splice(0, this.instanceVariables.length)
 		};
 	}
 

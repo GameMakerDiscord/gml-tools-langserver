@@ -4,8 +4,8 @@ import { JSDOC, FileSystem } from "./fileSystem";
 import { Reference } from "./reference";
 
 export enum ws {
-	beforePeriod,
-	afterPeriod
+	objName,
+	varName
 }
 
 export class GMLHoverProvider {
@@ -30,14 +30,14 @@ export class GMLHoverProvider {
 				const wordAtSplit = hoveredText.split(".");
 
 				// Enums
-				if (this.reference.enumExists(wordAtSplit[ws.beforePeriod])) {
-					const theseEnumMembers = this.reference.getEnumEntries(wordAtSplit[ws.beforePeriod]);
+				if (this.reference.enumExists(wordAtSplit[ws.objName])) {
+					const theseEnumMembers = this.reference.getEnumEntries(wordAtSplit[ws.objName]);
 
 					// Find our Enum's value:
 					let enumeration = 0;
 
 					for (const thisMember of theseEnumMembers) {
-						if (thisMember.enumName == wordAtSplit[ws.afterPeriod]) {
+						if (thisMember.enumName == wordAtSplit[ws.varName]) {
 							enumeration = thisMember.enumeration;
 							break;
 						}
@@ -47,9 +47,9 @@ export class GMLHoverProvider {
 						language: "gml",
 						value:
 							"(enum member) " +
-							wordAtSplit[ws.beforePeriod] +
+							wordAtSplit[ws.objName] +
 							"." +
-							wordAtSplit[ws.afterPeriod] +
+							wordAtSplit[ws.varName] +
 							" = " +
 							enumeration.toString()
 					};

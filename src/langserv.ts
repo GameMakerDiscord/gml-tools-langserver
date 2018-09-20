@@ -14,10 +14,11 @@ import {
 	DidOpenTextDocumentParams,
 	CompletionParams,
 	CompletionItem,
-	FoldingRangeRequestParam
+	FoldingRangeRequestParam,
+	ReferenceParams
 } from "vscode-languageserver/lib/main";
 import { DiagnosticHandler, LintPackageFactory, DiagnosticsPackage, LintPackage } from "./diagnostic";
-import { Reference, IObjVar } from "./reference";
+import { Reference } from "./reference";
 import { GMLDefinitionProvider } from "./definition";
 import { GMLSignatureProvider } from "./signature";
 import { GMLCompletionProvider } from "./completion";
@@ -56,7 +57,7 @@ export class LangServ {
 		this.__dirName = path.normalize(__dirname);
 
 		// Create our tools:
-		this.reference = new Reference();
+		this.reference = new Reference(this);
 		this.documentationImporter = new DocumentationImporter(this, this.reference);
 		this.fsManager = new FileSystem(this.gmlGrammar, this);
 
@@ -84,7 +85,10 @@ export class LangServ {
 		let ourManual: GMLDocs.DocFile | null;
 		let cacheManual = false;
 		try {
-			const encodedText = fse.readFileSync(path.join(this.__dirName, path.normalize("../lib/gmlDocs.json")), "utf8");
+			const encodedText = fse.readFileSync(
+				path.join(this.__dirName, path.normalize("../lib/gmlDocs.json")),
+				"utf8"
+			);
 			ourManual = JSON.parse(encodedText);
 		} catch (err) {
 			ourManual = await this.documentationImporter.createManual();
@@ -98,14 +102,17 @@ export class LangServ {
 
 			// Cache the Manual:
 			if (cacheManual) {
-				fse.writeFileSync(path.join(this.__dirName, path.normalize("../lib/gmlDocs.json")), JSON.stringify(ourManual, null, 4));
+				fse.writeFileSync(
+					path.join(this.__dirName, path.normalize("../lib/gmlDocs.json")),
+					JSON.stringify(ourManual, null, 4)
+				);
 			}
 		} else {
-			console.log("OH NO -- manual not found or loaded. Big errors.")
+			console.log("OH NO -- manual not found or loaded. Big errors.");
 		}
 
 		// Create project-documentation
-		if (await this.fsManager.isFileCached("project-documentation.json") == false) {
+		if ((await this.fsManager.isFileCached("project-documentation.json")) == false) {
 			this.fsManager.initProjDocs(this.__dirName);
 		}
 
@@ -311,35 +318,18 @@ export class LangServ {
 		const thisURI = thisDiagnostic.getURI;
 		const theseMatchResults = lintPackage.getMatchResults();
 		if (!theseMatchResults) return;
-		const varPackage = await thisDiagnostic.runSemanticIndexVariableOperation(theseMatchResults);
 		const URIInformation = await this.fsManager.getDocumentFolder(thisURI);
+		if (!URIInformation) return;
+		const varPackage = await thisDiagnostic.runSemanticIndexVariableOperation(theseMatchResults, URIInformation);
 
 		// Instance Variables
 		if (URIInformation) {
 			if (URIInformation.type == ResourceType.Object) {
-				// Figure out the missing Variables
-				const ourVariablesWeShouldHaveFound = this.reference.getAllVariablesAtURI(thisURI);
-				let variablesNotFound: IObjVar[] = [];
+				// Delete our Old Variable Cache
+				await this.reference.clearAllVariablesAtURI(thisURI);
 
-				if (ourVariablesWeShouldHaveFound) {
-					for (const varShouldHaveFound of ourVariablesWeShouldHaveFound) {
-						// Loop here cause I don't get array.prototype.filter cause I'm a fool:
-						let found = false;
-						for (const varFound of varPackage.variables) {
-							if (varFound.name == varShouldHaveFound.variable) {
-								found = true;
-								break;
-							}
-						}
-
-						if (found == false) {
-							variablesNotFound.push(varShouldHaveFound);
-						}
-					}
-				}
-
-				this.reference.clearTheseVariablesAtURI(thisURI, variablesNotFound);
-				this.reference.addAllVariablesToObject(URIInformation.name, thisURI, varPackage);
+				// Add our Objects to the URI
+				this.reference.addAllVariablesToObject(thisURI, varPackage);
 			}
 		}
 
@@ -352,7 +342,6 @@ export class LangServ {
 		if (!matches) return;
 		const ourURI = thisDiagnostic.getURI;
 		this.reference.macroClearMacrosAtURI(ourURI);
-
 
 		const enumsAndMacros = await thisDiagnostic.runSemanticEnumsAndMacros(matches);
 		const ourEnumsThisCycle = enumsAndMacros[0];
@@ -374,7 +363,6 @@ export class LangServ {
 		if (enumsNotFound.length > 0) {
 			this.reference.clearTheseEnumsAtThisURI(enumsNotFound, ourURI);
 		}
-
 	}
 
 	public async semanticJSDOC(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, docInfo: DocumentFolder) {
@@ -413,14 +401,14 @@ export class LangServ {
 	}
 	/**
 	 * How Folding Works in this LSP: GML only provides dynamic folding with
-	 * #region and #endregion syntax. Our grammar uses these as if they were 
-	 * part of the language (which can, if one tries hard, produce strange 
-	 * false positives), and, as such, we parse them with a visitor during the 
+	 * #region and #endregion syntax. Our grammar uses these as if they were
+	 * part of the language (which can, if one tries hard, produce strange
+	 * false positives), and, as such, we parse them with a visitor during the
 	 * "Lint" operation.
-	 * In that operation, the DiagnosticHandler sends the parsed ranges to the 
+	 * In that operation, the DiagnosticHandler sends the parsed ranges to the
 	 * Reference, who keeps them. Here, all we do is retrieve them from the
-	 * reference. 
-	 * @param params Essentially, the URI of the document. 
+	 * reference.
+	 * @param params Essentially, the URI of the document.
 	 */
 	public async onFoldingRanges(params: FoldingRangeRequestParam): Promise<FoldingRange[] | null> {
 		const ranges = this.reference.foldingGetFoldingRange(params.textDocument.uri);
@@ -429,6 +417,10 @@ export class LangServ {
 		}
 		return null;
 	}
+
+	public async onShowAllReferences(params: ReferenceParams) {
+		return await this.gmlDefinitionProvider.onShowAllReferencesRequest(params);
+	}
 	//#endregion
 
 	//#region Commands
@@ -436,7 +428,7 @@ export class LangServ {
 		// Basic Conversions straight here:
 		if (typeof objectPackage.objectEvents == "string") {
 			objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(",");
-			objectPackage.objectEvents = objectPackage.objectEvents.map(function (x) {
+			objectPackage.objectEvents = objectPackage.objectEvents.map(function(x) {
 				return x.trim();
 			});
 		}
@@ -487,7 +479,7 @@ export class LangServ {
 
 	public async addEvents(events: EventsPackage) {
 		let eventsArray = events.events.toLowerCase().split(",");
-		eventsArray = eventsArray.map(function (x) {
+		eventsArray = eventsArray.map(function(x) {
 			return x.trim();
 		});
 

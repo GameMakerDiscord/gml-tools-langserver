@@ -1,8 +1,8 @@
-import { WorkspaceFolder, Diagnostic } from "vscode-languageserver/lib/main";
+import { WorkspaceFolder } from "vscode-languageserver/lib/main";
 import * as fse from "fs-extra";
 import * as path from "path";
 import { Grammar } from "ohm-js";
-import { DiagnosticHandler, DiagnosticsPackage } from "./diagnostic";
+import { DiagnosticHandler } from "./diagnostic";
 import { LangServ } from "./langserv";
 import { Reference } from "./reference";
 import * as upath from "upath";
@@ -47,7 +47,7 @@ export interface GMLObjectContainer {
 
 export interface GMLObject {
 	directoryFilepath: string;
-	events: Array<EventInterface>;
+	events: Array<EventInfo>;
 	yyFile: Resource.Object;
 }
 
@@ -60,10 +60,12 @@ export interface GMLSprite {
 	yyFile: Resource.Sprite;
 }
 
-export interface EventInterface {
+export interface EventInfo {
 	eventType: EventType;
-	eventNumb: number;
+	eventNumb: EventNumber;
+	/** This is the UUID of the event. */
 	eventID: string;
+	/** This is the relative path to the event's  */
 	eventPath: string;
 }
 
@@ -87,6 +89,7 @@ export interface DocumentFolder {
 	name: string;
 	type: ResourceType;
 	file: string;
+	eventInfo?: EventInfo;
 }
 
 export interface EventKinds {
@@ -338,7 +341,7 @@ export class FileSystem {
 			return;
 		}
 
-		// Do We only have 1 YYFile? Good, we should only ahve one. 
+		// Do We only have 1 YYFile? Good, we should only ahve one.
 		if (yypDir.length == 1) {
 			this.projectYYPPath = path.join(this.projectDirectory, yypDir[0]);
 			this.projectName = path.basename(this.projectYYPPath, ".yyp");
@@ -398,18 +401,18 @@ export class FileSystem {
 					this.reference.addObject(objYY.name);
 
 					// Figure out our events
-					let ourEvents: Array<EventInterface> = [];
+					let ourEvents: Array<EventInfo> = [];
 					for (const thisEvent of objYY.eventList) {
 						const ourPath = this.convertEventEnumToFPath(thisEvent, dirPath);
-
-						ourEvents.push({
+						const thisEventEntry: EventInfo = {
 							eventType: thisEvent.eventtype,
 							eventNumb: thisEvent.enumb,
 							eventID: thisEvent.id,
 							eventPath: ourPath
-						});
-						await this.createDocumentFolder(ourPath, objYY.name, ResourceType.Object);
-						console.log(ourPath);
+						};
+
+						ourEvents.push(thisEventEntry);
+						await this.createDocumentFolder(ourPath, objYY.name, ResourceType.Object, thisEventEntry);
 						await this.initialDiagnostics(ourPath, SemanticsOption.Function | SemanticsOption.Variable);
 					}
 
@@ -560,6 +563,7 @@ export class FileSystem {
 					const extYY: Resource.Extension = JSON.parse(await fse.readFile(yyFilePath, "utf8"));
 					// Add to UUID Dict
 					this.projectResourceList[extYY.id] = extYY;
+
 
 					// Resources
 					this.reference.extensions.push(extYY.name);
@@ -714,7 +718,7 @@ export class FileSystem {
 			modelName: "GMFolder",
 			mvc: thisNode.mvc,
 			name: thisNode.name
-		}
+		};
 
 		// Save it to disk:
 		const fpath = path.join(this.projectDirectory, "views", ourYY.id + ".yy");
@@ -750,7 +754,10 @@ export class FileSystem {
 
 		// Find our view by Iterating on our default view:
 		for (const thisChildView of this.views[this.defaultView].children) {
-			if ((thisChildView.modelName == "GMLFolder" || thisChildView.modelName == "GMFolder") && thisChildView.folderName == viewType) {
+			if (
+				(thisChildView.modelName == "GMLFolder" || thisChildView.modelName == "GMFolder") &&
+				thisChildView.folderName == viewType
+			) {
 				return thisChildView;
 			}
 		}
@@ -898,12 +905,21 @@ export class FileSystem {
 
 	public async initProjDocs(dirname: string) {
 		// Create the Actual File:
-		this.setCachedFileText("project-documentation.json", JSON.stringify({
-			$schema: URI.file(path.join(dirname, path.normalize("../lib/schema/gmlDocsSchema.json"))).toString(),
-			functions: [],
-			instanceVariables: [],
-			objectsAndInstanceVariables: []
-		}, null, 4));
+		this.setCachedFileText(
+			"project-documentation.json",
+			JSON.stringify(
+				{
+					$schema: URI.file(
+						path.join(dirname, path.normalize("../lib/schema/gmlDocsSchema.json"))
+					).toString(),
+					functions: [],
+					instanceVariables: [],
+					objectsAndInstanceVariables: []
+				},
+				null,
+				4
+			)
+		);
 	}
 
 	public async installProjectDocWatcher(dirname: string) {
@@ -913,7 +929,7 @@ export class FileSystem {
 
 		// Creat our JSON validator:
 		const ajv = new Ajv();
-		// On Mac and Linux, ajv has the schema for draft 6, and on Windows, it doesn't. 
+		// On Mac and Linux, ajv has the schema for draft 6, and on Windows, it doesn't.
 		// Very strange behavior.
 		let check;
 		try {
@@ -978,9 +994,9 @@ export class FileSystem {
 		const thisDiagnostic = await this.getDiagnosticHandler(fileURI.toString());
 		await thisDiagnostic.setInput(fileText);
 
-		let finalDiagnosticPackage: Diagnostic[] = [];
+		// let finalDiagnosticPackage: Diagnostic[] = [];
 		try {
-			finalDiagnosticPackage = await this.lsp.lint(thisDiagnostic, semanticsToRun);
+			await this.lsp.lint(thisDiagnostic, semanticsToRun);
 		} catch (error) {
 			console.log("Error at " + fpath + ". Error: " + error);
 		}
@@ -1009,14 +1025,20 @@ export class FileSystem {
 
 	//#region Document Handlers
 
-	private async createDocumentFolder(path: string, name: string, type: ResourceType) {
-		let uri = URI.file(path);
+	private async createDocumentFolder(path: string, name: string, type: ResourceType, eventEntry?: EventInfo) {
+		let uri = URI.file(path).toString();
 
-		this.documents[uri.toString()] = {
+		const thisDocFolder: DocumentFolder = {
 			name: name,
 			type: type,
 			file: ""
 		};
+
+		if (eventEntry) {
+			thisDocFolder.eventInfo = eventEntry;
+		}
+
+		this.documents[uri] = thisDocFolder;
 	}
 
 	public async getDocumentFolder(uri: string): Promise<DocumentFolder | undefined> {
@@ -1124,7 +1146,7 @@ export class FileSystem {
 		};
 
 		// Update Views:
-		this.viewsInsertViewsAtNode(createAtNode.id, [newScript])
+		this.viewsInsertViewsAtNode(createAtNode.id, [newScript]);
 
 		await this.lsp.openTextDocument({
 			textDocument: {
@@ -1138,7 +1160,10 @@ export class FileSystem {
 		return ourGMLPath;
 	}
 
-	public async createObject(objPackage: CreateObjPackage, createAtNode?: GMResourcePlus | null): Promise<string | null> {
+	public async createObject(
+		objPackage: CreateObjPackage,
+		createAtNode?: GMResourcePlus | null
+	): Promise<string | null> {
 		// Get parent View
 		createAtNode = createAtNode || this.viewsFindDefaultViewFolders("objects");
 		if (!createAtNode) return null;
@@ -1200,7 +1225,7 @@ export class FileSystem {
 
 		// Each event
 		let openEditorHere = "";
-		let internalEventModel: EventInterface[] = [];
+		let internalEventModel: EventInfo[] = [];
 		for (const thisEvent of newObject.eventList) {
 			const thisFP = this.convertEventEnumToFPath(thisEvent, ourDirectoryPath);
 
@@ -1353,7 +1378,7 @@ export class FileSystem {
 			mvc: "1.1",
 			modelName: "GMFolder",
 			name: ourUUID
-		}
+		};
 
 		// Create view file:
 		const fp = path.join(this.projectDirectory, "views", ourNewView.id + ".yy");
