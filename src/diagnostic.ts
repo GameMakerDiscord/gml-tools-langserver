@@ -11,6 +11,8 @@ import { Reference, VariableRank } from "./reference";
 import { JSDOC, JSDOCParameter, DocumentFolder } from "./fileSystem";
 import { Token, enumsMacros } from "./declarations";
 import { EventType, EventNumber } from "yyp-typings";
+import * as fse from "fs"
+
 
 export enum EIterArray {
 	InitExpression,
@@ -147,6 +149,7 @@ export class DiagnosticHandler {
 	private localVariables: Array<GMLLocalVarParse>;
 	private instanceVariables: Array<GMLVarParse>;
 	private localQuickCheck: Array<string>;
+	private instanceQuickCheck: Array<string>;
 	private functionStack: Array<GMLFunctionStack>;
 	private semanticDiagnostics: Diagnostic[];
 	private matcher: any; // Matcher, but with more stuff.
@@ -182,6 +185,7 @@ export class DiagnosticHandler {
 		this.currentFullTextDocument = "";
 
 		this.localQuickCheck = [];
+		this.instanceQuickCheck = [];
 		this.enumsAddedThisCycle = [];
 		this.macrosAddedThisCycle = [];
 		this.tokenList = [];
@@ -487,10 +491,40 @@ export class DiagnosticHandler {
 				/**
 				 * PossibleVariables are `x = POSSIBLE_VAR;` They are
 				 * normally just instance variables, but they could also be:
-				 * Resources, 
+				 * Resources, Macros, script names, whatever man!
 				 */
 				possibleVariable: (variable: Node) => {
+					const varName = variable.sourceString;
 
+					// Are we a local?
+					if (this.localQuickCheck.includes("*." + varName)) {
+						this.localVariables.push({
+							name: "*." + varName,
+							range: this.getVariableIndex(this.currentFullTextDocument, variable),
+							isOrigin: true
+						});
+					}
+
+					// Are we a resource?
+					if (this.reference.resourceExists(varName)) {
+						console.log("Referenced " + varName);
+					}
+
+					// Are we a Macro?
+					if (this.reference.macroExists(varName)) {
+						console.log("Macro Referenced " + varName);
+					}
+
+					// Therefore, we are an instance variable after *all* that, yeah?
+					if (this.instanceQuickCheck.includes(varName)) {
+						this.instanceVariables.push({
+							name: varName,
+							range: this.getVariableIndex(this.currentFullTextDocument, variable),
+							object: this.currentObjectName,
+							supremacy: this.currentRank,
+							isSelf: this.isSelf
+						});
+					}
 				},
 
 				variable: (variable: Node) => {
@@ -503,7 +537,7 @@ export class DiagnosticHandler {
 							isOrigin: false
 						});
 					} else {
-						// Add our new object
+						// Add our new variable
 						this.instanceVariables.push({
 							name: varName,
 							range: this.getVariableIndex(this.currentFullTextDocument, variable),
@@ -511,6 +545,9 @@ export class DiagnosticHandler {
 							supremacy: this.currentRank,
 							isSelf: this.isSelf
 						});
+
+						// Add to qcheck
+						this.instanceQuickCheck.push(varName);
 					}
 				},
 
@@ -982,6 +1019,7 @@ export class DiagnosticHandler {
 	): Promise<VariablesPackage> {
 		// Clear the quick check
 		this.localQuickCheck = [];
+		this.instanceQuickCheck = [];
 
 		// Set our Object Name Here:
 		this.currentObjectName = currObjInfo.name;

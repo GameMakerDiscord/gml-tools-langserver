@@ -564,6 +564,7 @@ export class FileSystem {
 					// Add to UUID Dict
 					this.projectResourceList[extYY.id] = extYY;
 
+
 					// Resources
 					this.reference.extensions.push(extYY.name);
 					this.reference.addResource(extYY.name);
