@@ -68,6 +68,9 @@ connection.onInitialized(() => {
 
 	// Perform initial index:
 	ls.initialIndex();
+
+	// Let the Client Know:
+	connection.sendNotification("indexComplete");
 });
 
 //#region Commands
@@ -126,6 +129,11 @@ connection.onExecuteCommand(async (params) => {
 });
 
 connection.onRequest(new RequestType<string, ClientViewNode[], void, void>("getViewsAtUUID"), (uuid) => {
+	if (ls.isServerReady() == false) {
+		console.log("OH NO");
+		return [];
+	}
+
 	// If initial views
 	if (uuid == "init") {
 		const ourViews = ls.fsManager.viewsGetInitialViews();

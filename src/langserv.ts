@@ -184,7 +184,7 @@ export class LangServ {
 		}
 	}
 
-	private isServerReady() {
+	public isServerReady() {
 		return this.fsManager.indexComplete;
 	}
 	//#endregion

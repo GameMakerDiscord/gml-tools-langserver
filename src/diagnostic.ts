@@ -12,7 +12,6 @@ import { JSDOC, JSDOCParameter, DocumentFolder } from "./fileSystem";
 import { Token, enumsMacros } from "./declarations";
 import { EventType, EventNumber } from "yyp-typings";
 
-
 export enum EIterArray {
 	InitExpression,
 	Comma,
