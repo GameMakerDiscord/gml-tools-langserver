@@ -1,6 +1,6 @@
 import { Reference } from "./reference";
 import { FileSystem } from "./fileSystem";
-import { 
+import {
     CompletionItem, CompletionList, CompletionItemKind,
     CompletionParams, CompletionTriggerKind, Range,
     MarkupContent, MarkupKind
@@ -15,10 +15,10 @@ export class GMLCompletionProvider {
 
     constructor(private reference: Reference, private fs: FileSystem) {
         this.reference = reference;
-        this.fs        = fs;
+        this.fs = fs;
 
         this.completionList = {
-            isIncomplete : true,
+            isIncomplete: true,
             items: []
         }
     }
@@ -30,7 +30,7 @@ export class GMLCompletionProvider {
                 case CompletionTriggerKind.Invoked:
                     await this.nonPeriodCompletion(params);
                     break;
-                
+
                 case CompletionTriggerKind.TriggerCharacter:
                     await this.periodCompletion(params)
                     break;
@@ -64,12 +64,12 @@ export class GMLCompletionProvider {
 
             for (const thisVar of variableList) {
                 if (thisVar.match(rx) !== null) {
-                    workingArray.push( {
+                    workingArray.push({
                         label: thisVar,
                         kind: CompletionItemKind.Variable,
                         textEdit: {
-                            newText : thisVar.replace(thisWord, ""),
-                            range : thisRange
+                            newText: thisVar.replace(thisWord, ""),
+                            range: thisRange
                         },
                     })
                 }
@@ -81,12 +81,12 @@ export class GMLCompletionProvider {
         if (locals) {
             for (const thisVar of locals) {
                 if (thisVar.match(rx) !== null) {
-                    workingArray.push( {
+                    workingArray.push({
                         label: thisVar,
                         kind: CompletionItemKind.Field,
                         textEdit: {
-                            newText : thisVar.replace(thisWord, ""),
-                            range : thisRange
+                            newText: thisVar.replace(thisWord, ""),
+                            range: thisRange
                         },
                     })
                 }
@@ -98,17 +98,17 @@ export class GMLCompletionProvider {
         const functionList = this.reference.scriptGetScriptList();
         for (const item of functionList) {
             if (item.match(rx) !== null) {
-                
+
 
                 const total = workingArray.push({
-                    label : item,
+                    label: item,
                     kind: CompletionItemKind.Function,
                     textEdit: {
-                        newText : item.replace(thisWord, ""),
-                        range : thisRange
+                        newText: item.replace(thisWord, ""),
+                        range: thisRange
                     }
                 });
-                
+
                 if (total > 16) {
                     break;
                 }
@@ -120,15 +120,30 @@ export class GMLCompletionProvider {
         for (const obj of objectList) {
             if (obj.match(rx) !== null) {
                 workingArray.push({
-                    label : obj,
+                    label: obj,
                     kind: CompletionItemKind.Class,
                     textEdit: {
-                        newText : obj.replace(thisWord, ""),
-                        range : thisRange
+                        newText: obj.replace(thisWord, ""),
+                        range: thisRange
                     }
                 });
             }
         }
+
+        // The Global Object
+        if ("global".match(rx) !== null) {
+            workingArray.push({
+                label: "global",
+                kind: CompletionItemKind.Class,
+                textEdit: {
+                    newText: "global".replace(thisWord, ""),
+                    range: thisRange
+                }
+            });
+        }
+
+        // Global Variables
+        const globVars = this.reference.getAllObjectVariables("global")
 
         // Enums:
         const enumList = this.reference.getEnumList();
@@ -138,8 +153,8 @@ export class GMLCompletionProvider {
                     label: thisEnum,
                     kind: CompletionItemKind.Enum,
                     textEdit: {
-                        newText : thisEnum.replace(thisWord, ""),
-                        range : thisRange
+                        newText: thisEnum.replace(thisWord, ""),
+                        range: thisRange
                     }
                 })
             }
@@ -150,11 +165,11 @@ export class GMLCompletionProvider {
         for (const item of macroList) {
             if (item.match(rx) !== null) {
                 workingArray.push({
-                    label : item,
+                    label: item,
                     kind: CompletionItemKind.Constant,
                     textEdit: {
-                        newText : item.replace(thisWord, ""),
-                        range : thisRange
+                        newText: item.replace(thisWord, ""),
+                        range: thisRange
                     }
                 });
             }
@@ -167,19 +182,19 @@ export class GMLCompletionProvider {
                     label: thisSprite,
                     kind: CompletionItemKind.Color,
                     textEdit: {
-                        newText : thisSprite.replace(thisWord, ""),
-                        range : thisRange
+                        newText: thisSprite.replace(thisWord, ""),
+                        range: thisRange
                     }
                 })
             }
         }
-        
+
         // All other resources:
         let otherResources: OtherResources[] = [];
         otherResources.push([this.reference.tilesets, CompletionItemKind.Struct]);
         otherResources.push([this.reference.sounds, CompletionItemKind.Interface]);
         otherResources.push([this.reference.paths, CompletionItemKind.Unit]);
-        otherResources.push([this.reference.shaders, CompletionItemKind.Event]); 
+        otherResources.push([this.reference.shaders, CompletionItemKind.Event]);
         otherResources.push([this.reference.fonts, CompletionItemKind.TypeParameter]);
         otherResources.push([this.reference.timeline, CompletionItemKind.Keyword]);
         otherResources.push([this.reference.rooms, CompletionItemKind.Folder]);
@@ -193,9 +208,9 @@ export class GMLCompletionProvider {
                         label: thisResource,
                         kind: thisResourceType[1],
                         textEdit: {
-                            newText : thisResource.replace(thisWord, ""),
-                            range : thisRange
-                        } 
+                            newText: thisResource.replace(thisWord, ""),
+                            range: thisRange
+                        }
                     })
                 }
             }
@@ -213,12 +228,12 @@ export class GMLCompletionProvider {
 
         // Variables
         for (const thisVar of variableList) {
-            workingArray.push( {
+            workingArray.push({
                 label: thisVar,
                 kind: CompletionItemKind.Variable,
                 textEdit: {
-                    newText : thisVar,
-                    range : Range.create(params.position, params.position)
+                    newText: thisVar,
+                    range: Range.create(params.position, params.position)
                 }
             })
         }
@@ -227,12 +242,12 @@ export class GMLCompletionProvider {
         if (thisWord == "global") {
             const globalList = this.reference.getGlobalVariables();
             for (const thisGlob of globalList) {
-                workingArray.push( {
+                workingArray.push({
                     label: thisGlob,
                     kind: CompletionItemKind.Interface,
                     textEdit: {
-                        newText : thisGlob,
-                        range : Range.create(params.position, params.position)
+                        newText: thisGlob,
+                        range: Range.create(params.position, params.position)
                     }
                 })
             }
@@ -243,12 +258,12 @@ export class GMLCompletionProvider {
             const enumList = this.reference.getEnumEntries(thisWord);
             // Iterate on the Enums
             for (const enumMember of enumList) {
-                workingArray.push( {
+                workingArray.push({
                     label: enumMember.enumName,
                     kind: CompletionItemKind.EnumMember,
                     textEdit: {
-                        newText : enumMember.enumName,
-                        range : Range.create(params.position, params.position)
+                        newText: enumMember.enumName,
+                        range: Range.create(params.position, params.position)
                     }
                 })
             }
@@ -273,7 +288,7 @@ export class GMLCompletionProvider {
                 return params;
         }
     }
-    
+
     private resolveFunction(thisItem: CompletionItem) {
         if (this.reference.scriptExists(thisItem.label)) {
             const jsdoc = this.reference.scriptGetScriptPackage(thisItem.label).JSDOC;
@@ -284,22 +299,22 @@ export class GMLCompletionProvider {
 
             // Details
             let type = jsdoc.isScript ? "(script)" : "(function)";
-        
+
             // Documentation
             let parameterContent: Array<string> = [];
             for (const thisParam of jsdoc.parameters) {
                 let ourParam = "*@param* ```" + thisParam.label + "```";
-                ourParam+= thisParam.documentation == "" ? "" : " — " + thisParam.documentation;
+                ourParam += thisParam.documentation == "" ? "" : " — " + thisParam.documentation;
                 parameterContent.push(ourParam);
             }
 
-            documentation.value+= (parameterContent.join("\n\n"));
+            documentation.value += (parameterContent.join("\n\n"));
 
             // Return Value:
-            documentation.value+= jsdoc.returns == "" ? "" : "\n\n" + "*@returns* " + jsdoc.returns;
+            documentation.value += jsdoc.returns == "" ? "" : "\n\n" + "*@returns* " + jsdoc.returns;
 
             // Documentation
-            documentation.value+= jsdoc.description == "" ? "" : "\n\n" + jsdoc.description.split(".", 1).join(".") + ".";
+            documentation.value += jsdoc.description == "" ? "" : "\n\n" + jsdoc.description.split(".", 1).join(".") + ".";
 
             thisItem.detail = type + " " + jsdoc.signature;
             thisItem.documentation = documentation;

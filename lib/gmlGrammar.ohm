@@ -242,7 +242,7 @@ gml {
     UnaryBitNot
         =   "~" UnaryExpression
     UnaryLogNot
-        =   "!" UnaryExpression
+        =   lNOTSymbol UnaryExpression
 
     PostExpression
         =   PostIncrement
@@ -369,7 +369,7 @@ gml {
             | varDec    | global    | if    | for   | repeat
             | while     | do        | until | switch| case
             | default   | break     | continue      | exit
-            | return    | with      | enumDeclararer 
+            | return    | with      | enumDeclararer | lNOTSymbol
 
     reservedPattern = keyword | undefinedLiteral | booleanLiteral
 
@@ -491,6 +491,7 @@ gml {
     mod         =   "mod" | "%"
     LANDSymbol  =   "&&" | "AND"
     LORSymbol   =   "||" | "OR"
+    lNOTSymbol  =   "!" | "not"
     noReDec     =   ~varDec
     empty       =
 
