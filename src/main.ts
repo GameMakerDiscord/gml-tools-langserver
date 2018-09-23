@@ -62,12 +62,12 @@ connection.onInitialize((params) => {
 	};
 });
 
-connection.onInitialized(() => {
+connection.onInitialized(async () => {
 	// Register for configuration changes:
 	connection.client.register(DidChangeConfigurationNotification.type);
 
 	// Perform initial index:
-	ls.initialIndex();
+	await ls.initialIndex();
 
 	// Let the Client Know:
 	connection.sendNotification("indexComplete");
@@ -130,7 +130,7 @@ connection.onExecuteCommand(async (params) => {
 
 connection.onRequest(new RequestType<string, ClientViewNode[], void, void>("getViewsAtUUID"), (uuid) => {
 	if (ls.isServerReady() == false) {
-		console.log("OH NO");
+		console.log("ERROR: Client requested views before views were indexed. Empty array provided.");
 		return [];
 	}
 

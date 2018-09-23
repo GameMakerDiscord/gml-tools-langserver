@@ -148,6 +148,9 @@ export class Reference {
 		this.URIDictionary = {};
 		this.gmlDocOverrides = [];
 		this.lsp = lsp;
+
+		// Add our "global" object to the objects:
+		this.objects["global"] = {};
 	}
 
 	public initGMLDocs(gmlDocs: GMLDocs.DocFile) {

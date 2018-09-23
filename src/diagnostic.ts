@@ -380,6 +380,30 @@ export class DiagnosticHandler {
 					list.lint();
 				},
 
+				PureMacro: (macroWord: Node, _) => {
+					if (this.reference.macroExists(macroWord.sourceString) == false) {
+						// Get Start Position
+						const startPos = getPositionFromIndex(
+							this.currentFullTextDocument,
+							macroWord.source.startIdx + this.semanticIndex
+						);
+
+						// Get End Position (add one for colon)
+						const endPos = getPositionFromIndex(
+							this.currentFullTextDocument,
+							macroWord.source.endIdx + this.semanticIndex + 1
+						);
+
+						// Create return Diagnostic
+						this.semanticDiagnostics.push({
+							severity: DiagnosticSeverity.Error,
+							message: "Expression '" + macroWord.sourceString + "' used as a statement.",
+							source: "gml",
+							range: Range.create(startPos, endPos)
+						});
+					}
+				},
+
 				// Generic for all non-terminal nodes
 				_nonterminal: (children: any) => {
 					children.forEach((element: any) => {
@@ -501,16 +525,6 @@ export class DiagnosticHandler {
 							range: this.getVariableIndex(this.currentFullTextDocument, variable),
 							isOrigin: true
 						});
-					}
-
-					// Are we a resource?
-					if (this.reference.resourceExists(varName)) {
-						console.log("Referenced " + varName);
-					}
-
-					// Are we a Macro?
-					if (this.reference.macroExists(varName)) {
-						console.log("Macro Referenced " + varName);
 					}
 
 					// Therefore, we are an instance variable after *all* that, yeah?

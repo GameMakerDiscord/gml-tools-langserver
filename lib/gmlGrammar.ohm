@@ -48,6 +48,7 @@ gml {
         |   MacroDeclaration
         |   EnumDeclaration
         |   RegionStatement
+        |   PureMacro
     StatementList
         =   Statement<#sc>*
 
@@ -120,6 +121,8 @@ gml {
         =   "#region" #regionName StatementList "#endregion"
     regionName
         =   (~lineTerminator sourceCharacter)*
+    PureMacro
+        =   macroIdentifier #sc
 
     // #region VariableStatement
     DeclarationAndDefinition
@@ -260,7 +263,7 @@ gml {
         |   PrimaryExpression
         |   ArrayLiteral
     MembDataLiteral = ~literal ~ParentExpression MemberExpression AccessorCall
-    MembObjectVarRef= ~literal ~ParentExpression MemberExpression "." identifier
+    MembObjectVarRef= ~literal ~ParentExpression MemberExpression "." variable
                     | ~literal ~ParentExpression global "." MemberExpression
     
     Arguments
@@ -458,6 +461,7 @@ gml {
     
 
     // variable tokens
+    macroIdentifier     = identifier
     possibleVariable    = identifier
     enumName            = identifier
     variable            = identifier

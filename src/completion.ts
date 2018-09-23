@@ -142,9 +142,6 @@ export class GMLCompletionProvider {
             });
         }
 
-        // Global Variables
-        const globVars = this.reference.getAllObjectVariables("global")
-
         // Enums:
         const enumList = this.reference.getEnumList();
         for (const thisEnum of enumList) {
