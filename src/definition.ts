@@ -105,13 +105,10 @@ export class GMLDefinitionProvider {
 		// if (this.reference.objectExists(thisWord)) {
 		// }
 
-		// // Scripts
-		// if (this.reference.scriptExists(thisWord)) {
-		// 	const scriptPack = this.reference.scriptGetScriptPackage(thisWord);
-		// 	if (scriptPack.JSDOC.isScript && scriptPack.uri) {
-		// 		return Location.create(scriptPack.uri.toString(), Range.create(0, 0, 0, 0));
-		// 	}
-		// }
+		// Scripts
+		if (this.reference.scriptExists(thisWord)) {
+			return this.reference.scriptGetAllReferences(thisWord);
+		}
 
 		// // Enums
 		// if (this.reference.enumExists(thisWord)) {

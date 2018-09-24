@@ -75,23 +75,28 @@ export interface enum2uri {
 	[thisEnumName: string]: string;
 }
 
-export interface URIInstRecords {
-	[thisUri: string]: Array<InstVarRecord>;
+export interface URIRecord {
+	index: number;
 }
 
-export interface InstVarRecord {
+export interface ScriptRecord extends URIRecord {
+	scriptName: string;
+}
+
+export interface InstVarRecord extends URIRecord {
 	object: string;
 	variable: string;
-	index: number;
 	isOrigin: boolean;
 }
 
 export interface IURIDictionary {
-	[thisURI: string]: URIDictionary;
+	[thisURI: string]: IURIRecord;
 }
 
-export interface URIDictionary {
+export interface IURIRecord {
 	localVariables: { [name: string]: VariableModel };
+	instanceVariables: InstVarRecord[];
+	scriptsAndFunctions: ScriptRecord[];
 	foldingRanges: FoldingRange[];
 	macros: GenericValueLocation[];
 }
@@ -112,10 +117,9 @@ export class Reference {
 	private enums: IEnums;
 	private enum2URI: enum2uri;
 	private macros2uri: enum2uri;
-	private variablesRecord: URIInstRecords;
 	private sprites: Array<string>;
 	private allResourceNames: Array<string>;
-	private URIDictionary: IURIDictionary;
+	private URIRecord: IURIDictionary;
 	public rooms: string[];
 	public tilesets: string[];
 	public fonts: string[];
@@ -129,7 +133,6 @@ export class Reference {
 	constructor(lsp: LangServ) {
 		this.objects = {};
 		this.objectList = [];
-		this.variablesRecord = {};
 		this.scriptsAndFunctions = {};
 		this.scriptsAndFunctionsList = [];
 		this.globalVariables = {};
@@ -146,7 +149,7 @@ export class Reference {
 		this.timeline = [];
 		this.paths = [];
 		this.rooms = [];
-		this.URIDictionary = {};
+		this.URIRecord = {};
 		this.gmlDocOverrides = [];
 		this.lsp = lsp;
 
@@ -245,7 +248,6 @@ export class Reference {
 	public clearAllData() {
 		this.objects = {};
 		this.objectList = [];
-		this.variablesRecord = {};
 		this.scriptsAndFunctions = {};
 		this.scriptsAndFunctionsList = [];
 		this.globalVariables = {};
@@ -254,27 +256,29 @@ export class Reference {
 		this.macros2uri = {};
 		this.sprites = [];
 		this.allResourceNames = [];
-		this.URIDictionary = {};
+		this.URIRecord = {};
 
 		if (this.gmlDocs) this.initGMLDocs(this.gmlDocs);
 	}
 
 	private createURIDictEntry(uri: string) {
-		this.URIDictionary[uri] = {
+		this.URIRecord[uri] = {
 			localVariables: {},
 			foldingRanges: [],
-			macros: []
+			macros: [],
+			instanceVariables: [],
+			scriptsAndFunctions: []
 		};
 	}
 	//#endregion
 
 	//#region Folding Ranges
 	public foldingAddFoldingRange(uri: string, thisRange: Range, kind: FoldingRangeKind) {
-		if (!this.URIDictionary[uri]) {
+		if (!this.URIRecord[uri]) {
 			this.createURIDictEntry(uri);
 		}
 
-		this.URIDictionary[uri].foldingRanges.push({
+		this.URIRecord[uri].foldingRanges.push({
 			startLine: thisRange.start.line,
 			endLine: thisRange.end.line,
 			kind: kind
@@ -282,16 +286,16 @@ export class Reference {
 	}
 
 	public foldingClearAllFoldingRange(uri: string) {
-		if (this.URIDictionary[uri]) {
-			this.URIDictionary[uri].foldingRanges = [];
+		if (this.URIRecord[uri]) {
+			this.URIRecord[uri].foldingRanges = [];
 		}
 	}
 
 	public foldingGetFoldingRange(uri: string): FoldingRange[] | null {
-		if (!this.URIDictionary[uri]) {
+		if (!this.URIRecord[uri]) {
 			return null;
 		} else {
-			return this.URIDictionary[uri].foldingRanges;
+			return this.URIRecord[uri].foldingRanges;
 		}
 	}
 
@@ -300,12 +304,12 @@ export class Reference {
 	//#region Local Variables
 	public localAddVariables(uri: string, locals: GMLLocalVarParse[]) {
 		// check if we have a URI dictionary at all:
-		if (this.URIDictionary[uri] === undefined) {
+		if (this.URIRecord[uri] === undefined) {
 			this.createURIDictEntry(uri);
 		}
 
 		// Clear our locals:
-		this.URIDictionary[uri].localVariables = {};
+		this.URIRecord[uri].localVariables = {};
 
 		for (const thisLocal of locals) {
 			// Slice off the first two, since we add "*." to locals.
@@ -313,7 +317,7 @@ export class Reference {
 
 			// Create a new Entry if we have a var declaration:
 			if (thisLocal.isOrigin) {
-				this.URIDictionary[uri].localVariables[thisName] = {
+				this.URIRecord[uri].localVariables[thisName] = {
 					origin: {
 						arrayIndex: 0,
 						isSelf: true,
@@ -322,7 +326,7 @@ export class Reference {
 					referenceLocations: [Location.create(uri, thisLocal.range)]
 				};
 			} else {
-				this.URIDictionary[uri].localVariables[thisName].referenceLocations.push(
+				this.URIRecord[uri].localVariables[thisName].referenceLocations.push(
 					Location.create(uri, thisLocal.range)
 				);
 			}
@@ -330,24 +334,24 @@ export class Reference {
 	}
 
 	public getAllLocalsAtURI(uri: string) {
-		if (this.URIDictionary[uri] !== undefined) {
-			return Object.getOwnPropertyNames(this.URIDictionary[uri].localVariables);
+		if (this.URIRecord[uri] !== undefined) {
+			return Object.getOwnPropertyNames(this.URIRecord[uri].localVariables);
 		} else return null;
 	}
 
 	public localExists(uri: string, name: string) {
-		if (this.URIDictionary[uri] && this.URIDictionary[uri].localVariables[name] !== undefined) {
+		if (this.URIRecord[uri] && this.URIRecord[uri].localVariables[name] !== undefined) {
 			return true;
 		} else return false;
 	}
 
 	public localGetDeclaration(uri: string, name: string) {
-		const varModel = this.URIDictionary[uri].localVariables[name];
+		const varModel = this.URIRecord[uri].localVariables[name];
 		return varModel.referenceLocations[varModel.origin.arrayIndex];
 	}
 
 	public localGetAllReferences(uri: string, name: string) {
-		return this.URIDictionary[uri].localVariables[name].referenceLocations;
+		return this.URIRecord[uri].localVariables[name].referenceLocations;
 	}
 	//#endregion
 
@@ -396,10 +400,6 @@ export class Reference {
 	 * Returns the JSDOC of a script or function. Note: it
 	 * does not check if the script or function exists first.
 	 * Always call `scriptExists` first.
-	 *
-	 * *Please note:* if a function which is valid is flagged
-	 * as not existing, please flag an Issue or a PR at the
-	 * Github of the project and it will fixed.
 	 * @param name The name of the Script or Function to check.
 	 */
 	public scriptGetScriptPackage(name: string): IEachScript {
@@ -419,6 +419,52 @@ export class Reference {
 		}
 
 		delete this.scriptsAndFunctions[name];
+	}
+
+	/** 
+	 * Adds a script reference unsafely (must run scriptExists first) and
+	 * adds to the URI record for the script.
+	*/
+	public scriptAddReference(name: string, uri: string, range: Range) {
+		// Add to the script object
+		const i = this.scriptsAndFunctions[name].referenceLocations.push(Location.create(uri, range)) - 1;
+
+		// Create the Record Object if it doesn't exist
+		if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
+
+		this.URIRecord[uri].scriptsAndFunctions.push({
+			index: i,
+			scriptName: name
+		})
+
+	}
+
+	/**
+	 * Removes all references to a script unsafely (run scriptExists first) at
+	 * a given URI.
+	 */
+	public scriptRemoveAllReferencesAtURI(uri: string) {
+		if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
+
+		for (const thisScriptIndex of this.URIRecord[uri].scriptsAndFunctions) {
+			// Get our Script Pack
+			const scriptPack = this.scriptGetScriptPackage(thisScriptIndex.scriptName);
+			if (!scriptPack) return;
+
+			// Splice out the old location:
+			scriptPack.referenceLocations.splice(thisScriptIndex.index, 1);
+		}
+
+		// Clear our Record of Indexes since those indexes have been removed:
+		this.URIRecord[uri].scriptsAndFunctions = [];
+	}
+	/**
+	 * Retrieves all references for a given script. This is *unsafe* to use
+	 * without called `scriptExists` first.
+	 * @param scriptName The name of the script to get all reference to.
+	 */
+	public scriptGetAllReferences(scriptName: string): Location[] {
+		return this.scriptGetScriptPackage(scriptName).referenceLocations;
 	}
 	//#endregion
 
@@ -440,7 +486,7 @@ export class Reference {
 	 */
 	public addVariablesToObject(vars: Array<GMLVarParse>, uri: string) {
 		// Create our URI object/clear it
-		this.variablesRecord[uri] = [];
+		this.URIRecord[uri].instanceVariables = [];
 
 		// Iterate on the variables
 		for (const thisVar of vars) {
@@ -462,7 +508,7 @@ export class Reference {
 				};
 
 				// Create a Record of this Object
-				this.variablesRecord[uri].push({
+				this.URIRecord[uri].instanceVariables.push({
 					object: thisVar.object,
 					variable: thisVar.name,
 					index: 0,
@@ -506,7 +552,7 @@ export class Reference {
 				}
 
 				// Create our Record
-				this.variablesRecord[uri].push({
+				this.URIRecord[uri].instanceVariables.push({
 					object: thisVar.object,
 					variable: thisVar.name,
 					index: ourIndex,
@@ -533,31 +579,31 @@ export class Reference {
 	}
 
 	public async clearAllVariablesAtURI(uri: string) {
-		const ourRecords = this.variablesRecord[uri];
+		const ourPreviousVariables = this.URIRecord[uri].instanceVariables;
 
-		if (ourRecords) {
-			for (const thisRecord of ourRecords) {
+		if (ourPreviousVariables) {
+			for (const thisOldVar of ourPreviousVariables) {
 				// Get our Variable Info:
-				const thisVarEntry = this.objects[thisRecord.object][thisRecord.variable];
+				const thisVarEntry = this.objects[thisOldVar.object][thisOldVar.variable];
 				if (!thisVarEntry) {
 					continue;
 				}
 
 				// Splice out the Record from this Var:
-				this.objects[thisRecord.object][thisRecord.variable].referenceLocations.splice(thisRecord.index, 1);
+				this.objects[thisOldVar.object][thisOldVar.variable].referenceLocations.splice(thisOldVar.index, 1);
 
-				if (thisRecord.isOrigin) {
+				if (thisOldVar.isOrigin) {
 					const newOrigin = await this.varsAssignNewOrigin(thisVarEntry.referenceLocations, uri);
 					if (newOrigin === null) {
 						// Delete the variable entirely -- we've lost all reference to it.
-						delete this.objects[thisRecord.object][thisRecord.variable];
+						delete this.objects[thisOldVar.object][thisOldVar.variable];
 					} else {
 						thisVarEntry.origin = newOrigin;
 					}
 				}
 			}
 
-			delete this.variablesRecord[uri];
+			this.URIRecord[uri].instanceVariables = [];
 		}
 	}
 
@@ -638,7 +684,7 @@ export class Reference {
 	/** Returns all variables set/declared at the URI. Note: because of GML syntax,
 	 * a variable can have multiple set/declaration lines. */
 	public getAllVariablesAtURI(uri: string) {
-		return this.variablesRecord[uri];
+		return this.URIRecord[uri].instanceVariables;
 	}
 
 	public getObjectVariablePackage(objName: string, variableName: string) {
@@ -767,8 +813,8 @@ export class Reference {
 
 	//#region Macros
 	public macrosGetAllMacrosAtURI(uri: string): Array<GenericValueLocation> {
-		if (this.URIDictionary[uri]) {
-			return this.URIDictionary[uri].macros;
+		if (this.URIRecord[uri]) {
+			return this.URIRecord[uri].macros;
 		} else return [];
 	}
 
@@ -778,12 +824,12 @@ export class Reference {
 
 	public macroAddMacro(name: string, value: string, thisRange: Range, thisURI: string) {
 		// Add our URI if it's not there:
-		if (this.URIDictionary[thisURI] === undefined) {
+		if (this.URIRecord[thisURI] === undefined) {
 			this.createURIDictEntry(thisURI);
 		}
 
 		// Commit macro to normal dictionary
-		this.URIDictionary[thisURI].macros.push({
+		this.URIRecord[thisURI].macros.push({
 			location: {
 				uri: thisURI,
 				range: thisRange
@@ -819,15 +865,15 @@ export class Reference {
 
 	public macroClearMacrosAtURI(uri: string) {
 		// Iterate through the Macro List and delete from helper list
-		if (!this.URIDictionary[uri]) return;
-		for (const thisMacro of this.URIDictionary[uri].macros) {
+		if (!this.URIRecord[uri]) return;
+		for (const thisMacro of this.URIRecord[uri].macros) {
 			// kill our helper entry
 			if (this.macros2uri[thisMacro.name]) {
 				delete this.macros2uri[thisMacro.name];
 			}
 		}
 		// Just clear the macro
-		this.URIDictionary[uri].macros = [];
+		this.URIRecord[uri].macros = [];
 	}
 
 	//#endregion

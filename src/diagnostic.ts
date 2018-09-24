@@ -6,8 +6,7 @@ import {
 	regexIndexOf,
 	getIndexFromPosition,
 	getPositionFromIndex,
-	regexLastIndexOf,
-	timeUtil
+	regexLastIndexOf
 } from "./utils";
 import { Reference, VariableRank } from "./reference";
 import { JSDOC, JSDOCParameter, DocumentFolder } from "./fileSystem";
@@ -213,9 +212,18 @@ export class DiagnosticHandler {
 					const funcName = funcId.sourceString;
 
 					if (this.reference.scriptExists(funcName)) {
-						let jsdoc = this.reference.scriptGetScriptPackage(funcName).JSDOC;
 
-						let thisFunction: GMLFunctionStack = {
+						// Add it to the Script's References:
+						this.reference.scriptAddReference(funcName, this.uri,
+							Range.create(
+								getPositionFromIndex(this.currentFullTextDocument, this.semanticIndex + funcId.source.startIdx),
+								getPositionFromIndex(this.currentFullTextDocument, this.semanticIndex + funcId.source.endIdx)
+							)
+						);
+
+						const jsdoc = this.reference.scriptGetScriptPackage(funcName).JSDOC;
+
+						const thisFunction: GMLFunctionStack = {
 							name: funcName,
 							interval: funcId.source,
 							minParams: jsdoc.minParameters,
@@ -414,7 +422,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}
@@ -583,7 +591,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}
@@ -630,7 +638,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}
@@ -735,7 +743,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function() {
+				_terminal: function () {
 					return this.sourceString;
 				}
 			}

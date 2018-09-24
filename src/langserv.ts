@@ -302,7 +302,10 @@ export class LangServ {
 		diagnosticArray: Diagnostic[]
 	) {
 		// Clear our Ranges:
-		this.reference.foldingClearAllFoldingRange(thisDiagnostic.getURI);
+		// this.reference.foldingClearAllFoldingRange(thisDiagnostic.getURI);
+
+		// Clear our Script References
+		this.reference.scriptRemoveAllReferencesAtURI(thisDiagnostic.getURI)
 
 		// Run Semantics on Existing MatchResults.
 		const theseMatchResults = lintPackage.getMatchResults();
