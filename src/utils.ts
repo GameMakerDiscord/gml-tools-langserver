@@ -61,27 +61,6 @@ export function formatError(message: string, err: any): string {
 	return message;
 }
 
-export function regexLastIndexOf(string: string, regex: RegExp, startpos: number) {
-	regex = regex.global
-		? regex
-		: new RegExp(regex.source, "g" + (regex.ignoreCase ? "i" : "") + (regex.multiline ? "m" : ""));
-	if (typeof startpos == "undefined") {
-		startpos = string.length;
-	} else if (startpos < 0) {
-		startpos = 0;
-	}
-	let stringToWorkWith = string.substring(0, startpos + 1);
-	let lastIndexOf = -1;
-	let nextStop = 0;
-	let result;
-
-	while ((result = regex.exec(stringToWorkWith)) != null) {
-		lastIndexOf = result.index;
-		regex.lastIndex = ++nextStop;
-	}
-	return lastIndexOf;
-}
-
 export function regexIndexOf(str: string, regex: RegExp, startpos: number): number {
 	var indexOf = str.substring(startpos || 0).search(regex);
 	return indexOf >= 0 ? indexOf + (startpos || 0) : indexOf;
@@ -97,6 +76,28 @@ export function lastIndexOfArray(string: string, searchArray: Array<string>, sta
 		}
 	});
 	return retIndex;
+}
+
+
+export function regexLastIndexOf(str: string, regex: RegExp, startpos?: number) {
+    regex = (regex.global) ? regex : new RegExp(regex.source, "g" + (regex.ignoreCase ? "i" : "") + (regex.multiline ? "m" : ""));
+    if(typeof (startpos) == "undefined") {
+        startpos = str.length;
+    } else if(startpos < 0) {
+        startpos = 0;
+	}
+	
+	let result: RegExpExecArray|null;
+    const stringToWorkWith = str.substring(0, startpos + 1);
+    let lastIndexOf = -1;
+	let nextStop = 0;
+	let lastLength = 0;
+    while((result = regex.exec(stringToWorkWith)) != null) {
+		lastIndexOf = result.index;
+		regex.lastIndex = ++nextStop;
+		lastLength = result[0].length;
+    }
+    return lastIndexOf + lastLength;
 }
 
 /**

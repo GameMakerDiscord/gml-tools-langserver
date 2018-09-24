@@ -16,6 +16,7 @@ export interface IEachScript {
 	uri?: URI;
 	callBackLocation?: number;
 	isBritish?: boolean;
+	referenceLocations: Array<Location>;
 }
 
 export interface IObjects {
@@ -369,7 +370,8 @@ export class Reference {
 					: doNotAutocomplete === true
 						? this.scriptsAndFunctionsList.push(name)
 						: -1,
-			isBritish: doNotAutocomplete
+			isBritish: doNotAutocomplete,
+			referenceLocations: []
 		};
 	}
 
@@ -382,11 +384,8 @@ export class Reference {
 	}
 
 	/**
-	 * Checks if a script or function exists.
-	 *
-	 * *Please note:* if a function which is valid is flagged
-	 * as not existing, please flag an Issue or a PR at the
-	 * Github of the project and it will fixed.
+	 * Checks if a script or function exists. Note we don't check
+	 * the script list here because that list is for autocomplete.
 	 * @param name The name of the Script or Function to check.
 	 */
 	public scriptExists(name: string): Boolean {
