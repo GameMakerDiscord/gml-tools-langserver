@@ -5,7 +5,9 @@ import {
 	normalizeEoLSequences,
 	regexIndexOf,
 	getIndexFromPosition,
-	getPositionFromIndex
+	getPositionFromIndex,
+	regexLastIndexOf,
+	timeUtil
 } from "./utils";
 import { Reference, VariableRank } from "./reference";
 import { JSDOC, JSDOCParameter, DocumentFolder } from "./fileSystem";
@@ -797,6 +799,9 @@ export class DiagnosticHandler {
 		this.tokenList = [];
 		this.tokenList = await this.createSignatureTokenList(this.matcher.memoTable);
 
+		// Regex setup
+		const backwardLookup = new RegExp(/;|}|#macro.*/);
+
 		// Initialize loop variables
 		let diagnostics: Diagnostic[] = [];
 		let salvagedMatchResults: Array<MatchResultsPackage> = [];
@@ -810,8 +815,16 @@ export class DiagnosticHandler {
 		while (didPassLint == false) {
 			diagnostics.push(this.getDiagnosticAtFailure(fullTextDoc, currentFailure + sliceIndex));
 
-			// #region Second While Loop
-			let possibleSafeEndPosition = lastIndexOfArray(fullTextDoc, [";", "}"], currentFailure + sliceIndex);
+			// #region Cut Up here
+			/**
+			 * We cut upwards here, trying to find the last safe position, using our last last safe
+			 * position as our first point, trying to find an appropriate last point.
+			 */
+			let possibleSafeEndPosition = regexLastIndexOf(
+				fullTextDoc,
+				backwardLookup,
+				currentFailure + sliceIndex + 1
+			);
 			let attemptWalkBack = possibleSafeEndPosition - sliceIndex + 1 <= 0 ? false : true;
 			if (attemptWalkBack) {
 				this.matcher.replaceInputRange(
@@ -824,6 +837,7 @@ export class DiagnosticHandler {
 				while (this.match() == false) {
 					const oldEndPos = possibleSafeEndPosition;
 					possibleSafeEndPosition = lastIndexOfArray(fullTextDoc, [";", "}"], possibleSafeEndPosition - 1);
+
 					if (possibleSafeEndPosition - sliceIndex + 1 <= 0) {
 						successFoundAbove = false;
 						break;
@@ -841,7 +855,7 @@ export class DiagnosticHandler {
 			}
 
 			// Go below the failure...
-			sliceIndex = regexIndexOf(fullTextDoc, /(;|{)/, currentFailure + sliceIndex);
+			sliceIndex = regexIndexOf(fullTextDoc, /(\n|;|{)/, currentFailure + sliceIndex);
 			if (sliceIndex == -1) {
 				didPassLint = false;
 				break;
