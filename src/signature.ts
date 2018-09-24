@@ -98,8 +98,9 @@ export class GMLSignatureProvider {
 			// Find our word
 			const textDocument = normalizeEoLSequences(thisDoc);
 			const thisWord = await getWordAtIndex(textDocument, ourFunc.startIdx);
+			if (!thisWord) return null;
 
-			// Get
+			// Get our Script
 			if (this.reference.scriptExists(thisWord) == false) {
 				return {
 					signatures: [],

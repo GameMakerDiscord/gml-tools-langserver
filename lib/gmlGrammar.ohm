@@ -103,7 +103,7 @@ gml {
         |   MembObjectVarRef
         |   identifier
     MacroDeclaration
-        =   macroWord identifier #regionName #sc
+        =   macroWord identifier #(~lineTerminator sourceCharacter)* #sc
     macroWord = "#macro"
     EnumDeclaration
         =   enumDeclararer enumName oCurly ListOf<EnumEntries,comma> cCurly

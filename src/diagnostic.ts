@@ -605,11 +605,11 @@ export class DiagnosticHandler {
 
 				MacroDeclaration: (hashtag: Node, macroName: Node, macroValue: Node, _) => {
 					const name = macroName.sourceString;
-					const val = macroValue.sourceString;
+					const val = macroValue.sourceString.trim();
 
 					this.macrosAddedThisCycle.push({
-						macroName: macroName.sourceString,
-						macroValue: macroValue.sourceString
+						macroName: name,
+						macroValue: val
 					});
 
 					const thisRange = Range.create(

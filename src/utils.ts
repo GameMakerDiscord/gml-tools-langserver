@@ -14,8 +14,11 @@ export function convertPositionToRange(lines: Array<string>, pos: number): Range
 			let startChar = pos - oldcounter;
 
 			let endline = index;
-			let endChar = getWordAtIndex(element, startChar).length + startChar;
-			return Range.create(startLine, startChar, endline, endChar);
+			const possiblyWord = getWordAtIndex(element, startChar)
+			if (possiblyWord) {
+				const endChar = possiblyWord.length + startChar;
+				return Range.create(startLine, startChar, endline, endChar);
+			}
 		}
 	}
 	return Range.create(0, 0, 0, 0);
@@ -26,7 +29,7 @@ export function convertPositionToRange(lines: Array<string>, pos: number): Range
  * @param str Full text document string
  * @param pos The 0-based index.
  */
-export function getWordAtIndex(str: string, pos: number): any {
+export function getWordAtIndex(str: string, pos: number): string|null {
 	// script from 'https://bit.ly/2KrOpWv', modified for TS slightly
 
 	// Search for the word's beginning and end.

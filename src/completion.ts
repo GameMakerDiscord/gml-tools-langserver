@@ -50,6 +50,7 @@ export class GMLCompletionProvider {
 
     private async nonPeriodCompletion(params: CompletionParams) {
         const thisWord = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
+        if (!thisWord) return;
         const thisRange = Range.create(params.position, params.position);
 
         let workingArray: CompletionItem[] = [];
@@ -218,12 +219,18 @@ export class GMLCompletionProvider {
 
     private async periodCompletion(params: CompletionParams) {
         let thisWord = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
+        if (!thisWord) return;
         let workingArray: CompletionItem[] = [];
 
-        const variableList = this.reference.getAllObjectVariables(thisWord);
+        // Idiotic Macros
+        if (this.reference.macroExists(thisWord)) {
+            const macroVal = this.reference.macroGetMacroInformation(thisWord);
+            if (macroVal) thisWord = macroVal.value;
+        }
 
 
         // Variables
+        const variableList = this.reference.getAllObjectVariables(thisWord);
         for (const thisVar of variableList) {
             workingArray.push({
                 label: thisVar,
