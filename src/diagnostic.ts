@@ -148,7 +148,6 @@ export class DiagnosticHandler {
 	private localVariables: Array<GMLLocalVarParse>;
 	private instanceVariables: Array<GMLVarParse>;
 	private localQuickCheck: Array<string>;
-	private instanceQuickCheck: Array<string>;
 	private functionStack: Array<GMLFunctionStack>;
 	private semanticDiagnostics: Diagnostic[];
 	private matcher: any; // Matcher, but with more stuff.
@@ -184,7 +183,6 @@ export class DiagnosticHandler {
 		this.currentFullTextDocument = "";
 
 		this.localQuickCheck = [];
-		this.instanceQuickCheck = [];
 		this.enumsAddedThisCycle = [];
 		this.macrosAddedThisCycle = [];
 		this.tokenList = [];
@@ -211,8 +209,8 @@ export class DiagnosticHandler {
 					// Check if the function exists:
 					const funcName = funcId.sourceString;
 
-					if (this.reference.scriptExists(funcName)) {
-
+					const scriptPack = this.reference.scriptGetScriptPackage(funcName);
+					if (scriptPack) {
 						// Add it to the Script's References:
 						this.reference.scriptAddReference(funcName, this.uri,
 							Range.create(
@@ -221,7 +219,8 @@ export class DiagnosticHandler {
 							)
 						);
 
-						const jsdoc = this.reference.scriptGetScriptPackage(funcName).JSDOC;
+						// Get our JSDOC
+						const jsdoc = scriptPack.JSDOC;
 
 						const thisFunction: GMLFunctionStack = {
 							name: funcName,
@@ -390,30 +389,6 @@ export class DiagnosticHandler {
 					list.lint();
 				},
 
-				PureMacro: (macroWord: Node, _) => {
-					if (this.reference.macroExists(macroWord.sourceString) == false) {
-						// Get Start Position
-						const startPos = getPositionFromIndex(
-							this.currentFullTextDocument,
-							macroWord.source.startIdx + this.semanticIndex
-						);
-
-						// Get End Position (add one for colon)
-						const endPos = getPositionFromIndex(
-							this.currentFullTextDocument,
-							macroWord.source.endIdx + this.semanticIndex + 1
-						);
-
-						// Create return Diagnostic
-						this.semanticDiagnostics.push({
-							severity: DiagnosticSeverity.Error,
-							message: "Expression '" + macroWord.sourceString + "' used as a statement.",
-							source: "gml",
-							range: Range.create(startPos, endPos)
-						});
-					}
-				},
-
 				// Generic for all non-terminal nodes
 				_nonterminal: (children: any) => {
 					children.forEach((element: any) => {
@@ -511,7 +486,7 @@ export class DiagnosticHandler {
 				localVariable: (variable: Node) => {
 					const varName = variable.sourceString;
 					if (this.localQuickCheck.includes("*." + variable.sourceString) == false) {
-						this.localQuickCheck.push(varName);
+						this.localQuickCheck.push("*." + varName);
 						this.localVariables.push({
 							name: "*." + varName,
 							range: this.getVariableIndex(this.currentFullTextDocument, variable),
@@ -526,51 +501,11 @@ export class DiagnosticHandler {
 				 * Resources, Macros, script names, whatever man!
 				 */
 				possibleVariable: (variable: Node) => {
-					const varName = variable.sourceString;
-
-					// Are we a local?
-					if (this.localQuickCheck.includes("*." + varName)) {
-						this.localVariables.push({
-							name: "*." + varName,
-							range: this.getVariableIndex(this.currentFullTextDocument, variable),
-							isOrigin: true
-						});
-					}
-
-					// Therefore, we are an instance variable after *all* that, yeah?
-					if (this.instanceQuickCheck.includes(varName)) {
-						this.instanceVariables.push({
-							name: varName,
-							range: this.getVariableIndex(this.currentFullTextDocument, variable),
-							object: this.currentObjectName,
-							supremacy: this.currentRank,
-							isSelf: this.isSelf
-						});
-					}
+					this.checkForVariable(variable);
 				},
 
 				variable: (variable: Node) => {
-					const varName = variable.sourceString;
-
-					if (this.localQuickCheck.includes(varName)) {
-						this.localVariables.push({
-							name: "*." + varName,
-							range: this.getVariableIndex(this.currentFullTextDocument, variable),
-							isOrigin: false
-						});
-					} else {
-						// Add our new variable
-						this.instanceVariables.push({
-							name: varName,
-							range: this.getVariableIndex(this.currentFullTextDocument, variable),
-							object: this.currentObjectName,
-							supremacy: this.currentRank,
-							isSelf: this.isSelf
-						});
-
-						// Add to qcheck
-						this.instanceQuickCheck.push(varName);
-					}
+					this.checkForVariable(variable);
 				},
 
 				globalVariable: (globVariable: Node) => {
@@ -581,6 +516,50 @@ export class DiagnosticHandler {
 						supremacy: this.currentRank,
 						isSelf: false
 					});
+				},
+
+				MacroDeclaration: (hashtag: Node, macroName: Node, macroValue: Node, _) => {
+					const name = macroName.sourceString;
+					const val = macroValue.sourceString.trim();
+
+					this.macrosAddedThisCycle.push({
+						macroName: name,
+						macroValue: val
+					});
+
+					const thisRange = Range.create(
+						getPositionFromIndex(this.currentFullTextDocument, hashtag.source.startIdx),
+						getPositionFromIndex(this.currentFullTextDocument, macroValue.source.endIdx)
+					);
+
+					this.reference.macroCreateMacro(name, val, thisRange, this.uri);
+				},
+
+				PureMacro: (macroWord: Node, _) => {
+					if (this.reference.macroExists(macroWord.sourceString) == false) {
+						// Get Start Position
+						const startPos = getPositionFromIndex(
+							this.currentFullTextDocument,
+							macroWord.source.startIdx + this.semanticIndex
+						);
+
+						// Get End Position (add one for colon)
+						const endPos = getPositionFromIndex(
+							this.currentFullTextDocument,
+							macroWord.source.endIdx + this.semanticIndex + 1
+						);
+
+						// Create return Diagnostic
+						this.semanticDiagnostics.push({
+							severity: DiagnosticSeverity.Error,
+							message: "Expression '" + macroWord.sourceString + "' used as a statement.",
+							source: "gml",
+							range: Range.create(startPos, endPos)
+						});
+					} else {
+						// Add a reference to the macro
+						this.reference.macroAddReference(macroWord.sourceString, this.uri, this.getVariableIndex(this.currentFullTextDocument, macroWord))
+					}
 				},
 
 				// Generic for all non-terminal nodes
@@ -611,23 +590,6 @@ export class DiagnosticHandler {
 
 					// Add it to our list.
 					this.enumsAddedThisCycle.push(enumNameString);
-				},
-
-				MacroDeclaration: (hashtag: Node, macroName: Node, macroValue: Node, _) => {
-					const name = macroName.sourceString;
-					const val = macroValue.sourceString.trim();
-
-					this.macrosAddedThisCycle.push({
-						macroName: name,
-						macroValue: val
-					});
-
-					const thisRange = Range.create(
-						getPositionFromIndex(this.currentFullTextDocument, hashtag.source.startIdx),
-						getPositionFromIndex(this.currentFullTextDocument, macroValue.source.endIdx)
-					);
-
-					this.reference.macroAddMacro(name, val, thisRange, this.uri);
 				},
 
 				// Generic for all non-terminal nodes
@@ -753,6 +715,34 @@ export class DiagnosticHandler {
 		this.semantics = grammar.createSemantics();
 		for (const thisActionDict of actionDictionaries) {
 			this.semantics.addOperation(thisActionDict.name, thisActionDict.actionDict);
+		}
+	}
+
+	private checkForVariable(variable: Node) {
+		const varName = variable.sourceString;
+
+		if (this.localQuickCheck.includes("*." + varName)) {
+			this.localVariables.push({
+				name: "*." + varName,
+				range: this.getVariableIndex(this.currentFullTextDocument, variable),
+				isOrigin: false
+			});
+		}
+		else if (this.reference.macroExists(varName)) {
+			this.reference.macroAddReference(varName, this.uri, this.getVariableIndex(this.currentFullTextDocument, variable));
+		}
+		else if (this.reference.resourceExists(varName)) {
+			// We're a resource, and we don't know what to do with these yet!
+		}
+		else {
+			// Therefore, we are an instance variable after *all* that, yeah?
+			this.instanceVariables.push({
+				name: varName,
+				range: this.getVariableIndex(this.currentFullTextDocument, variable),
+				object: this.currentObjectName,
+				supremacy: this.currentRank,
+				isSelf: this.isSelf
+			});
 		}
 	}
 
@@ -1053,7 +1043,6 @@ export class DiagnosticHandler {
 	): Promise<VariablesPackage> {
 		// Clear the quick check
 		this.localQuickCheck = [];
-		this.instanceQuickCheck = [];
 
 		// Set our Object Name Here:
 		this.currentObjectName = currObjInfo.name;

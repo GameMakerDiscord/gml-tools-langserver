@@ -45,11 +45,9 @@ export class GMLDefinitionProvider {
 		}
 
 		// Scripts
-		if (this.reference.scriptExists(thisWord)) {
-			const scriptPack = this.reference.scriptGetScriptPackage(thisWord);
-			if (scriptPack.JSDOC.isScript && scriptPack.uri) {
-				return Location.create(scriptPack.uri.toString(), Range.create(0, 0, 0, 0));
-			}
+		const scriptPack = this.reference.scriptGetScriptPackage(thisWord);
+		if (scriptPack && scriptPack.JSDOC.isScript && scriptPack.uri) {
+			return Location.create(scriptPack.uri.toString(), Range.create(0, 0, 0, 0));
 		}
 
 		// Enums
@@ -58,10 +56,8 @@ export class GMLDefinitionProvider {
 		}
 
 		// Macros
-		if (this.reference.macroExists(thisWord)) {
-			const macroEntry = this.reference.macroGetMacroInformation(thisWord);
-			if (macroEntry) return macroEntry.location;
-		}
+		const macroOrigin = this.reference.macroGetOrigin(thisWord);
+		if (macroOrigin) return macroOrigin;
 
 		// Local Variables
 		if (this.reference.localExists(params.textDocument.uri, thisWord)) {
@@ -106,20 +102,17 @@ export class GMLDefinitionProvider {
 		// }
 
 		// Scripts
-		if (this.reference.scriptExists(thisWord)) {
-			return this.reference.scriptGetAllReferences(thisWord);
-		}
+		const theseScriptReferences = this.reference.scriptGetAllReferences(thisWord);
+		if (theseScriptReferences) return theseScriptReferences;
 
 		// // Enums
 		// if (this.reference.enumExists(thisWord)) {
 		// 	return this.reference.getEnumLocation(thisWord);
 		// }
 
-		// // Macros
-		// if (this.reference.macroExists(thisWord)) {
-		// 	const macroEntry = this.reference.macroGetMacroInformation(thisWord);
-		// 	if (macroEntry) return macroEntry.location;
-		// }
+		// Macros
+		const theseMacroReferences = this.reference.macroGetAllReferences(thisWord);
+		if (theseMacroReferences) return theseMacroReferences;
 
 		// Local Variables
 		if (this.reference.localExists(params.textDocument.uri, thisWord)) {
@@ -130,7 +123,7 @@ export class GMLDefinitionProvider {
 		const fs: FileSystem = this.lsp.requestLanguageServiceHandler(LanguageService.FileSystem);
 		const docInfo = await fs.getDocumentFolder(params.textDocument.uri);
 		if (docInfo) {
-            const locations = await this.objectVariableAllLocations(docInfo.name, thisWord);
+			const locations = await this.objectVariableAllLocations(docInfo.name, thisWord);
 			if (locations) return locations;
 		}
 
@@ -142,7 +135,7 @@ export class GMLDefinitionProvider {
 			const varPack = this.reference.getObjectVariablePackage(ourWord[ws.objName], ourWord[ws.varName]);
 
 			if (varPack) {
-				return varPack.referenceLocations[varPack.origin.arrayIndex];
+				return varPack.referenceLocations[varPack.origin.indexOfOrigin];
 			}
 		}
 		return undefined;

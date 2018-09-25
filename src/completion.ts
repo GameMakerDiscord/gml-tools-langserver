@@ -224,8 +224,8 @@ export class GMLCompletionProvider {
 
         // Idiotic Macros
         if (this.reference.macroExists(thisWord)) {
-            const macroVal = this.reference.macroGetMacroInformation(thisWord);
-            if (macroVal) thisWord = macroVal.value;
+            const macroVal = this.reference.macroGetMacroValue(thisWord);
+            if (macroVal) thisWord = macroVal;
         }
 
 
@@ -294,8 +294,9 @@ export class GMLCompletionProvider {
     }
 
     private resolveFunction(thisItem: CompletionItem) {
-        if (this.reference.scriptExists(thisItem.label)) {
-            const jsdoc = this.reference.scriptGetScriptPackage(thisItem.label).JSDOC;
+        const scriptPack = this.reference.scriptGetScriptPackage(thisItem.label);
+        if (scriptPack) {
+            const jsdoc = scriptPack.JSDOC;
             let documentation: MarkupContent = {
                 kind: MarkupKind.Markdown,
                 value: ""
@@ -312,7 +313,7 @@ export class GMLCompletionProvider {
                 parameterContent.push(ourParam);
             }
 
-            documentation.value += (parameterContent.join("\n\n"));
+            documentation.value +=  (parameterContent.join("\n\n"));
 
             // Return Value:
             documentation.value += jsdoc.returns == "" ? "" : "\n\n" + "*@returns* " + jsdoc.returns;
@@ -328,11 +329,9 @@ export class GMLCompletionProvider {
     }
 
     private resolveMacro(thisItem: CompletionItem) {
-        if (this.reference.macroExists(thisItem.label)) {
-            const thisMacro = this.reference.macroGetMacroInformation(thisItem.label);
-            if (thisMacro) {
-                thisItem.detail = "(macro) " + thisItem.label + " == " + thisMacro.value.trim();
-            }
+        const thisMacroVal = this.reference.macroGetMacroValue(thisItem.label);
+        if (thisMacroVal) {
+            thisItem.detail = "(macro) " + thisItem.label + " == " + thisMacroVal
         }
         return thisItem;
     }

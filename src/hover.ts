@@ -22,12 +22,12 @@ export class GMLHoverProvider {
 	}
 	public async provideHover(params: TextDocumentPositionParams): Promise<Hover> {
 		// Retrieve our textDocument (TODO make our TextDocument Manager (guuuh));
-		const hoveredText = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
+		const thisHoveredText = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
 
-		if (hoveredText) {
+		if (thisHoveredText) {
 			// Do all our period hovers here:
-			if (hoveredText.includes(".")) {
-				const wordAtSplit = hoveredText.split(".");
+			if (thisHoveredText.includes(".")) {
+				const wordAtSplit = thisHoveredText.split(".");
 
 				// Enums
 				if (this.reference.enumExists(wordAtSplit[ws.objName])) {
@@ -63,14 +63,13 @@ export class GMLHoverProvider {
 			}
 
 			// Check if it's a Function or Script:
-			if (this.reference.scriptExists(hoveredText)) {
-				return this.onHoverFunction(this.reference.scriptGetScriptPackage(hoveredText).JSDOC);
-			}
+			const scriptPack = this.reference.scriptGetScriptPackage(thisHoveredText);
+			if (scriptPack)  return this.onHoverFunction(scriptPack.JSDOC);
 
 			// Check if it's an Enum:
-			if (this.reference.enumExists(hoveredText)) {
+			if (this.reference.enumExists(thisHoveredText)) {
 				let mrkString: MarkedString = {
-					value: "(enum) " + hoveredText,
+					value: "(enum) " + thisHoveredText,
 					language: "gml"
 				};
 				return {
@@ -79,18 +78,16 @@ export class GMLHoverProvider {
 			}
 
 			// Check if it's a Macro:
-			if (this.reference.macroExists(hoveredText)) {
-				const thisMacroEntry = this.reference.macroGetMacroInformation(hoveredText);
-				if (thisMacroEntry) {
-					let mrkString: MarkedString = {
-						value: "(macro) " + hoveredText + " == " + thisMacroEntry.value.trim(),
-						language: "gml"
-					};
+			const thisMacroEntry = this.reference.macroGetMacroValue(thisHoveredText)
+			if (thisMacroEntry) {
+				let mrkString: MarkedString = {
+					value: "(macro) " + thisHoveredText + " == " + thisMacroEntry,
+					language: "gml"
+				};
 
-					return {
-						contents: mrkString
-					};
-				}
+				return {
+					contents: mrkString
+				};
 			}
 		}
 

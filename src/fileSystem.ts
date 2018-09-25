@@ -413,7 +413,7 @@ export class FileSystem {
 
 						ourEvents.push(thisEventEntry);
 						await this.createDocumentFolder(ourPath, objYY.name, ResourceType.Object, thisEventEntry);
-						await this.initialDiagnostics(ourPath, SemanticsOption.Function | SemanticsOption.Variable);
+						await this.initialDiagnostics(ourPath, SemanticsOption.EnumsAndMacros | SemanticsOption.Function | SemanticsOption.Variable);
 					}
 
 					// Push to Our References.
@@ -448,7 +448,7 @@ export class FileSystem {
 					await this.createDocumentFolder(scriptFP, scriptYY.name, ResourceType.Script);
 					await this.initialDiagnostics(
 						scriptFP,
-						SemanticsOption.Function | SemanticsOption.EnumsAndMacros | SemanticsOption.JavaDoc
+						SemanticsOption.All
 					);
 
 					this.scripts[scriptYY.name] = thisScript;

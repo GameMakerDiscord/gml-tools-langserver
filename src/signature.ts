@@ -101,14 +101,15 @@ export class GMLSignatureProvider {
 			if (!thisWord) return null;
 
 			// Get our Script
-			if (this.reference.scriptExists(thisWord) == false) {
+			const scriptPack = this.reference.scriptGetScriptPackage(thisWord);
+			if (!scriptPack) {
 				return {
 					signatures: [],
 					activeParameter: null,
 					activeSignature: null
 				};
 			}
-			const referencePackage = this.reference.scriptGetScriptPackage(thisWord).JSDOC;
+			const referencePackage = scriptPack.JSDOC;
 			let paras: ParameterInformation[] = [];
 			referencePackage.parameters.forEach((param) => {
 				paras.push(

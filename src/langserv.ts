@@ -326,14 +326,12 @@ export class LangServ {
 		const varPackage = await thisDiagnostic.runSemanticIndexVariableOperation(theseMatchResults, URIInformation);
 
 		// Instance Variables
-		if (URIInformation) {
-			if (URIInformation.type == ResourceType.Object) {
-				// Delete our Old Variable Cache
-				await this.reference.clearAllVariablesAtURI(thisURI);
+		if (URIInformation.type == ResourceType.Object) {
+			// Delete our Old Variable Cache
+			await this.reference.clearAllVariablesAtURI(thisURI);
 
-				// Add our Objects to the URI
-				this.reference.addAllVariablesToObject(thisURI, varPackage);
-			}
+			// Add our Objects to the URI
+			this.reference.addAllVariablesToObject(thisURI, varPackage);
 		}
 
 		// Local Variables
@@ -344,6 +342,8 @@ export class LangServ {
 		const matches = lintPackage.getMatchResults();
 		if (!matches) return;
 		const ourURI = thisDiagnostic.getURI;
+
+		// Clear our Macros
 		this.reference.macroClearMacrosAtURI(ourURI);
 
 		const enumsAndMacros = await thisDiagnostic.runSemanticEnumsAndMacros(matches);
