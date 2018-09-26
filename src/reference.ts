@@ -38,7 +38,7 @@ export interface GenericOriginInformation {
 	 * The index of origin refers to the index in the
 	 * `referenceLocations` array in a GenericResourceModel.
 	 */
-	indexOfOrigin: number;
+	indexOfOrigin: number | null;
 }
 
 export interface IVariable extends GenericResourceModel {
@@ -60,11 +60,10 @@ export interface IMacroOrigin extends GenericOriginInformation {
 
 interface IEnum extends GenericResourceModel {
 	origin: IEnumOrigin;
-	location: Location;
 }
 
 interface IEnumOrigin extends GenericOriginInformation {
-	enumMembers: {[name: string]: EnumMembers}
+	enumMembers: { [name: string]: EnumMembers };
 }
 
 interface EnumMembers extends GenericResourceModel {
@@ -90,6 +89,10 @@ export interface InstVarRecord extends URIRecord {
 	isOrigin: boolean;
 }
 
+export interface EnumMemberRecord extends URIRecord {
+	enumName: string;
+}
+
 export interface IURIRecord {
 	localVariables: { [name: string]: IVariable };
 	instanceVariables: InstVarRecord[];
@@ -97,7 +100,7 @@ export interface IURIRecord {
 	foldingRanges: FoldingRange[];
 	macros: URIRecord[];
 	enums: URIRecord[];
-	enumMembers: URIRecord[];
+	enumMembers: EnumMemberRecord[];
 }
 
 interface GMLDocOverrides {
@@ -730,6 +733,10 @@ export class Reference {
 	//#endregion
 
 	//#region Enums
+	private enumGetEnumInformation(enumName: string): IEnum | undefined {
+		return this.enums[enumName];
+	}
+
 	public enumGetEntries(enumName: string): Array<EnumMembers> {
 		const thisUri = this.enum2URI[enumName];
 
@@ -742,10 +749,6 @@ export class Reference {
 		return this.enums[thisUri][enumName].location;
 	}
 
-	public enumExists(name: string) {
-		return !(this.enum2URI[name] == undefined);
-	}
-
 	public enumCreateEnum(name: string, thisRange: Range, thisURI: string) {
 		// Create our Entry in the Enum object:
 		this.enums[name] = {
@@ -753,40 +756,80 @@ export class Reference {
 				enumMembers: {},
 				indexOfOrigin: 0
 			},
-			referenceLocations: Location.create(thisURI, thisRange);
-		}
-
-		this.enums[thisURI][name] = {
-			location: { uri: thisURI, range: thisRange },
-			enumEntries: []
+			referenceLocations: [Location.create(thisURI, thisRange)]
 		};
 
-		this.enum2URI[name] = thisURI;
+		// Add our URI if it's not there:
+		if (this.URIRecord[thisURI] === undefined) {
+			this.createURIDictEntry(thisURI);
+		}
+
+		// Store this Enum in the URI object:
+		this.URIRecord[thisURI].enums.push({
+			index: 0,
+			name: name
+		});
 	}
 
-	public enumPushEnumEntry(enumName: string, entryName: string, thisURI: string, thisEnumeration: number) {
-		this.enums[thisURI][enumName].enumEntries.push({ enumName: entryName, enumeration: thisEnumeration });
+	public enumCreateEnumMember(
+		enumName: string,
+		entryName: string,
+		thisURI: string,
+		thisRange: Range,
+		thisEnumeration: string
+	) {
+		// Add the Enum Member to the Object:
+		const ourEnum = this.enumGetEnumInformation(enumName);
+		if (!ourEnum) {
+			console.log("Attempted to add enum member to enum which does not exist. Skipping...");
+			return;
+		}
+		ourEnum.origin.enumMembers[entryName] = {
+			origin: {
+				indexOfOrigin: 0
+			},
+			referenceLocations: [Location.create(thisURI, thisRange)],
+			value: thisEnumeration
+		};
+
+		// Add this Enum to our URI Record:
+		this.URIRecord[thisURI].enumMembers.push({
+			index: 0,
+			name: entryName,
+			enumName: enumName
+		});
 	}
 
-	public enumGetURI(enumName: string) {
-		return this.enum2URI[enumName];
-	}
+	public enumClearAllEnumsAtURI(uri: string) {
+		// Iterate through our URIRecord;
+		if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
 
-	public enumClearAllEnumsAtURI(URI: string) {
-		for (const enumName in this.enums[URI]) {
-			if (this.enums[URI].hasOwnProperty(enumName)) {
-				// clear the normal list
-				delete this.enums[URI][enumName];
+		for (const thisEnumRecord of this.URIRecord[uri].enums) {
+			// Get our Macro Information:
+			const thisEnum = this.enumGetEnumInformation(thisEnumRecord.name);
+			if (!thisEnum) continue;
 
-				// clear the enum2uri List
-				if (this.enum2URI[enumName]) {
-					delete this.enum2URI[enumName];
-				}
+			// Are we about to delete our Origin?
+			if (thisEnumRecord.index == thisEnum.origin.indexOfOrigin) {
+				// Clear the Origin
+				delete thisEnum.referenceLocations[thisEnum.origin.indexOfOrigin];
+
+				// Clear the indexOfOrigin to Null:
+				thisEnum.origin.indexOfOrigin = null;
+			}
+
+			// Splice out the old Reference
+			delete thisEnum.referenceLocations[thisEnumRecord.index];
+
+			// Find if there are no references left
+			if (cleanArray(thisEnum.referenceLocations).length == 0) {
+				console.log(`Deleting Enum '${thisEnumRecord.name}'. All references have been removed.`);
+				delete this.enums[thisEnumRecord.name];
 			}
 		}
 
-		// clear Enums
-		this.enums[URI] = {};
+		// Clear our Record of Indexes since those indexes have been removed
+		this.URIRecord[uri].enums = [];
 	}
 
 	/**
@@ -869,7 +912,7 @@ export class Reference {
 		});
 	}
 
-	private macroGetMacroInformation(name: string): IMacro | null {
+	private macroGetMacroInformation(name: string): IMacro | undefined {
 		return this.macros[name];
 	}
 
@@ -907,9 +950,6 @@ export class Reference {
 	public macroClearMacrosAtURI(uri: string) {
 		// Iterate through our URIRecord;
 		if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
-
-		// TO DO FOR TOMORROW: BY ITERATING HERE, WE SPLICE OUT THE INDEXES THAT WE NEED
-		// IN THE NEXT ITERATION OF THE LOOP
 
 		for (const thisMacroRecord of this.URIRecord[uri].macros) {
 			// Get our Macro Information:
