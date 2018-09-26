@@ -480,7 +480,7 @@ gml {
     assignmentOperator  =   "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "&=" | "^=" | "|="
     expressionSign      =         "*"  | "/"  | "%"  | "+"  | "-"  | "&"  | "^"  | "|" 
     setSign             =   "="
-    lEqualitySign       =   "=" | "=="
+    lEqualitySign       =   "==" | "="
 
     // bits and bobs
     unaryNots   =   "!" | "~" | "-"
