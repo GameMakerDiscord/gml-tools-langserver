@@ -196,7 +196,7 @@ gml {
         |   NotEqual
         |   RelationalExpression
     Equal
-        =   EqualityExpression "==" RelationalExpression
+        =   EqualityExpression lEqualitySign RelationalExpression
     NotEqual
         =   EqualityExpression "!=" RelationalExpression
     
@@ -477,10 +477,10 @@ gml {
 
     // signs
     incrementers        =   "++" | "--"
-    assignmentOperator   =   "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "&=" | "^=" | "|="
-    expressionSign           =         "*"  | "/"  | "%"  | "+"  | "-"  | "&"  | "^"  | "|" 
+    assignmentOperator  =   "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "&=" | "^=" | "|="
+    expressionSign      =         "*"  | "/"  | "%"  | "+"  | "-"  | "&"  | "^"  | "|" 
     setSign             =   "="
-    
+    lEqualitySign       =   "=" | "=="
 
     // bits and bobs
     unaryNots   =   "!" | "~" | "-"
@@ -490,12 +490,12 @@ gml {
     oParens     =   "("
     cParens     =   ")"
     curlys      =   oCurly | cCurly
-    oCurly      =   "{" | "begin"
-    cCurly      =   "}" | "end"
+    oCurly      =   "{" | "begin" | "BEGIN"
+    cCurly      =   "}" | "end" | "END"
     mod         =   "mod" | "%"
-    LANDSymbol  =   "&&" | "AND"
-    LORSymbol   =   "||" | "OR"
-    lNOTSymbol  =   "!" | "not"
+    LANDSymbol  =   "&&" | "AND" | "and"
+    LORSymbol   =   "||" | "OR" | "or"
+    lNOTSymbol  =   "!" | "not" | "NOT"
     noReDec     =   ~varDec
     empty       =
 
