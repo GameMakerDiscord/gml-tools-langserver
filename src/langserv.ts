@@ -318,24 +318,28 @@ export class LangServ {
 	}
 
 	public async semanticVariableIndex(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage) {
-		const thisURI = thisDiagnostic.getURI;
+		const ourURI = thisDiagnostic.getURI;
 		const theseMatchResults = lintPackage.getMatchResults();
 		if (!theseMatchResults) return;
-		const URIInformation = await this.fsManager.getDocumentFolder(thisURI);
+		const URIInformation = await this.fsManager.getDocumentFolder(ourURI);
 		if (!URIInformation) return;
+
+		// Clear out all our Clearables:
+		this.reference.macroClearMacrosAtURI(ourURI);
+
 		const varPackage = await thisDiagnostic.runSemanticIndexVariableOperation(theseMatchResults, URIInformation);
 
 		// Instance Variables
 		if (URIInformation.type == ResourceType.Object) {
 			// Delete our Old Variable Cache
-			await this.reference.clearAllVariablesAtURI(thisURI);
+			await this.reference.clearAllVariablesAtURI(ourURI);
 
 			// Add our Objects to the URI
-			this.reference.addAllVariablesToObject(thisURI, varPackage);
+			this.reference.addAllVariablesToObject(ourURI, varPackage);
 		}
 
 		// Local Variables
-		this.reference.localAddVariables(thisURI, varPackage.localVariables);
+		this.reference.localAddVariables(ourURI, varPackage.localVariables);
 	}
 
 	public async semanticEnumsAndMacros(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage) {
@@ -343,13 +347,10 @@ export class LangServ {
 		if (!matches) return;
 		const ourURI = thisDiagnostic.getURI;
 
-		// Clear our Macros
-		this.reference.macroClearMacrosAtURI(ourURI);
-
 		const enumsAndMacros = await thisDiagnostic.runSemanticEnumsAndMacros(matches);
 		const ourEnumsThisCycle = enumsAndMacros[0];
 		// Enum Work
-		const supposedEnums = this.reference.getAllEnumsAtURI(ourURI);
+		const supposedEnums = this.reference.enumsGetAllEnumsAtURI(ourURI);
 		let enumsNotFound = [];
 
 		if (ourEnumsThisCycle.length > 0) {
@@ -364,7 +365,7 @@ export class LangServ {
 
 		// Clear out our missing Enums:
 		if (enumsNotFound.length > 0) {
-			this.reference.clearTheseEnumsAtThisURI(enumsNotFound, ourURI);
+			this.reference.enumsClearTheseEnumsAtThisURI(enumsNotFound, ourURI);
 		}
 	}
 

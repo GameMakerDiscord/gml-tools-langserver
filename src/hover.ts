@@ -31,7 +31,7 @@ export class GMLHoverProvider {
 
 				// Enums
 				if (this.reference.enumExists(wordAtSplit[ws.objName])) {
-					const theseEnumMembers = this.reference.getEnumEntries(wordAtSplit[ws.objName]);
+					const theseEnumMembers = this.reference.enumGetEntries(wordAtSplit[ws.objName]);
 
 					// Find our Enum's value:
 					let enumeration = 0;

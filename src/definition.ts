@@ -29,15 +29,17 @@ export class GMLDefinitionProvider {
 			const ourWord = thisWord.split(".");
 
 			// Objects
-			const foundObject = await this.objectVariableLocation(ourWord);
+			const foundObject = await this.reference.objectGetOriginLocation(ourWord[ws.objName], ourWord[ws.varName]);
 			if (foundObject) {
 				return foundObject;
 			}
 
 			// Enum Members
 			if (this.reference.enumExists(ourWord[ws.objName])) {
-				return this.reference.getEnumLocation(ourWord[ws.objName]);
+				return this.reference.enumGetEnumLocation(ourWord[ws.objName]);
 			}
+
+			return null;
 		}
 
 		// Objects
@@ -52,7 +54,7 @@ export class GMLDefinitionProvider {
 
 		// Enums
 		if (this.reference.enumExists(thisWord)) {
-			return this.reference.getEnumLocation(thisWord);
+			return this.reference.enumGetEnumLocation(thisWord);
 		}
 
 		// Macros
@@ -68,8 +70,7 @@ export class GMLDefinitionProvider {
 		const fs: FileSystem = this.lsp.requestLanguageServiceHandler(LanguageService.FileSystem);
 		const docInfo = await fs.getDocumentFolder(params.textDocument.uri);
 		if (docInfo) {
-			const ourObject = [docInfo.name, thisWord];
-			const foundVar = await this.objectVariableLocation(ourObject);
+			const foundVar = await this.reference.objectGetOriginLocation(docInfo.name, thisWord);
 
 			if (foundVar) {
 				return foundVar;
@@ -92,8 +93,12 @@ export class GMLDefinitionProvider {
 		// All "." Words
 		if (thisWord.includes(".")) {
 			const ourWord = thisWord.split(".");
+			if (ourWord.length !== 2) return null;
 
-			const locations = await this.objectVariableAllLocations(ourWord[ws.objName], ourWord[ws.varName]);
+			const locations = await this.reference.objectGetAllVariableReferences(
+				ourWord[ws.objName],
+				ourWord[ws.varName]
+			);
 			if (locations) return locations;
 		}
 
@@ -123,32 +128,8 @@ export class GMLDefinitionProvider {
 		const fs: FileSystem = this.lsp.requestLanguageServiceHandler(LanguageService.FileSystem);
 		const docInfo = await fs.getDocumentFolder(params.textDocument.uri);
 		if (docInfo) {
-			const locations = await this.objectVariableAllLocations(docInfo.name, thisWord);
+			const locations = await this.reference.objectGetAllVariableReferences(docInfo.name, thisWord);
 			if (locations) return locations;
-		}
-
-		return null;
-	}
-
-	private async objectVariableLocation(ourWord: string[]): Promise<undefined | Location> {
-		if (this.reference.objectExists(ourWord[ws.objName])) {
-			const varPack = this.reference.getObjectVariablePackage(ourWord[ws.objName], ourWord[ws.varName]);
-
-			if (varPack) {
-				return varPack.referenceLocations[varPack.origin.indexOfOrigin];
-			}
-		}
-		return undefined;
-	}
-
-	private async objectVariableAllLocations(objName: string, varName: string) {
-		// Objects
-		if (this.reference.objectExists(objName)) {
-			const varPack = this.reference.getObjectVariablePackage(objName, varName);
-
-			if (varPack) {
-				return varPack.referenceLocations;
-			}
 		}
 
 		return null;

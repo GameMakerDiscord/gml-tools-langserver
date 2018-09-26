@@ -144,7 +144,7 @@ export class GMLCompletionProvider {
         }
 
         // Enums:
-        const enumList = this.reference.getEnumList();
+        const enumList = this.reference.enumGetEnumList();
         for (const thisEnum of enumList) {
             if (thisEnum.match(rx) !== null) {
                 workingArray.push({
@@ -259,7 +259,7 @@ export class GMLCompletionProvider {
 
         // Enums
         if (this.reference.enumExists(thisWord)) {
-            const enumList = this.reference.getEnumEntries(thisWord);
+            const enumList = this.reference.enumGetEntries(thisWord);
             // Iterate on the Enums
             for (const enumMember of enumList) {
                 workingArray.push({

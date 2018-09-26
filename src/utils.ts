@@ -61,6 +61,19 @@ export function formatError(message: string, err: any): string {
 	return message;
 }
 
+export function cleanArray(thisArray: any[]): any[] {
+	const tempArray: any[] = [];
+
+	// This Entry:
+	for (const thisEntry of thisArray) {
+		if (thisEntry) {
+			tempArray.push(thisEntry);
+		}
+	}
+
+	return tempArray;
+}
+
 export function regexIndexOf(str: string, regex: RegExp, startpos: number): number {
 	var indexOf = str.substring(startpos || 0).search(regex);
 	return indexOf >= 0 ? indexOf + (startpos || 0) : indexOf;

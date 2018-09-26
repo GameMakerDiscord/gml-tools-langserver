@@ -585,7 +585,7 @@ export class DiagnosticHandler {
 						getPositionFromIndex(this.currentFullTextDocument, cCurly.source.endIdx)
 					);
 
-					this.reference.addEnum(enumNameString, thisRange, this.uri);
+					this.reference.enumCreateEnum(enumNameString, thisRange, this.uri);
 					this.addEnumEntries(enumNameString, enumList);
 
 					// Add it to our list.
@@ -1017,7 +1017,7 @@ export class DiagnosticHandler {
 			);
 		}
 
-		this.reference.pushEnumEntry(enumName, iterArray[0].children[0].source.contents, this.uri, thisEnumeration);
+		this.reference.enumPushEnumEntry(enumName, iterArray[0].children[0].source.contents, this.uri, thisEnumeration);
 
 		// Rest of the Enums:
 		iterArray[2].children.forEach((child) => {
@@ -1029,10 +1029,10 @@ export class DiagnosticHandler {
 						.child(0)
 						.child(1).sourceString
 				);
-				this.reference.pushEnumEntry(enumName, child.child(0).sourceString, this.uri, thisEnumeration);
+				this.reference.enumPushEnumEntry(enumName, child.child(0).sourceString, this.uri, thisEnumeration);
 			} else {
 				thisEnumeration++;
-				this.reference.pushEnumEntry(enumName, child.source.contents, this.uri, thisEnumeration);
+				this.reference.enumPushEnumEntry(enumName, child.source.contents, this.uri, thisEnumeration);
 			}
 		});
 	}

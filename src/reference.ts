@@ -6,6 +6,7 @@ import { GMLDocs, LanguageService, ResourceType } from "./declarations";
 import { FoldingRange } from "vscode-languageserver-protocol/lib/protocol.foldingRange";
 import { LangServ } from "./langserv";
 import { EventType, EventNumber } from "yyp-typings";
+import { cleanArray } from "./utils";
 
 export interface IScriptsAndFunctions {
 	[key: string]: IEachScript;
@@ -33,8 +34,8 @@ export interface GenericResourceModel {
 }
 
 export interface GenericOriginInformation {
-	/** 
-	 * The index of origin refers to the index in the 
+	/**
+	 * The index of origin refers to the index in the
 	 * `referenceLocations` array in a GenericResourceModel.
 	 */
 	indexOfOrigin: number;
@@ -48,12 +49,26 @@ export interface IVariableOrigin extends GenericOriginInformation {
 	varRank: VariableRank;
 	isSelf: boolean;
 }
+
 export interface IMacro extends GenericResourceModel {
-	origin: IMacroOrigin
+	origin: IMacroOrigin;
 }
 
 export interface IMacroOrigin extends GenericOriginInformation {
-	value: string
+	value: string;
+}
+
+interface IEnum extends GenericResourceModel {
+	origin: IEnumOrigin;
+	location: Location;
+}
+
+interface IEnumOrigin extends GenericOriginInformation {
+	enumMembers: {[name: string]: EnumMembers}
+}
+
+interface EnumMembers extends GenericResourceModel {
+	value: string;
 }
 
 export enum VariableRank {
@@ -65,38 +80,6 @@ export enum VariableRank {
 	Num
 }
 
-export interface IEnums {
-	[thisURI: string]: URIEnums;
-}
-
-export interface URIEnums {
-	[thisEnum: string]: IEnum;
-}
-
-export interface IEnum {
-	location: Location;
-	enumEntries: Array<EnumMembers>;
-}
-
-export interface GenericValueLocation {
-	location: Location;
-	value: string;
-}
-
-export interface IMacros {
-	[thisMacroName: string]: GenericValueLocation;
-}
-
-export interface EnumMembers {
-	enumName: string;
-	enumeration: number;
-}
-
-export interface enum2uri {
-	[thisEnumName: string]: string;
-}
-
-
 export interface URIRecord {
 	index: number;
 	name: string;
@@ -107,16 +90,14 @@ export interface InstVarRecord extends URIRecord {
 	isOrigin: boolean;
 }
 
-export interface IURIDictionary {
-	[thisURI: string]: IURIRecord;
-}
-
 export interface IURIRecord {
 	localVariables: { [name: string]: IVariable };
 	instanceVariables: InstVarRecord[];
 	scriptsAndFunctions: URIRecord[];
 	foldingRanges: FoldingRange[];
 	macros: URIRecord[];
+	enums: URIRecord[];
+	enumMembers: URIRecord[];
 }
 
 interface GMLDocOverrides {
@@ -132,12 +113,11 @@ export class Reference {
 	private scriptsAndFunctionsList: Array<string>;
 	private globalVariables: IVars;
 	private gmlDocs: GMLDocs.DocFile | undefined;
-	private enums: IEnums;
-	private enum2URI: enum2uri;
+	private enums: { [uri: string]: IEnum };
 	private macros: { [name: string]: IMacro };
 	private sprites: Array<string>;
 	private allResourceNames: Array<string>;
-	private URIRecord: IURIDictionary;
+	private URIRecord: { [thisUri: string]: IURIRecord };
 	public rooms: string[];
 	public tilesets: string[];
 	public fonts: string[];
@@ -155,7 +135,6 @@ export class Reference {
 		this.scriptsAndFunctionsList = [];
 		this.globalVariables = {};
 		this.enums = {};
-		this.enum2URI = {};
 		this.macros = {};
 		this.sprites = [];
 		this.allResourceNames = [];
@@ -270,7 +249,6 @@ export class Reference {
 		this.scriptsAndFunctionsList = [];
 		this.globalVariables = {};
 		this.enums = {};
-		this.enum2URI = {};
 		this.sprites = [];
 		this.allResourceNames = [];
 		this.URIRecord = {};
@@ -284,7 +262,9 @@ export class Reference {
 			foldingRanges: [],
 			macros: [],
 			instanceVariables: [],
-			scriptsAndFunctions: []
+			scriptsAndFunctions: [],
+			enums: [],
+			enumMembers: []
 		};
 	}
 	//#endregion
@@ -438,10 +418,10 @@ export class Reference {
 		delete this.scriptsAndFunctions[name];
 	}
 
-	/** 
+	/**
 	 * Adds a script reference unsafely (must run scriptExists first) and
 	 * adds to the URI record for the script.
-	*/
+	 */
 	public scriptAddReference(name: string, uri: string, range: Range) {
 		// Add to the script object
 		const i = this.scriptsAndFunctions[name].referenceLocations.push(Location.create(uri, range)) - 1;
@@ -452,8 +432,7 @@ export class Reference {
 		this.URIRecord[uri].scriptsAndFunctions.push({
 			index: i,
 			name: name
-		})
-
+		});
 	}
 
 	/**
@@ -469,7 +448,7 @@ export class Reference {
 			if (!scriptPack) return;
 
 			// Splice out the old location:
-			scriptPack.referenceLocations.splice(thisScriptIndex.index, 1);
+			delete scriptPack.referenceLocations[thisScriptIndex.index];
 		}
 
 		// Clear our Record of Indexes since those indexes have been removed:
@@ -481,11 +460,9 @@ export class Reference {
 	 */
 	public scriptGetAllReferences(scriptName: string): Location[] | null {
 		const scriptPack = this.scriptGetScriptPackage(scriptName);
-		if (scriptPack) {
-			return scriptPack.referenceLocations;
-		} else {
-			return null;
-		}
+		if (!scriptPack) return null;
+
+		return cleanArray(scriptPack.referenceLocations);
 	}
 	//#endregion
 
@@ -611,7 +588,7 @@ export class Reference {
 				}
 
 				// Splice out the Record from this Var:
-				this.objects[thisOldVar.object][thisOldVar.name].referenceLocations.splice(thisOldVar.index, 1);
+				delete this.objects[thisOldVar.object][thisOldVar.name].referenceLocations[thisOldVar.index];
 
 				if (thisOldVar.isOrigin) {
 					const newOrigin = await this.varsAssignNewOrigin(thisVarEntry.referenceLocations, uri);
@@ -708,7 +685,21 @@ export class Reference {
 		return this.URIRecord[uri].instanceVariables;
 	}
 
-	public getObjectVariablePackage(objName: string, variableName: string) {
+	public objectGetAllVariableReferences(objName: string, varName: string) {
+		const varPackage = this.objectGetVariablePackage(objName, varName);
+		if (!varPackage) return null;
+
+		return cleanArray(varPackage.referenceLocations);
+	}
+
+	public objectGetOriginLocation(objName: string, varName: string) {
+		const varPackage = this.objectGetVariablePackage(objName, varName);
+		if (!varPackage) return null;
+
+		return varPackage.referenceLocations[varPackage.origin.indexOfOrigin];
+	}
+
+	private objectGetVariablePackage(objName: string, variableName: string) {
 		const thisObjVariables = this.objects[objName];
 
 		if (thisObjVariables) {
@@ -739,13 +730,13 @@ export class Reference {
 	//#endregion
 
 	//#region Enums
-	public getEnumEntries(enumName: string): Array<EnumMembers> {
+	public enumGetEntries(enumName: string): Array<EnumMembers> {
 		const thisUri = this.enum2URI[enumName];
 
 		return this.enums[thisUri][enumName].enumEntries;
 	}
 
-	public getEnumLocation(enumName: string): Location {
+	public enumGetEnumLocation(enumName: string): Location {
 		const thisUri = this.enum2URI[enumName];
 
 		return this.enums[thisUri][enumName].location;
@@ -755,10 +746,14 @@ export class Reference {
 		return !(this.enum2URI[name] == undefined);
 	}
 
-	public addEnum(name: string, thisRange: Range, thisURI: string) {
-		// Add our URI if it's not there:
-		if (this.enums[thisURI] == undefined) {
-			this.enums[thisURI] = {};
+	public enumCreateEnum(name: string, thisRange: Range, thisURI: string) {
+		// Create our Entry in the Enum object:
+		this.enums[name] = {
+			origin: {
+				enumMembers: {},
+				indexOfOrigin: 0
+			},
+			referenceLocations: Location.create(thisURI, thisRange);
 		}
 
 		this.enums[thisURI][name] = {
@@ -769,15 +764,15 @@ export class Reference {
 		this.enum2URI[name] = thisURI;
 	}
 
-	public pushEnumEntry(enumName: string, entryName: string, thisURI: string, thisEnumeration: number) {
+	public enumPushEnumEntry(enumName: string, entryName: string, thisURI: string, thisEnumeration: number) {
 		this.enums[thisURI][enumName].enumEntries.push({ enumName: entryName, enumeration: thisEnumeration });
 	}
 
-	public getEnumURI(enumName: string) {
+	public enumGetURI(enumName: string) {
 		return this.enum2URI[enumName];
 	}
 
-	public clearAllEnumsAtURI(URI: string) {
+	public enumClearAllEnumsAtURI(URI: string) {
 		for (const enumName in this.enums[URI]) {
 			if (this.enums[URI].hasOwnProperty(enumName)) {
 				// clear the normal list
@@ -802,7 +797,7 @@ export class Reference {
 	 * @param uri The URI whether the Enums were made. For simplicity,
 	 * we do not allow multiple URI's here.
 	 */
-	public clearTheseEnumsAtThisURI(enumArray: string[], uri: string) {
+	public enumsClearTheseEnumsAtThisURI(enumArray: string[], uri: string) {
 		if (this.enums[uri]) {
 			for (const enumName of enumArray) {
 				const enumObject = this.enums[uri][enumName];
@@ -821,13 +816,13 @@ export class Reference {
 	 * It is intended to be called in the Semantics.
 	 * @param uri The URI of the document to check.
 	 */
-	public getAllEnumsAtURI(uri: string): Array<string> {
+	public enumsGetAllEnumsAtURI(uri: string): Array<string> {
 		if (this.enums[uri]) {
 			return Object.keys(this.enums[uri]);
 		} else return [];
 	}
 
-	public getEnumList() {
+	public enumGetEnumList() {
 		return Object.keys(this.enum2URI);
 	}
 	//#endregion
@@ -850,7 +845,7 @@ export class Reference {
 				value: value
 			},
 			referenceLocations: [Location.create(thisURI, thisRange)]
-		}
+		};
 
 		// Commit this Macro to the Record Dictionary
 		this.URIRecord[thisURI].macros.push({
@@ -859,7 +854,7 @@ export class Reference {
 		});
 	}
 
-	/** 
+	/**
 	 * Adds the Macro Location as a reference location to the Macro. Unsafe to call
 	 * without checking if the Macro exists.
 	 */
@@ -905,24 +900,28 @@ export class Reference {
 		const macro = this.macroGetMacroInformation(name);
 		if (!macro) return null;
 
-		// Send out the References
-		return macro.referenceLocations;
+		// Clean the array and send it out
+		return cleanArray(macro.referenceLocations);
 	}
 
 	public macroClearMacrosAtURI(uri: string) {
 		// Iterate through our URIRecord;
 		if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
 
+		// TO DO FOR TOMORROW: BY ITERATING HERE, WE SPLICE OUT THE INDEXES THAT WE NEED
+		// IN THE NEXT ITERATION OF THE LOOP
+
 		for (const thisMacroRecord of this.URIRecord[uri].macros) {
 			// Get our Macro Information:
 			const macroInfo = this.macroGetMacroInformation(thisMacroRecord.name);
+			// If we have no macroInformation but still have a record delete this Macro Object entry.
 			if (!macroInfo) {
 				delete this.macros[name];
 				continue;
 			}
 
 			// Splice out the old Reference
-			macroInfo.referenceLocations.splice(thisMacroRecord.index, 1);
+			delete macroInfo.referenceLocations[thisMacroRecord.index];
 		}
 
 		// Clear our Record of Indexes since those indexes have been removed
