@@ -6,7 +6,7 @@ import { GMLDocs, LanguageService, ResourceType } from "./declarations";
 import { FoldingRange } from "vscode-languageserver-protocol/lib/protocol.foldingRange";
 import { LangServ } from "./langserv";
 import { EventType, EventNumber } from "yyp-typings";
-import { cleanArray } from "./utils";
+import { cleanArray, cleanArrayLength } from "./utils";
 
 export interface IScriptsAndFunctions {
 	[key: string]: IEachScript;
@@ -63,10 +63,10 @@ interface IEnum extends GenericResourceModel {
 }
 
 interface IEnumOrigin extends GenericOriginInformation {
-	enumMembers: { [name: string]: EnumMembers };
+	enumMembers: { [name: string]: IEnumMembers };
 }
 
-interface EnumMembers extends GenericResourceModel {
+interface IEnumMembers extends GenericResourceModel {
 	value: string;
 }
 
@@ -90,7 +90,11 @@ export interface InstVarRecord extends URIRecord {
 }
 
 export interface EnumMemberRecord extends URIRecord {
+	/** This is the name of the Enum like ENUM in "ENUM.member" */
 	enumName: string;
+
+	/** This is the name of the enum member like MEMBER in "enum.MEMBER" */
+	name: string
 }
 
 export interface IURIRecord {
@@ -107,6 +111,8 @@ interface GMLDocOverrides {
 	name: string;
 	originalEntry?: IEachScript;
 }
+
+
 
 export class Reference {
 	private lsp: LangServ;
@@ -733,22 +739,6 @@ export class Reference {
 	//#endregion
 
 	//#region Enums
-	private enumGetEnumInformation(enumName: string): IEnum | undefined {
-		return this.enums[enumName];
-	}
-
-	public enumGetEntries(enumName: string): Array<EnumMembers> {
-		const thisUri = this.enum2URI[enumName];
-
-		return this.enums[thisUri][enumName].enumEntries;
-	}
-
-	public enumGetEnumLocation(enumName: string): Location {
-		const thisUri = this.enum2URI[enumName];
-
-		return this.enums[thisUri][enumName].location;
-	}
-
 	public enumCreateEnum(name: string, thisRange: Range, thisURI: string) {
 		// Create our Entry in the Enum object:
 		this.enums[name] = {
@@ -800,6 +790,63 @@ export class Reference {
 		});
 	}
 
+	/**
+	 * Finds the origin location (i.e. where the enum was declared).
+	 * @param enumName The name of the Enum to find the origin location of.
+	 */
+	public enumGetOriginLocation(enumName: string): Location | null {
+		// Get our Info
+		const enumInfo = this.enumGetEnumInformation(enumName);
+		if (!enumInfo) return null;
+
+		// Return if Origin Exists
+		const originLocation = this.genericGetOriginLocation(enumInfo);
+		if (!originLocation) return null;
+
+		return originLocation;
+	}
+	/**
+	 * Returns the Origin location of the Enum members (i.e., where the enum and
+	 * enum member were declared).
+	 * @param enumName The name of the Enum (i.e., the ENUM in ENUM.member).
+	 * @param enumMemberName The name of the Enum Member (i.e., the MEMBER in enum.MEMBER)
+	 */
+	public enumMemberGetOriginLocation(enumName: string, enumMemberName: string): Location | null {
+		// Get our Info
+		const enumInfo = this.enumGetEnumInformation(enumName);
+		if (!enumInfo) return null;
+
+		// Check if we have an enum member
+		const enumMemberInfo = this.enumGetEnumMemberInformation(enumInfo, enumMemberName);
+		if (!enumMemberInfo) return null;
+
+		// Return the Origin if it exists:
+		const originLocation = this.genericGetOriginLocation(enumMemberInfo);
+		if (!originLocation) return null;
+
+		return originLocation;
+	}
+
+	/**
+	 * Returns all the locations where this Enum is logged.
+	 * @param enumName The name of the Enum (i.e., the ENUM in ENUM.member)
+	 */
+	public enumGetAllReferences(enumName: string): Location[] | null {
+		// Get our Info
+		const enumInfo = this.enumGetEnumInformation(enumName);
+		if (!enumInfo) return null;
+
+		// Get the References
+		return enumInfo.referenceLocations;
+	}
+
+
+
+	/**
+	 * Cycles through the URI record and clears all the enum entries out
+	 * of the EnumObject
+	 * @param uri The uri to clear Enums at.
+	 */
 	public enumClearAllEnumsAtURI(uri: string) {
 		// Iterate through our URIRecord;
 		if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
@@ -809,8 +856,11 @@ export class Reference {
 			const thisEnum = this.enumGetEnumInformation(thisEnumRecord.name);
 			if (!thisEnum) continue;
 
-			// Are we about to delete our Origin?
-			if (thisEnumRecord.index == thisEnum.origin.indexOfOrigin) {
+			// Splice out the old Reference
+			delete thisEnum.referenceLocations[thisEnumRecord.index];
+
+			// Did we just kill off the Origin?
+			if (thisEnumRecord.index === thisEnum.origin.indexOfOrigin) {
 				// Clear the Origin
 				delete thisEnum.referenceLocations[thisEnum.origin.indexOfOrigin];
 
@@ -818,11 +868,8 @@ export class Reference {
 				thisEnum.origin.indexOfOrigin = null;
 			}
 
-			// Splice out the old Reference
-			delete thisEnum.referenceLocations[thisEnumRecord.index];
-
 			// Find if there are no references left
-			if (cleanArray(thisEnum.referenceLocations).length == 0) {
+			if (cleanArrayLength(thisEnum.referenceLocations) == 0) {
 				console.log(`Deleting Enum '${thisEnumRecord.name}'. All references have been removed.`);
 				delete this.enums[thisEnumRecord.name];
 			}
@@ -833,6 +880,45 @@ export class Reference {
 	}
 
 	/**
+	 * Clears out all the enum Member references at the Given URI, cycling through
+	 * the Enum Object.
+	 * @param uri The uri to clear Enums at.
+	 */
+	public enumClearAllEnumMembersAtURI(uri: string) {
+		// Iterate through our URIRecord
+		if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
+
+		for (const thisEnumMemberRecord of this.URIRecord[uri].enumMembers) {
+			// Get our Enum Info:
+			const thisEnum = this.enumGetEnumInformation(thisEnumMemberRecord.enumName);
+			if (!thisEnum) continue;
+
+			const thisEnumMember = this.enumGetEnumMemberInformation(thisEnum, thisEnumMemberRecord.name);
+			if (!thisEnumMember) continue;
+
+			delete thisEnumMember.referenceLocations[thisEnumMemberRecord.index];
+
+			// Did we just delete the Origin?
+			if (thisEnumMemberRecord.index === thisEnumMember.origin.indexOfOrigin) {
+				// Set the Origin to null
+				thisEnumMember.origin.indexOfOrigin = null;
+			}
+
+			// Find if there are no references left
+			if (cleanArrayLength(thisEnumMember.referenceLocations) == 0) {
+				console.log(`Deleting Enum Member ${thisEnumMemberRecord.enumName}.${thisEnumMemberRecord.name}
+				All References have been removed.`);
+				delete this.enums[thisEnumMemberRecord.enumName].origin.enumMembers[thisEnumMemberRecord.name];
+			}
+		}
+
+		// Clear our Record of Indexes since those indexes have been removed
+		this.URIRecord[uri].enumMembers = [];
+	}
+
+
+
+	/**
 	 * Removes all enums from the reference model which are in the array
 	 * provided.
 	 * @param enumArray An array of Enum names to be removed. This also
@@ -840,34 +926,34 @@ export class Reference {
 	 * @param uri The URI whether the Enums were made. For simplicity,
 	 * we do not allow multiple URI's here.
 	 */
-	public enumsClearTheseEnumsAtThisURI(enumArray: string[], uri: string) {
-		if (this.enums[uri]) {
-			for (const enumName of enumArray) {
-				const enumObject = this.enums[uri][enumName];
-				if (enumObject) {
-					if (this.enum2URI[enumName]) {
-						delete this.enum2URI[enumName];
-					}
-					delete this.enums[uri][enumName];
-				}
-			}
-		}
+	// public enumsClearTheseEnumsAtThisURI(enumArray: string[], uri: string) {
+	// 	if (this.enums[uri]) {
+	// 		for (const enumName of enumArray) {
+	// 			const enumObject = this.enums[uri][enumName];
+	// 			if (enumObject) {
+	// 				if (this.enum2URI[enumName]) {
+	// 					delete this.enum2URI[enumName];
+	// 				}
+	// 				delete this.enums[uri][enumName];
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	private enumGetEnumInformation(enumName: string): IEnum | undefined {
+		return this.enums[enumName];
 	}
 
 	/**
-	 * This method returns all of the enums at a documents URI.
-	 * It is intended to be called in the Semantics.
-	 * @param uri The URI of the document to check.
+	 * Gets the enummember object or undefined.
+	 * @param enumInfo The Enum parent object. We force you to use
+	 * the Enum Parent rather than do it all here so you have to deal
+	 * with possible `undefined`.
 	 */
-	public enumsGetAllEnumsAtURI(uri: string): Array<string> {
-		if (this.enums[uri]) {
-			return Object.keys(this.enums[uri]);
-		} else return [];
+	private enumGetEnumMemberInformation(enumInfo: IEnum, enumMemberName: string): IEnumMembers | undefined {
+		return enumInfo.origin.enumMembers[enumMemberName];
 	}
 
-	public enumGetEnumList() {
-		return Object.keys(this.enum2URI);
-	}
 	//#endregion
 
 	//#region Macros
@@ -988,5 +1074,15 @@ export class Reference {
 	public spriteGetAllSprites() {
 		return this.sprites;
 	}
+	//#endregion
+
+	//#region General
+	private genericGetOriginLocation(genModel: GenericResourceModel): Location | null {
+		// If the index doesn't exist, return null
+		if (!genModel.origin.indexOfOrigin) return null;
+
+		return genModel.referenceLocations[genModel.origin.indexOfOrigin];
+	}
+
 	//#endregion
 }

@@ -36,7 +36,7 @@ export class GMLDefinitionProvider {
 
 			// Enum Members
 			if (this.reference.enumExists(ourWord[ws.objName])) {
-				return this.reference.enumGetEnumLocation(ourWord[ws.objName]);
+				return this.reference.enumGetOriginLocation(ourWord[ws.objName]);
 			}
 
 			return null;
@@ -54,7 +54,7 @@ export class GMLDefinitionProvider {
 
 		// Enums
 		if (this.reference.enumExists(thisWord)) {
-			return this.reference.enumGetEnumLocation(thisWord);
+			return this.reference.enumGetOriginLocation(thisWord);
 		}
 
 		// Macros

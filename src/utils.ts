@@ -14,7 +14,7 @@ export function convertPositionToRange(lines: Array<string>, pos: number): Range
 			let startChar = pos - oldcounter;
 
 			let endline = index;
-			const possiblyWord = getWordAtIndex(element, startChar)
+			const possiblyWord = getWordAtIndex(element, startChar);
 			if (possiblyWord) {
 				const endChar = possiblyWord.length + startChar;
 				return Range.create(startLine, startChar, endline, endChar);
@@ -29,7 +29,7 @@ export function convertPositionToRange(lines: Array<string>, pos: number): Range
  * @param str Full text document string
  * @param pos The 0-based index.
  */
-export function getWordAtIndex(str: string, pos: number): string|null {
+export function getWordAtIndex(str: string, pos: number): string | null {
 	// script from 'https://bit.ly/2KrOpWv', modified for TS slightly
 
 	// Search for the word's beginning and end.
@@ -74,6 +74,15 @@ export function cleanArray(thisArray: any[]): any[] {
 	return tempArray;
 }
 
+export function cleanArrayLength(thisArray: any[]): number {
+	let count = 0;
+	thisArray.forEach((_) => {
+		count++;
+	});
+
+	return count;
+}
+
 export function regexIndexOf(str: string, regex: RegExp, startpos: number): number {
 	var indexOf = str.substring(startpos || 0).search(regex);
 	return indexOf >= 0 ? indexOf + (startpos || 0) : indexOf;
@@ -91,26 +100,27 @@ export function lastIndexOfArray(string: string, searchArray: Array<string>, sta
 	return retIndex;
 }
 
-
 export function regexLastIndexOf(str: string, regex: RegExp, startpos?: number) {
-    regex = (regex.global) ? regex : new RegExp(regex.source, "g" + (regex.ignoreCase ? "i" : "") + (regex.multiline ? "m" : ""));
-    if(typeof (startpos) == "undefined") {
-        startpos = str.length;
-    } else if(startpos < 0) {
-        startpos = 0;
+	regex = regex.global
+		? regex
+		: new RegExp(regex.source, "g" + (regex.ignoreCase ? "i" : "") + (regex.multiline ? "m" : ""));
+	if (typeof startpos == "undefined") {
+		startpos = str.length;
+	} else if (startpos < 0) {
+		startpos = 0;
 	}
-	
-	let result: RegExpExecArray|null;
-    const stringToWorkWith = str.substring(0, startpos + 1);
-    let lastIndexOf = -1;
+
+	let result: RegExpExecArray | null;
+	const stringToWorkWith = str.substring(0, startpos + 1);
+	let lastIndexOf = -1;
 	let nextStop = 0;
 	let lastLength = 0;
-    while((result = regex.exec(stringToWorkWith)) != null) {
+	while ((result = regex.exec(stringToWorkWith)) != null) {
 		lastIndexOf = result.index;
 		regex.lastIndex = ++nextStop;
 		lastLength = result[0].length;
-    }
-    return lastIndexOf + lastLength;
+	}
+	return lastIndexOf + lastLength;
 }
 
 /**
