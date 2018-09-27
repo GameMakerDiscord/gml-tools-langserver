@@ -27,31 +27,23 @@ export class GMLHoverProvider {
 		if (thisHoveredText) {
 			// Do all our period hovers here:
 			if (thisHoveredText.includes(".")) {
-				const wordAtSplit = thisHoveredText.split(".");
+				const theseWords = thisHoveredText.split(".");
 
-				// Enums
-				if (this.reference.enumExists(wordAtSplit[ws.objName])) {
-					const theseEnumMembers = this.reference.enumGetEntries(wordAtSplit[ws.objName]);
-
-					// Find our Enum's value:
-					let enumeration = 0;
-
-					for (const thisMember of theseEnumMembers) {
-						if (thisMember.enumName == wordAtSplit[ws.varName]) {
-							enumeration = thisMember.enumeration;
-							break;
-						}
-					}
-
+				// EnumMembers
+				const enumEnumeration = this.reference.enumMemberGetEnumeration(
+					theseWords[ws.objName],
+					theseWords[ws.varName]
+				);
+				if (!enumEnumeration) {
 					let returnMarkup: MarkedString = {
 						language: "gml",
 						value:
 							"(enum member) " +
-							wordAtSplit[ws.objName] +
+							theseWords[ws.objName] +
 							"." +
-							wordAtSplit[ws.varName] +
-							" = " +
-							enumeration.toString()
+							theseWords[ws.varName] +
+							" == " +
+							enumEnumeration
 					};
 
 					// Find our Full Range:
@@ -64,7 +56,7 @@ export class GMLHoverProvider {
 
 			// Check if it's a Function or Script:
 			const scriptPack = this.reference.scriptGetScriptPackage(thisHoveredText);
-			if (scriptPack)  return this.onHoverFunction(scriptPack.JSDOC);
+			if (scriptPack) return this.onHoverFunction(scriptPack.JSDOC);
 
 			// Check if it's an Enum:
 			if (this.reference.enumExists(thisHoveredText)) {
@@ -78,7 +70,7 @@ export class GMLHoverProvider {
 			}
 
 			// Check if it's a Macro:
-			const thisMacroEntry = this.reference.macroGetMacroValue(thisHoveredText)
+			const thisMacroEntry = this.reference.macroGetMacroValue(thisHoveredText);
 			if (thisMacroEntry) {
 				let mrkString: MarkedString = {
 					value: "(macro) " + thisHoveredText + " == " + thisMacroEntry,

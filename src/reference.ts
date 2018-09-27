@@ -1037,6 +1037,22 @@ export class Reference {
 		return Object.getOwnPropertyNames(enumInfo.origin.enumMembers);
 	}
 
+	public enumMemberGetEnumeration(enumName: string, enumMemberName: string): string | null {
+		const enumInfo = this.enumGetEnumInformation(enumName);
+		if (!enumInfo) return null;
+
+		const enumMemberInfo = this.enumGetEnumMemberInformation(enumInfo, enumMemberName);
+		if (!enumMemberInfo) return null;
+
+		return enumMemberInfo.value;
+	}
+
+	public enumExists(enumName: string): boolean {
+		if (!this.enumGetEnumInformation(enumName)) {
+			return false;
+		} else return true;
+	}
+
 	private enumGetEnumInformation(enumName: string): IEnum | undefined {
 		return this.enums[enumName];
 	}
