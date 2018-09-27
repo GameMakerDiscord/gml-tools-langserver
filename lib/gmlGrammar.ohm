@@ -35,12 +35,12 @@ gml {
         |   ForStatement
         |   RepeatStatement
         |   WhileStatement
-        |   DoUntilStatement
+        |   DoUntilStatement<#endSemiColon>
         |   SwitchStatement
         |   BreakStatement
-        |   ContinueStatement
-        |   ExitStatement
-        |   ReturnStatement
+        |   ContinueStatement<#endSemiColon>
+        |   ExitStatement<#endSemiColon>
+        |   ReturnStatement<#endSemiColon>
         |   WithStatement
         |   IncrementStatement<#endSemiColon>
         |   lspPreCompileDirective
@@ -48,7 +48,7 @@ gml {
         |   MacroDeclaration
         |   EnumDeclaration
         |   RegionStatement
-        |   PureMacro
+        |   PureMacro<#endSemiColon>
     StatementList
         =   Statement<#sc>*
 
@@ -64,15 +64,15 @@ gml {
         |   LocalDeclarationType<canReDec> #endSemiColon
     EmptyStatement = ";"
     IfStatement
-        =   if OptionalParentheses<ConditionalExpression> Statement<#sc> (else Statement<#sc>)?
+        =   if OptionalParentheses<ConditionalExpression> Statement<empty> (else Statement<#sc>)?
     ForStatement
         =   for oParens VariableStatement<noReDec,empty> #sc ConditionalExpression #sc Statement<empty> #sc? cParens Statement<#sc>
     RepeatStatement
-        =   repeat oParens ConditionalExpression cParens Statement<#sc>
+        =   repeat OptionalParentheses<ConditionalExpression> Statement<#sc>
     WhileStatement
-        =   while oParens ConditionalExpression cParens Statement<#sc>
-    DoUntilStatement
-        =   do Statement<#sc> until oParens ConditionalExpression cParens #sc
+        =   while OptionalParentheses<ConditionalExpression> Statement<#sc>
+    DoUntilStatement<endSemiColon>
+        =   do Statement<#sc> until OptionalParentheses<ConditionalExpression> #endSemiColon
     SwitchStatement
         =   switch  OptionalParentheses<ConditionalExpression> CaseBlock
     CaseBlock
@@ -83,12 +83,12 @@ gml {
         =   default ":" Statement<#sc>*
     BreakStatement  
         =   break #sc
-    ContinueStatement
-        =   continue #sc
-    ExitStatement
-        =   exit #sc
-    ReturnStatement
-        =  return (OptionalParentheses<ConditionalExpression>)? #sc
+    ContinueStatement<endSemiColon>
+        =   continue #endSemiColon
+    ExitStatement<endSemiColon>
+        =   exit #endSemiColon
+    ReturnStatement<endSemiColon>
+        =  return (OptionalParentheses<ConditionalExpression>)? #endSemiColon
     WithStatement
         =   with OptionalParentheses<ConditionalExpression> Statement<#sc>
     IncrementStatement<endSemiColon>
@@ -101,14 +101,14 @@ gml {
     IncrementVariable
         =   MembDataLiteral
         |   MembObjectVarRef
-        |   identifier
+        |   possibleVariable
     MacroDeclaration
-        =   macroWord identifier #(~lineTerminator sourceCharacter)* #sc
+        =   macroWord identifier #(~lineTerminator sourceCharacter)*
     macroWord = "#macro"
     EnumDeclaration
-        =   enumDeclararer enumName oCurly ListOf<EnumEntries,comma> cCurly
-    EnumEntries
-        =   EnumPlain EnumEnumerated?
+        =   enumDeclararer enumName oCurly ListOf<EnumEntry,comma> cCurly
+    EnumEntry
+        =   identifier EnumEnumerated?
     EnumPlain
         =   identifier
     EnumEnumerated
@@ -121,8 +121,8 @@ gml {
         =   "#region" #regionName StatementList "#endregion"
     regionName
         =   (~lineTerminator sourceCharacter)*
-    PureMacro
-        =   macroIdentifier #sc
+    PureMacro<endSemiColon>
+        =   macroIdentifier #endSemiColon
 
     // #region VariableStatement
     DeclarationAndDefinition

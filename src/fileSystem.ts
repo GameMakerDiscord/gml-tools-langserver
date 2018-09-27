@@ -413,7 +413,10 @@ export class FileSystem {
 
 						ourEvents.push(thisEventEntry);
 						await this.createDocumentFolder(ourPath, objYY.name, ResourceType.Object, thisEventEntry);
-						await this.initialDiagnostics(ourPath, SemanticsOption.EnumsAndMacros | SemanticsOption.Function | SemanticsOption.Variable);
+						await this.initialDiagnostics(
+							ourPath,
+							SemanticsOption.Function | SemanticsOption.Variable
+						);
 					}
 
 					// Push to Our References.
@@ -446,10 +449,7 @@ export class FileSystem {
 					};
 					this.reference.scriptAddScript(scriptYY.name, URI.file(scriptFP));
 					await this.createDocumentFolder(scriptFP, scriptYY.name, ResourceType.Script);
-					await this.initialDiagnostics(
-						scriptFP,
-						SemanticsOption.All
-					);
+					await this.initialDiagnostics(scriptFP, SemanticsOption.All);
 
 					this.scripts[scriptYY.name] = thisScript;
 					this.reference.addResource(scriptYY.name);
@@ -563,7 +563,6 @@ export class FileSystem {
 					const extYY: Resource.Extension = JSON.parse(await fse.readFile(yyFilePath, "utf8"));
 					// Add to UUID Dict
 					this.projectResourceList[extYY.id] = extYY;
-
 
 					// Resources
 					this.reference.extensions.push(extYY.name);
@@ -934,7 +933,7 @@ export class FileSystem {
 		let check;
 		try {
 			check = ajv.getSchema("http://json-schema.org/draft-06/schema");
-		} catch (error) { }
+		} catch (error) {}
 		if (!check) {
 			ajv.addMetaSchema(require("ajv/lib/refs/json-schema-draft-06.json"));
 		}
@@ -1135,7 +1134,7 @@ export class FileSystem {
 		await this.createDocumentFolder(ourGMLPath, newScript.name, ResourceType.Script);
 		await this.initialDiagnostics(
 			ourGMLPath,
-			SemanticsOption.Function | SemanticsOption.EnumsAndMacros | SemanticsOption.JavaDoc
+			SemanticsOption.Function | SemanticsOption.Variable | SemanticsOption.JavaDoc
 		);
 		this.reference.addResource(newScript.name);
 
@@ -1427,13 +1426,13 @@ export class FileSystem {
 		}
 		console.log(
 			"NonGML file indexed by YYP? Serious error. \n" +
-			"This event: " +
-			thisEvent.eventtype +
-			"/" +
-			thisEvent.enumb +
-			"\n" +
-			"This directory: " +
-			dirPath
+				"This event: " +
+				thisEvent.eventtype +
+				"/" +
+				thisEvent.enumb +
+				"\n" +
+				"This directory: " +
+				dirPath
 		);
 		return "";
 	}

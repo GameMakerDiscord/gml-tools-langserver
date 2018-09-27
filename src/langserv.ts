@@ -280,11 +280,6 @@ export class LangServ {
 			await this.semanticVariableIndex(thisDiagnostic, lintPackage);
 		}
 
-		// Enums & Macros
-		if ((bit & SemanticsOption.EnumsAndMacros) == SemanticsOption.EnumsAndMacros) {
-			await this.semanticEnumsAndMacros(thisDiagnostic, lintPackage);
-		}
-
 		// JSDOC
 		if ((bit & SemanticsOption.JavaDoc) == SemanticsOption.JavaDoc) {
 			const docInfo = await this.fsManager.getDocumentFolder(thisDiagnostic.getURI);
@@ -336,36 +331,6 @@ export class LangServ {
 
 			// Add our Objects to the URI
 			this.reference.addAllVariablesToObject(ourURI, varPackage);
-		}
-
-		// Local Variables
-		this.reference.localAddVariables(ourURI, varPackage.localVariables);
-	}
-
-	public async semanticEnumsAndMacros(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage) {
-		const matches = lintPackage.getMatchResults();
-		if (!matches) return;
-		const ourURI = thisDiagnostic.getURI;
-
-		const enumsAndMacros = await thisDiagnostic.runSemanticEnumsAndMacros(matches);
-		const ourEnumsThisCycle = enumsAndMacros[0];
-		// Enum Work
-		const supposedEnums = this.reference.enumsGetAllEnumsAtURI(ourURI);
-		let enumsNotFound = [];
-
-		if (ourEnumsThisCycle.length > 0) {
-			for (const thisEnum of supposedEnums) {
-				if (ourEnumsThisCycle.includes(thisEnum) == false) {
-					enumsNotFound.push(thisEnum);
-				}
-			}
-		} else {
-			enumsNotFound = supposedEnums;
-		}
-
-		// Clear out our missing Enums:
-		if (enumsNotFound.length > 0) {
-			this.reference.enumsClearTheseEnumsAtThisURI(enumsNotFound, ourURI);
 		}
 	}
 

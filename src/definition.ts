@@ -29,14 +29,18 @@ export class GMLDefinitionProvider {
 			const ourWord = thisWord.split(".");
 
 			// Objects
-			const foundObject = await this.reference.objectGetOriginLocation(ourWord[ws.objName], ourWord[ws.varName]);
-			if (foundObject) {
-				return foundObject;
+			const objLocation = await this.reference.objectGetOriginLocation(ourWord[ws.objName], ourWord[ws.varName]);
+			if (objLocation) {
+				return objLocation;
 			}
 
 			// Enum Members
-			if (this.reference.enumExists(ourWord[ws.objName])) {
-				return this.reference.enumGetOriginLocation(ourWord[ws.objName]);
+			const enumMemberLocation = this.reference.enumMemberGetOriginLocation(
+				ourWord[ws.objName],
+				ourWord[ws.varName]
+			);
+			if (enumMemberLocation) {
+				return enumMemberLocation;
 			}
 
 			return null;
@@ -53,8 +57,9 @@ export class GMLDefinitionProvider {
 		}
 
 		// Enums
-		if (this.reference.enumExists(thisWord)) {
-			return this.reference.enumGetOriginLocation(thisWord);
+		const enumLocation = this.reference.enumGetOriginLocation(thisWord);
+		if (enumLocation) {
+			return enumLocation;
 		}
 
 		// Macros
@@ -63,7 +68,7 @@ export class GMLDefinitionProvider {
 
 		// Local Variables
 		if (this.reference.localExists(params.textDocument.uri, thisWord)) {
-			return this.reference.localGetDeclaration(params.textDocument.uri, thisWord);
+			return this.reference.localGetOrigin(params.textDocument.uri, thisWord);
 		}
 
 		// Last Ditch -- are we a variable of this object itself?

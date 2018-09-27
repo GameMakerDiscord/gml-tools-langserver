@@ -42,10 +42,11 @@ export interface GenericOriginInformation {
 }
 
 export interface IVariable extends GenericResourceModel {
-	origin: IVariableOrigin;
+	origin: IOriginVar;
 }
 
-export interface IVariableOrigin extends GenericOriginInformation {
+export interface IOriginVar extends GenericOriginInformation {
+	indexOfOrigin: number;
 	varRank: VariableRank;
 	isSelf: boolean;
 }
@@ -94,11 +95,11 @@ export interface EnumMemberRecord extends URIRecord {
 	enumName: string;
 
 	/** This is the name of the enum member like MEMBER in "enum.MEMBER" */
-	name: string
+	name: string;
 }
 
 export interface IURIRecord {
-	localVariables: { [name: string]: IVariable };
+	localVariables: { [name: string]: GenericResourceModel };
 	instanceVariables: InstVarRecord[];
 	scriptsAndFunctions: URIRecord[];
 	foldingRanges: FoldingRange[];
@@ -111,8 +112,6 @@ interface GMLDocOverrides {
 	name: string;
 	originalEntry?: IEachScript;
 }
-
-
 
 export class Reference {
 	private lsp: LangServ;
@@ -308,57 +307,104 @@ export class Reference {
 	//#endregion
 
 	//#region Local Variables
-	public localAddVariables(uri: string, locals: GMLLocalVarParse[]) {
-		// check if we have a URI dictionary at all:
-		if (this.URIRecord[uri] === undefined) {
+	/**
+	 * Creates an entry for a Local Variable.
+	 * @param localName: The name of the local variable. Do not add "*." to it.
+	 * @param thisURI The URI of the document where the reference is found.
+	 * @param thisRange The Range of the ENUM only (not the Member)
+	 */
+	public localCreateLocal(localName: string, thisURI: string, thisRange: Range) {
+		// Create our URI Record
+		if (!this.URIRecord[thisURI]) this.createURIDictEntry(thisURI);
+
+		// Get our working URI Object
+		const localObject = this.URIRecord[thisURI].localVariables;
+		const localEntry = this.localGetInformation(localName, thisURI);
+
+		// Check if there's a headless entry around
+		// This happens when someone uses a local and declares it later, for
+		// which they should be killed.
+		if (localEntry !== undefined) {
+			// This human sucks.
+			const index =
+				localEntry.referenceLocations.push({
+					range: thisRange,
+					uri: thisURI
+				}) - 1;
+
+			localEntry.origin = {
+				indexOfOrigin: index
+			};
+			return;
+		}
+
+		// If we're here, we're a normal Creation:
+		localObject[localName] = {
+			origin: {
+				indexOfOrigin: 0
+			},
+			referenceLocations: [Location.create(thisURI, thisRange)]
+		};
+	}
+
+	public localPushLocalReference(localName: string, thisURI: string, thisRange: Range) {
+		// Get our Local Entry
+		const localEntry = this.localGetInformation(localName, thisURI);
+		if (!localEntry) return;
+
+		// Push ourselves there:
+		localEntry.referenceLocations.push(Location.create(thisURI, thisRange));
+	}
+
+	/**
+	 * Clears all the locals at a given URI.
+	 * @param thisURI The URI of the document where the reference is found.
+	 */
+	public localClearAtllLocsAtURI(uri: string) {
+		if (!this.URIRecord[uri]) {
 			this.createURIDictEntry(uri);
+			return;
 		}
 
-		// Clear our locals:
 		this.URIRecord[uri].localVariables = {};
-
-		for (const thisLocal of locals) {
-			// Slice off the first two, since we add "*." to locals.
-			const thisName = thisLocal.name.slice(2);
-
-			// Create a new Entry if we have a var declaration:
-			if (thisLocal.isOrigin) {
-				this.URIRecord[uri].localVariables[thisName] = {
-					origin: {
-						indexOfOrigin: 0,
-						isSelf: true,
-						varRank: 0
-					},
-					referenceLocations: [Location.create(uri, thisLocal.range)]
-				};
-			} else {
-				this.URIRecord[uri].localVariables[thisName].referenceLocations.push(
-					Location.create(uri, thisLocal.range)
-				);
-			}
-		}
 	}
 
-	public getAllLocalsAtURI(uri: string) {
-		if (this.URIRecord[uri] !== undefined) {
-			return Object.getOwnPropertyNames(this.URIRecord[uri].localVariables);
-		} else return null;
-	}
-
-	public localExists(uri: string, name: string) {
+	public localExists(uri: string, name: string): boolean {
 		if (this.URIRecord[uri] && this.URIRecord[uri].localVariables[name] !== undefined) {
 			return true;
 		} else return false;
 	}
 
-	public localGetDeclaration(uri: string, name: string) {
-		const varModel = this.URIRecord[uri].localVariables[name];
-		return varModel.referenceLocations[varModel.origin.indexOfOrigin];
+	public localGetOrigin(uri: string, name: string): Location | null {
+		// Get our Local Info
+		const localInfo = this.localGetInformation(name, uri);
+		if (!localInfo) return null;
+
+		// Check if we have a local Origin Index
+		const origIndex = localInfo.origin.indexOfOrigin;
+		if (!origIndex) return null;
+
+		// Return the local origin location
+		return localInfo.referenceLocations[origIndex];
 	}
 
-	public localGetAllReferences(uri: string, name: string) {
-		return this.URIRecord[uri].localVariables[name].referenceLocations;
+	public localGetAllReferences(uri: string, name: string): Location[] | null {
+		// Get Local Info
+		const localInfo = this.localGetInformation(name, uri);
+		if (!localInfo) return null;
+
+		// Send away the locations
+		return localInfo.referenceLocations;
 	}
+
+	private localGetInformation(localName: string, thisURI: string): GenericResourceModel | undefined {
+		return this.URIRecord[thisURI].localVariables[localName];
+	}
+
+	public localGetAllLocalsAtURI(uri: string) {
+		return Object.getOwnPropertyNames(this.URIRecord[uri].localVariables);
+	}
+
 	//#endregion
 
 	//#region Scripts
@@ -569,7 +615,7 @@ export class Reference {
 		}
 	}
 
-	private varGetOriginVar(objName: string, varName: string): IVariableOrigin | null {
+	private varGetOriginVar(objName: string, varName: string): IOriginVar | null {
 		if (this.objects[objName] && this.objects[objName][varName]) {
 			return this.objects[objName][varName].origin;
 		}
@@ -614,7 +660,7 @@ export class Reference {
 		}
 	}
 
-	private async varsAssignNewOrigin(referenceArray: Location[], uri: string): Promise<IVariableOrigin | null> {
+	private async varsAssignNewOrigin(referenceArray: Location[], uri: string): Promise<IOriginVar | null> {
 		const fsManager: FileSystem = this.lsp.requestLanguageServiceHandler(LanguageService.FileSystem);
 		const URIInfo = await fsManager.getDocumentFolder(uri);
 		if (!URIInfo) return null;
@@ -791,6 +837,54 @@ export class Reference {
 	}
 
 	/**
+	 * Pushes a new Enum to the Enum Reference list.
+	 * @param enumName The name of the Enum (i.e., the ENUM in ENUM.member).
+	 * @param thisURI The URI of the document where the reference is found.
+	 * @param thisRange The Range of the ENUM only (not the Member)
+	 */
+	public enumPushEnumReference(enumName: string, thisURI: string, thisRange: Range) {
+		// Find our Enum Object
+		const ourEnum = this.enumGetEnumInformation(enumName);
+		if (!ourEnum) return;
+
+		// Push to the Enum Object
+		const index = ourEnum.referenceLocations.push(Location.create(thisURI, thisRange)) - 1;
+
+		// Push to our Record
+		this.URIRecord[thisURI].enums.push({
+			index: index,
+			name: enumName
+		});
+	}
+
+	/**
+	 * Pushes a new Enum Member to the Enum Member reference list.
+	 * @param enumName The name of the Enum (i.e., the ENUM in ENUM.member).
+	 * @param enumMemberName The name of the Enum Member (i.e., the MEMBER in enum.MEMBER)
+	 * @param thisURI The URI of the document where the reference is found.
+	 * @param thisRange The Range of the ENUM only (not the Member)
+	 */
+	public enumPushEnumMemberReference(enumName: string, enumMemberName: string, thisURI: string, thisRange: Range) {
+		// Find our Enum Object
+		const enumInfo = this.enumGetEnumInformation(enumName);
+		if (!enumInfo) return;
+
+		// Find our Enum Member Object
+		const enumMemberInfo = this.enumGetEnumMemberInformation(enumInfo, enumMemberName);
+		if (!enumMemberInfo) return;
+
+		// Push to the Enum Member Object
+		const index = enumMemberInfo.referenceLocations.push(Location.create(thisURI, thisRange)) - 1;
+
+		// Push to our Record
+		this.URIRecord[thisURI].enumMembers.push({
+			index: index,
+			name: enumMemberName,
+			enumName: enumName
+		});
+	}
+
+	/**
 	 * Finds the origin location (i.e. where the enum was declared).
 	 * @param enumName The name of the Enum to find the origin location of.
 	 */
@@ -840,7 +934,22 @@ export class Reference {
 		return enumInfo.referenceLocations;
 	}
 
+	/**
+	 * Returns all the locations where this EnumMember is logged.
+	 * @param enumName The name of the Enum (i.e., the ENUM in ENUM.member).
+	 * @param enumMemberName The name of the Enum Member (i.e., the MEMBER in enum.MEMBER)
+	 */
+	public enumMemberGetAllReferences(enumName: string, enumMember: string): Location[] | null {
+		// Get our Info
+		const enumInfo = this.enumGetEnumInformation(enumName);
+		if (!enumInfo) return null;
 
+		// Get Enum Member Info
+		const enumMemberInfo = this.enumGetEnumMemberInformation(enumInfo, enumMember);
+		if (!enumMemberInfo) return null;
+
+		return enumMemberInfo.referenceLocations;
+	}
 
 	/**
 	 * Cycles through the URI record and clears all the enum entries out
@@ -916,29 +1025,17 @@ export class Reference {
 		this.URIRecord[uri].enumMembers = [];
 	}
 
+	public enumGetEnumList() {
+		return Object.getOwnPropertyNames(this.enums);
+	}
 
+	public enumGetMemberNames(enumName: string): string[] | null {
+		const enumInfo = this.enumGetEnumInformation(enumName);
+		if (!enumInfo) return null;
 
-	/**
-	 * Removes all enums from the reference model which are in the array
-	 * provided.
-	 * @param enumArray An array of Enum names to be removed. This also
-	 * removes any member of the enum.
-	 * @param uri The URI whether the Enums were made. For simplicity,
-	 * we do not allow multiple URI's here.
-	 */
-	// public enumsClearTheseEnumsAtThisURI(enumArray: string[], uri: string) {
-	// 	if (this.enums[uri]) {
-	// 		for (const enumName of enumArray) {
-	// 			const enumObject = this.enums[uri][enumName];
-	// 			if (enumObject) {
-	// 				if (this.enum2URI[enumName]) {
-	// 					delete this.enum2URI[enumName];
-	// 				}
-	// 				delete this.enums[uri][enumName];
-	// 			}
-	// 		}
-	// 	}
-	// }
+		// Send out the Names of the Members:
+		return Object.getOwnPropertyNames(enumInfo.origin.enumMembers);
+	}
 
 	private enumGetEnumInformation(enumName: string): IEnum | undefined {
 		return this.enums[enumName];
@@ -988,8 +1085,12 @@ export class Reference {
 	 * without checking if the Macro exists.
 	 */
 	public macroAddReference(name: string, thisURI: string, thisRange: Range) {
+		// Get our Macro
+		const macroInfo = this.macroGetMacroInformation(name);
+		if (!macroInfo) return;
+
 		// Store the Macro Reference in the Macro Object
-		const ourIndex = this.macros[name].referenceLocations.push(Location.create(thisURI, thisRange)) - 1;
+		const ourIndex = macroInfo.referenceLocations.push(Location.create(thisURI, thisRange)) - 1;
 
 		// Add the Macro Reference to the URIRecord
 		this.URIRecord[thisURI].macros.push({
@@ -1017,8 +1118,12 @@ export class Reference {
 		const macro = this.macroGetMacroInformation(name);
 		if (!macro) return null;
 
+		// Make sure it exists
+		const index = macro.origin.indexOfOrigin;
+		if (!index) return null;
+
 		// Send out the Location
-		return macro.referenceLocations[macro.origin.indexOfOrigin];
+		return macro.referenceLocations[index];
 	}
 
 	public macroExists(name: string) {

@@ -1,7 +1,6 @@
 import { MacroPackage } from "./diagnostic";
 import { CompletionItemKind } from "vscode-languageserver";
 
-
 export const enum ResourceType {
 	Object = 0,
 	Script = 1,
@@ -39,9 +38,8 @@ export const enum LanguageService {
 export const enum SemanticsOption {
 	Function = 1,
 	Variable = 2,
-	EnumsAndMacros = 4,
-	JavaDoc = 8,
-	All = Function | Variable | EnumsAndMacros | JavaDoc
+	JavaDoc = 4,
+	All = Function | Variable | JavaDoc
 }
 
 export interface IGMLDocumentation {
@@ -162,6 +160,17 @@ export namespace GMLToolsSettings {
 	}
 }
 export declare type ResourceNames =
-	"objects"
-	| "rooms" | "sprites" | "sounds" | "paths" | "views" | "scripts"
-	| "fonts" | "timelines" | "tilesets" | "notes" | "extensions" | "shaders" | "datafiles_yy"
+	| "objects"
+	| "rooms"
+	| "sprites"
+	| "sounds"
+	| "paths"
+	| "views"
+	| "scripts"
+	| "fonts"
+	| "timelines"
+	| "tilesets"
+	| "notes"
+	| "extensions"
+	| "shaders"
+	| "datafiles_yy";

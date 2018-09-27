@@ -78,7 +78,7 @@ export class GMLCompletionProvider {
         }
 
         // Iterate on the Local Variables:
-        const locals = this.reference.getAllLocalsAtURI(params.textDocument.uri);
+        const locals = this.reference.localGetAllLocalsAtURI(params.textDocument.uri);
         if (locals) {
             for (const thisVar of locals) {
                 if (thisVar.match(rx) !== null) {
@@ -258,15 +258,15 @@ export class GMLCompletionProvider {
         }
 
         // Enums
-        if (this.reference.enumExists(thisWord)) {
-            const enumList = this.reference.enumGetEntries(thisWord);
+        const enumMembers = this.reference.enumGetMemberNames(thisWord);
+        if (enumMembers) {
             // Iterate on the Enums
-            for (const enumMember of enumList) {
+            for (const enumMember of enumMembers) {
                 workingArray.push({
-                    label: enumMember.enumName,
+                    label: enumMember,
                     kind: CompletionItemKind.EnumMember,
                     textEdit: {
-                        newText: enumMember.enumName,
+                        newText: enumMember,
                         range: Range.create(params.position, params.position)
                     }
                 })

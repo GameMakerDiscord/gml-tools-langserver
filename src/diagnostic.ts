@@ -167,12 +167,16 @@ export class DiagnosticHandler {
 	private currentObjectName: string;
 	private currentRank: VariableRank;
 	private isSelf: boolean;
+	private currentEnumeration: number;
+	private currentEnumName: string | null;
 
 	// Constructor:
 	constructor(grammar: Grammar, uri: string, reference: Reference) {
 		this.localVariables = [];
 		this.instanceVariables = [];
 		this.functionStack = [];
+		this.currentEnumeration = 0;
+		this.currentEnumName = null;
 		this.semanticDiagnostics = [];
 		this.uri = uri;
 		this.matchResult = null;
@@ -212,10 +216,18 @@ export class DiagnosticHandler {
 					const scriptPack = this.reference.scriptGetScriptPackage(funcName);
 					if (scriptPack) {
 						// Add it to the Script's References:
-						this.reference.scriptAddReference(funcName, this.uri,
+						this.reference.scriptAddReference(
+							funcName,
+							this.uri,
 							Range.create(
-								getPositionFromIndex(this.currentFullTextDocument, this.semanticIndex + funcId.source.startIdx),
-								getPositionFromIndex(this.currentFullTextDocument, this.semanticIndex + funcId.source.endIdx)
+								getPositionFromIndex(
+									this.currentFullTextDocument,
+									this.semanticIndex + funcId.source.startIdx
+								),
+								getPositionFromIndex(
+									this.currentFullTextDocument,
+									this.semanticIndex + funcId.source.endIdx
+								)
 							)
 						);
 
@@ -397,7 +409,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
@@ -486,12 +498,15 @@ export class DiagnosticHandler {
 				localVariable: (variable: Node) => {
 					const varName = variable.sourceString;
 					if (this.localQuickCheck.includes("*." + variable.sourceString) == false) {
+						// Add to the Local Quick Check
 						this.localQuickCheck.push("*." + varName);
-						this.localVariables.push({
-							name: "*." + varName,
-							range: this.getVariableIndex(this.currentFullTextDocument, variable),
-							isOrigin: true
-						});
+
+						// Push it to reference:
+						this.reference.localCreateLocal(
+							varName,
+							this.uri,
+							this.getVariableIndex(this.currentFullTextDocument, variable)
+						);
 					}
 				},
 
@@ -518,7 +533,7 @@ export class DiagnosticHandler {
 					});
 				},
 
-				MacroDeclaration: (hashtag: Node, macroName: Node, macroValue: Node, _) => {
+				MacroDeclaration: (hashtag: Node, macroName: Node, macroValue: Node) => {
 					const name = macroName.sourceString;
 					const val = macroValue.sourceString.trim();
 
@@ -558,8 +573,50 @@ export class DiagnosticHandler {
 						});
 					} else {
 						// Add a reference to the macro
-						this.reference.macroAddReference(macroWord.sourceString, this.uri, this.getVariableIndex(this.currentFullTextDocument, macroWord))
+						this.reference.macroAddReference(
+							macroWord.sourceString,
+							this.uri,
+							this.getVariableIndex(this.currentFullTextDocument, macroWord)
+						);
 					}
+				},
+
+				EnumDeclaration: (enumWord: Node, enumName: Node, _: Node, enumList: Node, cCurly: Node) => {
+					const enumNameString = enumName.source.contents;
+					const thisRange = Range.create(
+						getPositionFromIndex(this.currentFullTextDocument, enumWord.source.startIdx),
+						getPositionFromIndex(this.currentFullTextDocument, enumWord.source.endIdx)
+					);
+
+					// Add the Enum to the Reference
+					this.reference.enumCreateEnum(enumNameString, thisRange, this.uri);
+
+					// Name the Enum
+					this.currentEnumName = enumNameString;
+					this.currentEnumeration = 0;
+
+					enumList.indexVariables();
+
+					// Reset
+					this.currentEnumName = null;
+					this.currentEnumeration = 0;
+				},
+
+				EnumEntry: (identifier: Node, EnumEnumerated: Node) => {
+					if (!this.currentEnumName) return;
+
+					// Add the Enum Entry to the Reference
+					this.reference.enumCreateEnumMember(
+						this.currentEnumName,
+						identifier.sourceString,
+						this.uri,
+						Range.create(
+							getPositionFromIndex(this.currentFullTextDocument, identifier.source.startIdx),
+							getPositionFromIndex(this.currentFullTextDocument, identifier.source.endIdx)
+						),
+						this.currentEnumeration.toString()
+					);
+					this.currentEnumeration++;
 				},
 
 				// Generic for all non-terminal nodes
@@ -570,41 +627,12 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
 		});
-		actionDictionaries.push({
-			name: "enumsAndMacros",
-			actionDict: {
-				EnumDeclaration: (enumWord: Node, enumName: Node, _: Node, enumList: Node, cCurly: Node) => {
-					const enumNameString = enumName.source.contents;
-					const thisRange = Range.create(
-						getPositionFromIndex(this.currentFullTextDocument, enumWord.source.startIdx),
-						getPositionFromIndex(this.currentFullTextDocument, cCurly.source.endIdx)
-					);
 
-					this.reference.enumCreateEnum(enumNameString, thisRange, this.uri);
-					this.addEnumEntries(enumNameString, enumList);
-
-					// Add it to our list.
-					this.enumsAddedThisCycle.push(enumNameString);
-				},
-
-				// Generic for all non-terminal nodes
-				_nonterminal: (children: any) => {
-					children.forEach((element: any) => {
-						element.enumsAndMacros();
-					});
-				},
-
-				// Generic for Termins:
-				_terminal: function () {
-					return this.sourceString;
-				}
-			}
-		});
 		actionDictionaries.push({
 			name: "jsdoc",
 			actionDict: {
@@ -705,7 +733,7 @@ export class DiagnosticHandler {
 				},
 
 				// Generic for Termins:
-				_terminal: function () {
+				_terminal: function() {
 					return this.sourceString;
 				}
 			}
@@ -722,19 +750,20 @@ export class DiagnosticHandler {
 		const varName = variable.sourceString;
 
 		if (this.localQuickCheck.includes("*." + varName)) {
-			this.localVariables.push({
-				name: "*." + varName,
-				range: this.getVariableIndex(this.currentFullTextDocument, variable),
-				isOrigin: false
-			});
-		}
-		else if (this.reference.macroExists(varName)) {
-			this.reference.macroAddReference(varName, this.uri, this.getVariableIndex(this.currentFullTextDocument, variable));
-		}
-		else if (this.reference.resourceExists(varName)) {
+			this.reference.localPushLocalReference(
+				varName,
+				this.uri,
+				this.getVariableIndex(this.currentFullTextDocument, variable)
+			);
+		} else if (this.reference.macroExists(varName)) {
+			this.reference.macroAddReference(
+				varName,
+				this.uri,
+				this.getVariableIndex(this.currentFullTextDocument, variable)
+			);
+		} else if (this.reference.resourceExists(varName)) {
 			// We're a resource, and we don't know what to do with these yet!
-		}
-		else {
+		} else {
 			// Therefore, we are an instance variable after *all* that, yeah?
 			this.instanceVariables.push({
 				name: varName,
@@ -996,45 +1025,6 @@ export class DiagnosticHandler {
 
 	public async runEnumsAndMacros(matchResults: MatchResult) {
 		await this.semantics(this.matchResult).enumsAndMacros();
-	}
-
-	public addEnumEntries(enumName: string, enumList: Node) {
-		let iterArray = enumList.children[0].children;
-		let providedNodeNumber = iterArray.length;
-
-		if (providedNodeNumber == 0) {
-			return;
-		}
-
-		// Enum entry #1:
-		let thisEnumeration = 0;
-		if (iterArray[0].child(1).numChildren != 0) {
-			thisEnumeration = Number(
-				iterArray[0]
-					.child(1)
-					.child(0)
-					.child(1).sourceString
-			);
-		}
-
-		this.reference.enumPushEnumEntry(enumName, iterArray[0].children[0].source.contents, this.uri, thisEnumeration);
-
-		// Rest of the Enums:
-		iterArray[2].children.forEach((child) => {
-			// Are we ennumerated?
-			if (child.child(1).numChildren != 0) {
-				thisEnumeration = Number(
-					child
-						.child(1)
-						.child(0)
-						.child(1).sourceString
-				);
-				this.reference.enumPushEnumEntry(enumName, child.child(0).sourceString, this.uri, thisEnumeration);
-			} else {
-				thisEnumeration++;
-				this.reference.enumPushEnumEntry(enumName, child.source.contents, this.uri, thisEnumeration);
-			}
-		});
 	}
 
 	public async runSemanticIndexVariableOperation(
