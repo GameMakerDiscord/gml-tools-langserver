@@ -212,8 +212,12 @@ export class DocumentationImporter {
 									} else if (!thisFunction.minParameters)
 										thisFunction.minParameters = thisFunction.maxParameters;
 								} else {
-									// cutt off the semicolon
-									thisFunction.name = thisFunction.signature.slice(0, -1);
+									// cutt off the semicolon if it's there:
+									if (thisFunction.signature.includes(";")) {
+										thisFunction.name = thisFunction.signature.slice(0, thisFunction.signature.indexOf(";"));
+									} else {
+										thisFunction.name = thisFunction.signature;
+									}
 									resourceType = GMLDocs.DocType.variable;
 								}
 							}
