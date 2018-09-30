@@ -1,6 +1,6 @@
 import { Range, Location, FoldingRangeKind } from "vscode-languageserver/lib/main";
 import { JSDOC, FileSystem } from "./fileSystem";
-import { VariablesPackage, GMLVarParse, GMLLocalVarParse } from "./diagnostic";
+import { VariablesPackage, GMLVarParse } from "./diagnostic";
 import URI from "vscode-uri/lib/umd";
 import { GMLDocs, LanguageService, ResourceType } from "./declarations";
 import { FoldingRange } from "vscode-languageserver-protocol/lib/protocol.foldingRange";
