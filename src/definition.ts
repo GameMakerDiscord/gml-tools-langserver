@@ -102,6 +102,12 @@ export class GMLDefinitionProvider {
                 ourWord[ws.varName]
             );
             if (locations) return locations;
+
+            const enumMembers = this.reference.enumMemberGetAllReferences(
+                ourWord[ws.objName],
+                ourWord[ws.varName]
+            );
+            if (enumMembers) return enumMembers;
         }
 
         // // Objects
@@ -112,10 +118,9 @@ export class GMLDefinitionProvider {
         const theseScriptReferences = this.reference.scriptGetAllReferences(thisWord);
         if (theseScriptReferences) return theseScriptReferences;
 
-        // // Enums
-        // if (this.reference.enumExists(thisWord)) {
-        // 	return this.reference.getEnumLocation(thisWord);
-        // }
+        // Enums
+        const enumReferences = this.reference.enumGetAllReferences(thisWord);
+        if (enumReferences) return enumReferences;
 
         // Macros
         const theseMacroReferences = this.reference.macroGetAllReferences(thisWord);
