@@ -398,7 +398,7 @@ export class FileSystem {
 					this.projectResourceList[objYY.id] = objYY;
 
 					// Add to our Reference
-					this.reference.addObject(objYY.name);
+					this.reference.objectAddObject(objYY.name);
 
 					// Figure out our events
 					let ourEvents: Array<EventInfo> = [];

@@ -26,11 +26,10 @@ import {
 	SemanticsOption,
 	CreateObjPackage,
 	LanguageService,
-	ResourceType,
 	GMLDocs,
 	GMLToolsSettings
 } from "./declarations";
-import { DocumentationImporter } from "./documentationImporter";
+import { DocumentationImporter, FnamesParse } from "./documentationImporter";
 import { EventsPackage } from "./sharedTypes";
 import { FoldingRange } from "vscode-languageserver-protocol/lib/protocol.foldingRange";
 
@@ -82,7 +81,7 @@ export class LangServ {
 		await this.fsManager.initialWorkspaceFolders(workspaceFolder);
 
 		// Check or Create the Manual:
-		let ourManual: GMLDocs.DocFile | null;
+		let ourManual: [GMLDocs.DocFile,FnamesParse]  | null;
 		let cacheManual = false;
 		try {
 			const encodedText = fse.readFileSync(
@@ -98,7 +97,7 @@ export class LangServ {
 		// If we have a manual, load it into memory:
 		if (ourManual) {
 			// Load our Manual into Memory
-			this.reference.initGMLDocs(ourManual);
+			this.reference.initGMLDocs(ourManual[0]);
 
 			// Cache the Manual:
 			if (cacheManual) {
@@ -108,6 +107,7 @@ export class LangServ {
 				);
 			}
 		} else {
+			this.connection.window.showWarningMessage("Manual not correctly loaded. Please make sure GMS2 is\ninstalled correctly. If the error persists,\n please log an error on the Github page.")
 			console.log("OH NO -- manual not found or loaded. Big errors.");
 		}
 
@@ -318,20 +318,11 @@ export class LangServ {
 		if (!theseMatchResults) return;
 		const URIInformation = await this.fsManager.getDocumentFolder(ourURI);
 		if (!URIInformation) return;
+		
+		// Clear out all our Clearables
+		await this.reference.URIRecordClearAtURI(ourURI);
 
-		// Clear out all our Clearables:
-		this.reference.macroClearMacrosAtURI(ourURI);
-
-		const varPackage = await thisDiagnostic.runSemanticIndexVariableOperation(theseMatchResults, URIInformation);
-
-		// Instance Variables
-		if (URIInformation.type == ResourceType.Object) {
-			// Delete our Old Variable Cache
-			await this.reference.clearAllVariablesAtURI(ourURI);
-
-			// Add our Objects to the URI
-			this.reference.addAllVariablesToObject(ourURI, varPackage);
-		}
+		thisDiagnostic.runSemanticIndexVariableOperation(theseMatchResults, URIInformation);
 	}
 
 	public async semanticJSDOC(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, docInfo: DocumentFolder) {
