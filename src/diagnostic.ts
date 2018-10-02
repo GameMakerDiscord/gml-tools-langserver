@@ -148,20 +148,17 @@ export class DiagnosticHandler {
     private localQuickCheck: Array<string>;
     private functionStack: Array<GMLFunctionStack>;
     private semanticDiagnostics: Diagnostic[];
-    private matcher: any; // Matcher, but with more stuff.
-    private matchResult: any; // MatchResult but with more stuff.
+    private matcher: any;
+    private matchResult: any;
     private semantics: Semantics;
     private semanticIndex: number;
     private currentFullTextDocument: string;
-    /** Avoid using this hanlde as much as possible. Should be eliminated asap. */
     private reference: Reference;
-    /** Enums pushed go here.  */
-    /** Macros pushed go here. */
     private macrosAddedThisCycle: Array<MacroPackage>;
-    /** If this is a script, it will run this and try to generate JsDoc. */
     private jsdocGenerated: JSDOC;
     private tokenList: Token[];
     private currentObjectName: string;
+    private currentObjectRange: Range;
     private currentRank: VariableRank;
     private isSelf: boolean;
     private currentEnumeration: number;
@@ -194,6 +191,7 @@ export class DiagnosticHandler {
             signature: ''
         };
         this.currentObjectName = '*';
+        this.currentObjectRange = Range.create(0, 0, 0, 0);
         this.currentRank = 0;
         this.isSelf = true;
 
@@ -444,7 +442,7 @@ export class DiagnosticHandler {
                     // Right now, we don't walk this
                     // Next update, we'll add types to try to walk this:
                     if (objName.includes('.') == false) {
-                        if (this.reference.objectExists(objName) && this.currentObjectName != objName) {
+                        if (this.reference.objectExists(objName) || this.reference.enumExists(objName)) {
                             // Save our Current Var Parsing State
                             const oldObj = this.currentObjectName;
                             const oldSelf = this.isSelf;
@@ -452,6 +450,7 @@ export class DiagnosticHandler {
                             // Set to new Stuff
                             this.currentObjectName = objName;
                             this.isSelf = false;
+                            this.currentObjectRange = this.getRangeAtNode(this.currentFullTextDocument, thisObject);
 
                             // Do the variable thing
                             thisVariable.indexVariables();
@@ -459,6 +458,7 @@ export class DiagnosticHandler {
                             // Reset
                             this.currentObjectName = oldObj;
                             this.isSelf = oldSelf;
+                            this.currentObjectRange = Range.create(0, 0, 0, 0);
                         }
                     }
                 },
@@ -513,7 +513,7 @@ export class DiagnosticHandler {
                         this.reference.localCreateLocal(
                             varName,
                             this.uri,
-                            this.getVariableIndex(this.currentFullTextDocument, variable)
+                            this.getRangeAtNode(this.currentFullTextDocument, variable)
                         );
                     }
                 },
@@ -535,7 +535,7 @@ export class DiagnosticHandler {
                     this.reference.instAddInstToObject(
                         {
                             name: globVariable.sourceString,
-                            range: this.getVariableIndex(this.currentFullTextDocument, globVariable),
+                            range: this.getRangeAtNode(this.currentFullTextDocument, globVariable),
                             object: 'global',
                             supremacy: this.currentRank,
                             isSelf: false
@@ -587,7 +587,7 @@ export class DiagnosticHandler {
                         this.reference.macroAddReference(
                             macroWord.sourceString,
                             this.uri,
-                            this.getVariableIndex(this.currentFullTextDocument, macroWord)
+                            this.getRangeAtNode(this.currentFullTextDocument, macroWord)
                         );
                     }
                 },
@@ -595,8 +595,8 @@ export class DiagnosticHandler {
                 EnumDeclaration: (enumWord: Node, enumName: Node, _: Node, enumList: Node, cCurly: Node) => {
                     const enumNameString = enumName.source.contents;
                     const thisRange = Range.create(
-                        getPositionFromIndex(this.currentFullTextDocument, enumWord.source.startIdx),
-                        getPositionFromIndex(this.currentFullTextDocument, enumWord.source.endIdx)
+                        getPositionFromIndex(this.currentFullTextDocument, enumName.source.startIdx),
+                        getPositionFromIndex(this.currentFullTextDocument, enumName.source.endIdx)
                     );
 
                     // Add the Enum to the Reference
@@ -764,22 +764,35 @@ export class DiagnosticHandler {
             this.reference.localPushLocalReference(
                 varName,
                 this.uri,
-                this.getVariableIndex(this.currentFullTextDocument, variable)
+                this.getRangeAtNode(this.currentFullTextDocument, variable)
             );
         } else if (this.reference.macroExists(varName)) {
             this.reference.macroAddReference(
                 varName,
                 this.uri,
-                this.getVariableIndex(this.currentFullTextDocument, variable)
+                this.getRangeAtNode(this.currentFullTextDocument, variable)
             );
         } else if (this.reference.resourceExists(varName)) {
             // We're a resource, and we don't know what to do with these yet!
+        } else if (this.reference.enumMemberExists(this.currentObjectName, varName)) {
+            // We're an enumMember
+            // objectName is the enum name
+            // varName is the enumMember name
+            this.reference.enumPushEnumMemberReference(
+                this.currentObjectName,
+                varName,
+                this.uri,
+                this.getRangeAtNode(this.currentFullTextDocument, variable)
+            );
+
+            // Add the Enum
+            this.reference.enumPushEnumReference(this.currentObjectName, this.uri, this.currentObjectRange);
         } else {
             // Therefore, we are an instance variable after *all* that, yeah?
             this.reference.instAddInstToObject(
                 {
                     name: varName,
-                    range: this.getVariableIndex(this.currentFullTextDocument, variable),
+                    range: this.getRangeAtNode(this.currentFullTextDocument, variable),
                     object: this.currentObjectName,
                     supremacy: this.currentRank,
                     isSelf: this.isSelf
@@ -1007,9 +1020,9 @@ export class DiagnosticHandler {
         return diagnostic;
     }
 
-    private getVariableIndex(fullTextDoc: string, varNode: Node) {
-        const startPos = getPositionFromIndex(fullTextDoc, varNode.source.startIdx + this.semanticIndex);
-        const endPos = getPositionFromIndex(fullTextDoc, varNode.source.endIdx + this.semanticIndex);
+    private getRangeAtNode(fullTextDoc: string, thisNode: Node) {
+        const startPos = getPositionFromIndex(fullTextDoc, thisNode.source.startIdx + this.semanticIndex);
+        const endPos = getPositionFromIndex(fullTextDoc, thisNode.source.endIdx + this.semanticIndex);
 
         return Range.create(startPos, endPos);
     }

@@ -994,7 +994,7 @@ export class Reference {
         if (!enumInfo) return null;
 
         // Get the References
-        return enumInfo.referenceLocations;
+        return cleanArray(enumInfo.referenceLocations);
     }
 
     /**
@@ -1011,7 +1011,7 @@ export class Reference {
         const enumMemberInfo = this.enumGetEnumMemberInformation(enumInfo, enumMember);
         if (!enumMemberInfo) return null;
 
-        return enumMemberInfo.referenceLocations;
+        return cleanArray(enumMemberInfo.referenceLocations);
     }
 
     /**
@@ -1117,6 +1117,18 @@ export class Reference {
         if (!this.enumGetEnumInformation(enumName)) {
             return false;
         } else return true;
+    }
+
+    public enumMemberExists(enumName: string, enumMemberString: string): boolean {
+        // Get our Enum Info
+        const ourEnum = this.enumGetEnumInformation(enumName);
+        if (!ourEnum) return false;
+
+        // Get EnumMember
+        const enumMemberInfo = this.enumGetEnumMemberInformation(ourEnum, enumMemberString);
+        if (!enumMemberInfo) return false;
+
+        return true;
     }
 
     private enumGetEnumInformation(enumName: string): IEnum | undefined {
@@ -1295,7 +1307,7 @@ export class Reference {
     //#region General
     private genericGetOriginLocation(genModel: GenericResourceModel): Location | null {
         // If the index doesn't exist, return null
-        if (genModel.origin.indexOfOrigin === null ) return null;
+        if (genModel.origin.indexOfOrigin === null) return null;
 
         return genModel.referenceLocations[genModel.origin.indexOfOrigin];
     }
