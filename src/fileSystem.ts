@@ -643,7 +643,7 @@ export class FileSystem {
 					thisView.modelName = "GMFolder";
 					thisView.name = this.makePrettyFileNames(thisNode.folderName);
 				}
-
+				
 				returnView.push(thisView);
 			}
 			return returnView;
@@ -933,7 +933,7 @@ export class FileSystem {
 		let check;
 		try {
 			check = ajv.getSchema("http://json-schema.org/draft-06/schema");
-		} catch (error) {}
+		} catch (error) { }
 		if (!check) {
 			ajv.addMetaSchema(require("ajv/lib/refs/json-schema-draft-06.json"));
 		}
@@ -1426,13 +1426,13 @@ export class FileSystem {
 		}
 		console.log(
 			"NonGML file indexed by YYP? Serious error. \n" +
-				"This event: " +
-				thisEvent.eventtype +
-				"/" +
-				thisEvent.enumb +
-				"\n" +
-				"This directory: " +
-				dirPath
+			"This event: " +
+			thisEvent.eventtype +
+			"/" +
+			thisEvent.enumb +
+			"\n" +
+			"This directory: " +
+			dirPath
 		);
 		return "";
 	}
@@ -1563,7 +1563,7 @@ export class FileSystem {
 		}
 	}
 
-	private createFPFromBase(thisResource: GMResourcePlus) {
+	private createFPFromBase(thisResource: GMResourcePlus): string {
 		const resourcePath = this.modelNameToFileName(thisResource.modelName);
 
 		let relativePath;
@@ -1578,8 +1578,12 @@ export class FileSystem {
 			relativePath = path.join(resourcePath, thisResource.name + ".txt");
 		}
 
-		// Now we do normal execution for everyone else:
-		else relativePath = path.join(resourcePath, thisResource.name);
+		// Is this a script, and therefore has a GML File?
+		else if (resourcePath == "scripts") {
+			relativePath = path.join(resourcePath, thisResource.name, thisResource.name +
+				".gml");
+		}
+		else relativePath = path.join(resourcePath, thisResource.name, thisResource.name + ".yy");
 
 		return path.join(this.projectDirectory, relativePath);
 	}
