@@ -1,14 +1,17 @@
-import { Reference } from "./reference";
-import { FileSystem } from "./fileSystem";
+import { Reference } from './reference';
+import { FileSystem } from './fileSystem';
 import {
-    CompletionItem, CompletionList, CompletionItemKind,
-    CompletionParams, CompletionTriggerKind, Range,
-    MarkupContent, MarkupKind
-} from "vscode-languageserver"
-import { getWordAtPositionFS } from "./utils";
-import { ResourceType, OtherResources } from "./declarations";
-
-
+    CompletionItem,
+    CompletionList,
+    CompletionItemKind,
+    CompletionParams,
+    CompletionTriggerKind,
+    Range,
+    MarkupContent,
+    MarkupKind
+} from 'vscode-languageserver';
+import { getWordAtPositionFS } from './utils';
+import { ResourceType, OtherResources } from './declarations';
 
 export class GMLCompletionProvider {
     private completionList: CompletionList;
@@ -20,7 +23,7 @@ export class GMLCompletionProvider {
         this.completionList = {
             isIncomplete: true,
             items: []
-        }
+        };
     }
 
     public async onCompletionRequest(params: CompletionParams) {
@@ -32,7 +35,7 @@ export class GMLCompletionProvider {
                     break;
 
                 case CompletionTriggerKind.TriggerCharacter:
-                    await this.periodCompletion(params)
+                    await this.periodCompletion(params);
                     break;
 
                 case CompletionTriggerKind.TriggerForIncompleteCompletions:
@@ -41,7 +44,7 @@ export class GMLCompletionProvider {
             }
         }
 
-        if ((params.context) && (params.context.triggerKind == CompletionTriggerKind.TriggerCharacter)) {
+        if (params.context && params.context.triggerKind == CompletionTriggerKind.TriggerCharacter) {
             this.periodCompletion(params);
         } else this.nonPeriodCompletion(params);
 
@@ -54,7 +57,7 @@ export class GMLCompletionProvider {
         const thisRange = Range.create(params.position, params.position);
 
         let workingArray: CompletionItem[] = [];
-        const rx = new RegExp("^" + thisWord);
+        const rx = new RegExp('^' + thisWord);
 
         // All our variables in this object:
         const docInformation = await this.fs.getDocumentFolder(params.textDocument.uri);
@@ -69,10 +72,10 @@ export class GMLCompletionProvider {
                         label: thisVar,
                         kind: CompletionItemKind.Variable,
                         textEdit: {
-                            newText: thisVar.replace(thisWord, ""),
+                            newText: thisVar.replace(thisWord, ''),
                             range: thisRange
-                        },
-                    })
+                        }
+                    });
                 }
             }
         }
@@ -86,26 +89,23 @@ export class GMLCompletionProvider {
                         label: thisVar,
                         kind: CompletionItemKind.Field,
                         textEdit: {
-                            newText: thisVar.replace(thisWord, ""),
+                            newText: thisVar.replace(thisWord, ''),
                             range: thisRange
-                        },
-                    })
+                        }
+                    });
                 }
             }
         }
-
 
         // Functions/Scripts
         const functionList = this.reference.scriptGetScriptList();
         for (const item of functionList) {
             if (item.match(rx) !== null) {
-
-
                 const total = workingArray.push({
                     label: item,
                     kind: CompletionItemKind.Function,
                     textEdit: {
-                        newText: item.replace(thisWord, ""),
+                        newText: item.replace(thisWord, ''),
                         range: thisRange
                     }
                 });
@@ -124,7 +124,7 @@ export class GMLCompletionProvider {
                     label: obj,
                     kind: CompletionItemKind.Class,
                     textEdit: {
-                        newText: obj.replace(thisWord, ""),
+                        newText: obj.replace(thisWord, ''),
                         range: thisRange
                     }
                 });
@@ -132,12 +132,12 @@ export class GMLCompletionProvider {
         }
 
         // The Global Object
-        if ("global".match(rx) !== null) {
+        if ('global'.match(rx) !== null) {
             workingArray.push({
-                label: "global",
+                label: 'global',
                 kind: CompletionItemKind.Class,
                 textEdit: {
-                    newText: "global".replace(thisWord, ""),
+                    newText: 'global'.replace(thisWord, ''),
                     range: thisRange
                 }
             });
@@ -151,10 +151,10 @@ export class GMLCompletionProvider {
                     label: thisEnum,
                     kind: CompletionItemKind.Enum,
                     textEdit: {
-                        newText: thisEnum.replace(thisWord, ""),
+                        newText: thisEnum.replace(thisWord, ''),
                         range: thisRange
                     }
-                })
+                });
             }
         }
 
@@ -166,7 +166,7 @@ export class GMLCompletionProvider {
                     label: item,
                     kind: CompletionItemKind.Constant,
                     textEdit: {
-                        newText: item.replace(thisWord, ""),
+                        newText: item.replace(thisWord, ''),
                         range: thisRange
                     }
                 });
@@ -180,10 +180,10 @@ export class GMLCompletionProvider {
                     label: thisSprite,
                     kind: CompletionItemKind.Color,
                     textEdit: {
-                        newText: thisSprite.replace(thisWord, ""),
+                        newText: thisSprite.replace(thisWord, ''),
                         range: thisRange
                     }
-                })
+                });
             }
         }
 
@@ -206,10 +206,10 @@ export class GMLCompletionProvider {
                         label: thisResource,
                         kind: thisResourceType[1],
                         textEdit: {
-                            newText: thisResource.replace(thisWord, ""),
+                            newText: thisResource.replace(thisWord, ''),
                             range: thisRange
                         }
-                    })
+                    });
                 }
             }
         }
@@ -228,7 +228,6 @@ export class GMLCompletionProvider {
             if (macroVal) thisWord = macroVal;
         }
 
-
         // Variables
         const variableList = this.reference.getAllObjectVariables(thisWord);
         for (const thisVar of variableList) {
@@ -239,11 +238,11 @@ export class GMLCompletionProvider {
                     newText: thisVar,
                     range: Range.create(params.position, params.position)
                 }
-            })
+            });
         }
 
         // Global Variables
-        if (thisWord == "global") {
+        if (thisWord == 'global') {
             const globalList = this.reference.getGlobalVariables();
             for (const thisGlob of globalList) {
                 workingArray.push({
@@ -253,7 +252,7 @@ export class GMLCompletionProvider {
                         newText: thisGlob,
                         range: Range.create(params.position, params.position)
                     }
-                })
+                });
             }
         }
 
@@ -269,7 +268,7 @@ export class GMLCompletionProvider {
                         newText: enumMember,
                         range: Range.create(params.position, params.position)
                     }
-                })
+                });
             }
         }
 
@@ -299,29 +298,30 @@ export class GMLCompletionProvider {
             const jsdoc = scriptPack.JSDOC;
             let documentation: MarkupContent = {
                 kind: MarkupKind.Markdown,
-                value: ""
-            }
+                value: ''
+            };
 
             // Details
-            let type = jsdoc.isScript ? "(script)" : "(function)";
+            let type = jsdoc.isScript ? '(script)' : '(function)';
 
             // Documentation
             let parameterContent: Array<string> = [];
             for (const thisParam of jsdoc.parameters) {
-                let ourParam = "*@param* ```" + thisParam.label + "```";
-                ourParam += thisParam.documentation == "" ? "" : " — " + thisParam.documentation;
+                let ourParam = '*@param* ```' + thisParam.label + '```';
+                ourParam += thisParam.documentation == '' ? '' : ' — ' + thisParam.documentation;
                 parameterContent.push(ourParam);
             }
 
-            documentation.value +=  (parameterContent.join("\n\n"));
+            documentation.value += parameterContent.join('\n\n');
 
             // Return Value:
-            documentation.value += jsdoc.returns == "" ? "" : "\n\n" + "*@returns* " + jsdoc.returns;
+            documentation.value += jsdoc.returns == '' ? '' : '\n\n' + '*@returns* ' + jsdoc.returns;
 
             // Documentation
-            documentation.value += jsdoc.description == "" ? "" : "\n\n" + jsdoc.description.split(".", 1).join(".") + ".";
+            documentation.value +=
+                jsdoc.description == '' ? '' : '\n\n' + jsdoc.description.split('.', 1).join('.') + '.';
 
-            thisItem.detail = type + " " + jsdoc.signature;
+            thisItem.detail = type + ' ' + jsdoc.signature;
             thisItem.documentation = documentation;
         }
 
@@ -331,7 +331,7 @@ export class GMLCompletionProvider {
     private resolveMacro(thisItem: CompletionItem) {
         const thisMacroVal = this.reference.macroGetMacroValue(thisItem.label);
         if (thisMacroVal) {
-            thisItem.detail = "(macro) " + thisItem.label + " == " + thisMacroVal
+            thisItem.detail = '(macro) ' + thisItem.label + ' == ' + thisMacroVal;
         }
         return thisItem;
     }

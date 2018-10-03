@@ -12,8 +12,6 @@ export interface ClientViewNode {
     fpath: string;
 }
 
-
-
 export interface EventsPackage {
     uri: string;
     events: string;
