@@ -1563,22 +1563,32 @@ export class FileSystem {
     private createFPFromBase(thisResource: GMResourcePlus): string {
         const resourcePath = this.modelNameToFileName(thisResource.modelName);
 
-        let relativePath;
-        // Early exit for silly views and notes, which don't have individual folders
-        // because Mark Alexander hates me (I blame him for this too).
-        if (resourcePath == 'views') {
-            relativePath = path.join(resourcePath, thisResource.name + '.yy');
-        }
+        let relativePath: string;
+        // Create paths to the best case GML we've got:
+        switch (resourcePath) {
+            case 'views':
+                relativePath = path.join(resourcePath, thisResource.name + '.yy');
+                break;
+            case 'notes':
+                relativePath = path.join(resourcePath, thisResource.name + '.txt');
+                break;
+            case 'scripts':
+                relativePath = path.join(resourcePath, thisResource.name, thisResource.name + '.gml');
+                break;
+            case 'sprites':
+                relativePath = path.join(resourcePath, thisResource.name);
+                break;
+            case 'shaders':
+                relativePath = path.join(resourcePath, thisResource.name);
+                break;
+            case 'objects':
+                relativePath = path.join(resourcePath, thisResource.name);
+                break;
 
-        // Handle Notes
-        else if (resourcePath == 'notes') {
-            relativePath = path.join(resourcePath, thisResource.name + '.txt');
+            default:
+                relativePath = path.join(resourcePath, thisResource.name, thisResource.name + '.yy');
+                break;
         }
-
-        // Is this a script, and therefore has a GML File?
-        else if (resourcePath == 'scripts') {
-            relativePath = path.join(resourcePath, thisResource.name, thisResource.name + '.gml');
-        } else relativePath = path.join(resourcePath, thisResource.name, thisResource.name + '.yy');
 
         return path.join(this.projectDirectory, relativePath);
     }
