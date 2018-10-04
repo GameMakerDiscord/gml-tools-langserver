@@ -1,6 +1,7 @@
 import { MacroPackage } from './diagnostic';
 import { CompletionItemKind } from 'vscode-languageserver';
 
+
 export const enum SpecialDocTypes {
     Constant = '#',
     Readonly = '*',

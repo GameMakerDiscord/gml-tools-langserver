@@ -798,7 +798,7 @@ export class Reference {
         return cleanArray(varPackage.referenceLocations);
     }
 
-    public objectGetOriginLocation(objName: string, varName: string) {
+    public instGetOriginLocation(objName: string, varName: string) {
         const varPackage = this.objectGetVariablePackage(objName, varName);
         if (varPackage === null) return null;
 

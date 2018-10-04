@@ -771,7 +771,7 @@ export class DiagnosticHandler {
 
             // Add the Enum
             this.reference.enumPushEnumReference(this.currentObjectName, this.uri, this.currentObjectRange);
-        } else if (this.reference.instExists(this.currentObjectName, varName)) {
+        } else {
             // Therefore, we are an instance variable after *all* that, yeah?
             this.reference.instAddInstToObject(
                 {

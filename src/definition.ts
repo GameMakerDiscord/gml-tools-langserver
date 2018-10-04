@@ -29,7 +29,7 @@ export class GMLDefinitionProvider {
             const ourWord = thisWord.split('.');
 
             // Objects
-            const objLocation = await this.reference.objectGetOriginLocation(ourWord[ws.objName], ourWord[ws.varName]);
+            const objLocation = await this.reference.instGetOriginLocation(ourWord[ws.objName], ourWord[ws.varName]);
             if (objLocation) {
                 return objLocation;
             }
@@ -75,7 +75,7 @@ export class GMLDefinitionProvider {
         const fs: FileSystem = this.lsp.requestLanguageServiceHandler(LanguageService.FileSystem);
         const docInfo = await fs.getDocumentFolder(params.textDocument.uri);
         if (docInfo) {
-            const foundVar = await this.reference.objectGetOriginLocation(docInfo.name, thisWord);
+            const foundVar = await this.reference.instGetOriginLocation(docInfo.name, thisWord);
             if (foundVar) return foundVar;
         }
 

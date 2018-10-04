@@ -68,14 +68,21 @@ export class GMLCompletionProvider {
 
             for (const thisVar of variableList) {
                 if (thisVar.match(rx) !== null) {
-                    workingArray.push({
-                        label: thisVar,
-                        kind: CompletionItemKind.Variable,
-                        textEdit: {
-                            newText: thisVar.replace(thisWord, ''),
-                            range: thisRange
-                        }
-                    });
+                    const orig = this.reference.instGetOriginLocation(docInformation.name, thisVar);
+                    if (
+                        orig &&
+                        (orig.range.start.line !== thisRange.start.line &&
+                            orig.range.start.character !== thisRange.start.character)
+                    ) {
+                        workingArray.push({
+                            label: thisVar,
+                            kind: CompletionItemKind.Variable,
+                            textEdit: {
+                                newText: thisVar.replace(thisWord, ''),
+                                range: thisRange
+                            }
+                        });
+                    }
                 }
             }
         }
@@ -85,14 +92,21 @@ export class GMLCompletionProvider {
         if (locals) {
             for (const thisVar of locals) {
                 if (thisVar.match(rx) !== null) {
-                    workingArray.push({
-                        label: thisVar,
-                        kind: CompletionItemKind.Field,
-                        textEdit: {
-                            newText: thisVar.replace(thisWord, ''),
-                            range: thisRange
-                        }
-                    });
+                    const orig = this.reference.localGetOrigin(params.textDocument.uri, thisVar);
+                    if (
+                        orig &&
+                        (orig.range.start.line !== thisRange.start.line &&
+                            orig.range.start.character !== thisRange.start.character)
+                    ) {
+                        workingArray.push({
+                            label: thisVar,
+                            kind: CompletionItemKind.Field,
+                            textEdit: {
+                                newText: thisVar.replace(thisWord, ''),
+                                range: thisRange
+                            }
+                        });
+                    }
                 }
             }
         }
