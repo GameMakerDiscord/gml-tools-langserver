@@ -582,7 +582,9 @@ export class DocumentationImporter {
         let gms2Program =
             process.platform == 'win32'
                 ? path.join('C:', 'Program Files', 'GameMaker Studio 2')
-                : '/Applications/GameMaker Studio 2.app/Contents/MonoBundle';
+                : path.join('Applications', 'GameMaker Studio 2.app', 'Contents', 'MonoBundle');
+
+        const testPath = path.join(gms2Program, 'GameMakerStudio.exe');
 
         if (gms2Program && fse.existsSync(gms2Program)) {
             this.lsp.connection.window.showInformationMessage(
@@ -590,7 +592,7 @@ export class DocumentationImporter {
             );
         } else {
             const test = await this.lsp.connection.sendRequest('requestImportManual');
-            if (test == 'Okay') {
+            if (test === 'Okay') {
                 // Returns a URI:
                 gms2Program = (await this.lsp.connection.sendRequest('importManual')).toString();
             }
