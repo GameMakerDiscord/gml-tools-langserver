@@ -1,5 +1,5 @@
 import { Interval, Node, Grammar, MatchResult, ActionDict, Semantics } from 'ohm-js';
-import { Diagnostic, Range, DiagnosticSeverity, FoldingRangeKind, Position } from 'vscode-languageserver/lib/main';
+import { Diagnostic, Range, DiagnosticSeverity, Position } from 'vscode-languageserver/lib/main';
 import {
     lastIndexOfArray,
     normalizeEoLSequences,
@@ -377,22 +377,6 @@ export class DiagnosticHandler {
                     list.lint();
                 },
 
-                RegionStatement: (startRegion, regionName, list, endRegion) => {
-                    const startPosition = getPositionFromIndex(
-                        this.currentFullTextDocument,
-                        startRegion.source.startIdx
-                    );
-                    const endPosition = getPositionFromIndex(this.currentFullTextDocument, endRegion.source.endIdx);
-
-                    // Add this Folding Range:
-                    this.reference.foldingAddFoldingRange(
-                        this.uri,
-                        Range.create(startPosition, endPosition),
-                        FoldingRangeKind.Region
-                    );
-                    list.lint();
-                },
-
                 // Generic for all non-terminal nodes
                 _nonterminal: (children: any) => {
                     children.forEach((element: any) => {
@@ -572,7 +556,7 @@ export class DiagnosticHandler {
                         // Get End Position (add one for colon)
                         const endPos = getPositionFromIndex(
                             this.currentFullTextDocument,
-                            macroWord.source.endIdx + this.semanticIndex + 1
+                            macroWord.source.endIdx + this.semanticIndex
                         );
 
                         // Create return Diagnostic
@@ -985,10 +969,19 @@ export class DiagnosticHandler {
     private getDiagnosticAtFailure(textDoc: string, currentFailure: number): Diagnostic {
         let pos = getPositionFromIndex(textDoc, currentFailure);
 
+        // Sometimes ohm fails us if we're going to fast. Not sure why,
+        // but we do this for safety.
+        let mess: string;
+        try {
+            mess = this.matchResult.shortMessage;
+        } catch (error) {
+            mess = 'Error: unexpected symbol';
+        }
+
         // Initial result TODO: make this a little recursive
         return {
             severity: DiagnosticSeverity.Error,
-            message: this.matchResult.shortMessage,
+            message: mess,
             source: 'gml',
             range: Range.create(pos, pos)
         };

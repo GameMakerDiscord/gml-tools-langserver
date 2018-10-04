@@ -584,9 +584,9 @@ export class DocumentationImporter {
                 ? path.join('C:', 'Program Files', 'GameMaker Studio 2')
                 : path.join('Applications', 'GameMaker Studio 2.app', 'Contents', 'MonoBundle');
 
-        const testPath = path.join(gms2Program, 'GameMakerStudio.exe');
+        const testPath = path.join(gms2Program, 'chm2web', 'YoYoStudioHelp.zip');
 
-        if (gms2Program && fse.existsSync(gms2Program)) {
+        if (gms2Program && fse.existsSync(testPath)) {
             this.lsp.connection.window.showInformationMessage(
                 'Initial load or update detected.\nIndexing manual, please hold.'
             );

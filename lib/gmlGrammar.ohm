@@ -118,7 +118,11 @@ gml {
     EnumCall
         =   identifier "." identifier
     RegionStatement
-        =   "#region" #regionName StatementList "#endregion"
+        =   OpenRegion|CloseRegion
+    OpenRegion
+        =   "#region" #regionName?
+    CloseRegion
+        =   "#endregion"
     regionName
         =   (~lineTerminator sourceCharacter)*
     PureMacro<endSemiColon>
@@ -336,11 +340,10 @@ gml {
     jsdocReturnsDecl = "returns" | "return"
 
     jsdocGMS1 = "///" ps jsdocGMS1funcName ps oParens listOf<jsdocGMS1paramName, comma> cParens jsdocGMS1desc
-    jsdocGMS1funcName = (~at ~forwardSlash ~oParens ~lineTerminator sourceCharacter)* 
+    jsdocGMS1funcName = (~"@" ~forwardSlash ~oParens ~lineTerminator sourceCharacter)* 
     jsdocGMS1paramName = ps (~cParens ~lineTerminator sourceCharacter)* ps
     jsdocGMS1desc = (~lineTerminator sourceCharacter)*
 
-    at = "@"
     forwardSlash = "/"
 
     
@@ -404,21 +407,26 @@ gml {
     octalIntegerLiteral = "0" octalDigit+
     octalDigit          = "0" .. "7"
      
-    stringLiteral       = "\"" doubleStringCharacter* "\""
-                        | "'" singleStringCharacter* "'"
+    stringLiteral       = stringTemplate
+                        | stringDoubleQuote
+    
+    stringDoubleQuote   = "\"" doubleStringCharacter* "\""
+
+    stringTemplate      = "@\"" stringTemplateCharacter* "\""
+                        | "@'" stringTemplateCharacter* "'"
+    
     doubleStringCharacter
                         = nonEscapedDoubleStringChar
                         | escaped
-                        | lineContinuation
-    singleStringCharacter
+
+    stringTemplateCharacter
                         = nonEscapedSingleStringChar
                         | escaped
-                        | lineContinuation
+                        | lineTerminatorSequence
     nonEscapedDoubleStringChar
                         = ~("\"" | "\\" | lineTerminator) sourceCharacter
     nonEscapedSingleStringChar
                         = ~("'" | "\\" | lineTerminator) sourceCharacter
-    lineContinuation    = "\\" lineTerminatorSequence
     escaped             = "\\" escapeSequence
     escapeSequence      = unicodeEscapeSequence
                         | hexEscapeSequence
