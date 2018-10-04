@@ -218,7 +218,7 @@ export class LangServ {
             await thisDiagnostic.setInput(contentChange.text);
         }
 
-        this.fsManager.addDocument(uri, thisDiagnostic.getInput());
+        await this.fsManager.addDocument(uri, thisDiagnostic.getInput());
         const finalDiagnosticPackage = await this.lint(thisDiagnostic, SemanticsOption.All);
         // Send Final Diagnostics
         this.connection.sendDiagnostics(DiagnosticsPackage.create(uri, finalDiagnosticPackage));
@@ -266,9 +266,7 @@ export class LangServ {
 
         // Semantic Lint
         if ((bit & SemanticsOption.Function) == SemanticsOption.Function) {
-            diagnosticArray = diagnosticArray.concat(
-                await this.semanticLint(thisDiagnostic, lintPackage, diagnosticArray)
-            );
+            await this.semanticLint(thisDiagnostic, lintPackage, diagnosticArray);
         }
 
         // Variable Index
@@ -284,7 +282,7 @@ export class LangServ {
             }
         }
 
-        return diagnosticArray;
+        return thisDiagnostic.popSemanticDiagnostics();
     }
 
     public async semanticLint(
@@ -292,9 +290,6 @@ export class LangServ {
         lintPackage: LintPackage,
         diagnosticArray: Diagnostic[]
     ) {
-        // Clear our Ranges:
-        // this.reference.foldingClearAllFoldingRange(thisDiagnostic.getURI);
-
         // Clear our Script References
         this.reference.scriptRemoveAllReferencesAtURI(thisDiagnostic.getURI);
 
@@ -303,9 +298,6 @@ export class LangServ {
         if (theseMatchResults) {
             await thisDiagnostic.runSemanticLintOperation(theseMatchResults);
         }
-        diagnosticArray = diagnosticArray.concat(thisDiagnostic.popSemanticDiagnostics());
-
-        return diagnosticArray;
     }
 
     public async semanticVariableIndex(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage) {

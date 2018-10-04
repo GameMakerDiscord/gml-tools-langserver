@@ -282,7 +282,7 @@ export class Reference {
             implicitThisAtPosition: []
         };
     }
-
+    
     public async URIRecordClearAtURI(thisURI: string) {
         await this.macroClearMacrosAtURI(thisURI);
         await this.enumClearAllEnumsAtURI(thisURI);
@@ -1269,7 +1269,7 @@ export class Reference {
             const macroInfo = this.macroGetMacroInformation(thisMacroRecord.name);
             // If we have no macroInformation but still have a record delete this Macro Object entry.
             if (!macroInfo) {
-                delete this.macros[name];
+                delete this.macros[thisMacroRecord.name];
                 continue;
             }
 
@@ -1286,7 +1286,7 @@ export class Reference {
 
             // Delete all reference if we don't exist anymore.
             if (cleanArrayLength(macroInfo.referenceLocations) === 0) {
-                delete this.macros[name];
+                delete this.macros[thisMacroRecord.name];
             }
         }
 
