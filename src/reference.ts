@@ -577,9 +577,13 @@ export class Reference {
         return this.objectList;
     }
 
-    public objectAddObject(objName: string) {
+    public objectAddObject(objName: string): boolean {
+        if (this.scriptExists(objName)) return false;
+
         this.objects[objName] = {};
         this.objectList.push(objName);
+
+        return true;
     }
 
     /**
@@ -591,7 +595,8 @@ export class Reference {
     public instAddInstToObject(thisVar: GMLVarParse, uri: string) {
         // Create object if necessary
         if (this.objects.hasOwnProperty(thisVar.object) == false) {
-            this.objectAddObject(thisVar.object);
+            const res = this.objectAddObject(thisVar.object);
+            if (res == false) return;
         }
 
         // Create Variable location if necessary
@@ -660,6 +665,14 @@ export class Reference {
         }
     }
 
+    public instExists(objName: string, instName: string): boolean {
+        try {
+            return this.objects[objName][instName] !== undefined;
+        } catch (e) {
+            return false;
+        }
+    }
+
     private instGetOriginInst(objName: string, varName: string): IOriginVar | null {
         if (this.objects[objName] && this.objects[objName][varName]) {
             return this.objects[objName][varName].origin;
@@ -669,7 +682,6 @@ export class Reference {
     }
 
     public async instClearAllInstAtURI(uri: string) {
-        console.log('Cleared inst variables at ' + uri);
         const ourPreviousVariables = this.URIRecord[uri].instanceVariables;
 
         if (ourPreviousVariables) {
