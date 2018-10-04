@@ -5,7 +5,7 @@
 	"publisher": "Jonathan Spira (sanbox)",
 	"author": "Jonathan Spira",
 	"preview": true,
-	"version": "0.9.3",
+	"version": "0.9.4",
 	"license": "MIT",
 	"engines": {
 		"vscode": "^1.26.0"
