@@ -395,11 +395,20 @@ export class DiagnosticHandler {
             actionDict: {
                 // This is the subject in the declaration/set statement: OBJ.VAR = 10;
                 ObjDotVar: (thisObject: Node, _, thisVariable: Node) => {
-                    const objName = thisObject.sourceString;
+                    let objName = thisObject.sourceString;
 
                     // Right now, we don't walk this
                     // Next update, we'll add types to try to walk this:
                     if (objName.includes('.') == false) {
+
+                        // The Ariak check
+                        const macroVal = this.reference.macroGetMacroValue(objName);
+                        if (macroVal) {
+                            this.reference.macroAddReference(objName, this.uri, 
+                                this.getRangeAtNode(this.currentFullTextDocument, thisObject));
+                            objName = macroVal;
+                        }
+
                         if (this.reference.objectExists(objName) && this.currentObjectName != objName) {
                             // Save our Current Var Parsing State
                             const oldObj = this.currentObjectName;
@@ -421,11 +430,18 @@ export class DiagnosticHandler {
 
                 // This is the predicate in a setting statement: x = OBJ.VAR;
                 MembObjectVarRef: (thisObject: Node, _, thisVariable: Node) => {
-                    const objName = thisObject.sourceString;
+                    let objName = thisObject.sourceString;
 
                     // Right now, we don't walk this
-                    // Next update, we'll add types to try to walk this:
                     if (objName.includes('.') == false) {
+                        // The Ariak check
+                        const macroVal = this.reference.macroGetMacroValue(objName);
+                        if (macroVal) {
+                            this.reference.macroAddReference(objName, this.uri, 
+                                this.getRangeAtNode(this.currentFullTextDocument, thisObject));
+                            objName = macroVal;
+                        }
+
                         if (this.reference.objectExists(objName) || this.reference.enumExists(objName)) {
                             // Save our Current Var Parsing State
                             const oldObj = this.currentObjectName;
@@ -452,6 +468,14 @@ export class DiagnosticHandler {
                     let objName = thisObject.child(0).sourceString;
                     if (objName.charAt(0) == '(' && objName.charAt(objName.length - 1) == ')') {
                         objName = objName.slice(1, objName.length - 1);
+                    }
+
+                    // The Ariak check
+                    const macroVal = this.reference.macroGetMacroValue(objName);
+                    if (macroVal) {
+                        this.reference.macroAddReference(objName, this.uri, 
+                            this.getRangeAtNode(this.currentFullTextDocument, thisObject));
+                        objName = macroVal;
                     }
 
                     if (this.reference.objectExists(objName) && this.currentObjectName != objName) {

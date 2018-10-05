@@ -71,7 +71,7 @@ export class GMLDefinitionProvider {
         if (localOrigin) return localOrigin;
 
         // Last Ditch -- are we a variable of this object itself?
-        
+
         const fs: FileSystem = this.lsp.requestLanguageServiceHandler(LanguageService.FileSystem);
         const docInfo = await fs.getDocumentFolder(params.textDocument.uri);
         if (docInfo) {
@@ -97,16 +97,17 @@ export class GMLDefinitionProvider {
             const ourWord = thisWord.split('.');
             if (ourWord.length !== 2) return null;
 
+            // The Ariak check
+            const macroVal = this.reference.macroGetMacroValue(thisWord[ws.objName]);
+            if (macroVal) ourWord[ws.objName] = macroVal;
+
             const locations = await this.reference.objectGetAllVariableReferences(
                 ourWord[ws.objName],
                 ourWord[ws.varName]
             );
             if (locations) return locations;
 
-            const enumMembers = this.reference.enumMemberGetAllReferences(
-                ourWord[ws.objName],
-                ourWord[ws.varName]
-            );
+            const enumMembers = this.reference.enumMemberGetAllReferences(ourWord[ws.objName], ourWord[ws.varName]);
             if (enumMembers) return enumMembers;
         }
 
