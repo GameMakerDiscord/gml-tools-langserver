@@ -100,6 +100,8 @@ export class LangServ {
                     JSON.stringify(ourManual, null, 4)
                 );
             }
+
+            this.connection.window.showInformationMessage('Manual succesfully loaded.');
         } else {
             this.connection.window.showWarningMessage(
                 'Manual not correctly loaded. Please make sure GMS2 is\ninstalled correctly. If the error persists,\n please log an error on the Github page.'
