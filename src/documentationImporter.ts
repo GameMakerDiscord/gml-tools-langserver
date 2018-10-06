@@ -448,7 +448,7 @@ export class DocumentationImporter {
                         thisFunction.return = this.clearLineTerminators(thisFunction.return);
 
                         // clear spaces :eye roll: from our links:
-                        thisFunction.link = thisFunction.link.replace(/[ ]/g, '%20');
+                        thisFunction.link = thisFunction.link.replace(/[\s]/g, '%20');
 
                         for (const thisParam of thisFunction.parameters) {
                             thisParam.label = this.clearLineTerminators(thisParam.label);
