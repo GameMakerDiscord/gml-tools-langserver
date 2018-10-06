@@ -409,6 +409,11 @@ export class DiagnosticHandler {
                             objName = macroVal;
                         }
 
+                        // The other check
+                        if (objName == "other") {
+                            objName = this.reference.implicitGetLastImplicit(this.uri);
+                        }
+
                         if (this.reference.objectExists(objName) && this.currentObjectName != objName) {
                             // Save our Current Var Parsing State
                             const oldObj = this.currentObjectName;

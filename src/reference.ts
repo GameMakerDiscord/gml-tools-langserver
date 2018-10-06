@@ -282,7 +282,7 @@ export class Reference {
             implicitThisAtPosition: []
         };
     }
-    
+
     public async URIRecordClearAtURI(thisURI: string) {
         await this.macroClearMacrosAtURI(thisURI);
         await this.enumClearAllEnumsAtURI(thisURI);
@@ -537,6 +537,18 @@ export class Reference {
             objName: objName,
             position: pos
         });
+    }
+
+    /**
+     * This is a very weird function which we only use in one place:
+     * to figure out what `other` is in a `with` statement. It is strange!
+     * @param uri The URI of the URI record to look at.
+     */
+    public implicitGetLastImplicit(uri: string) {
+        const theseImplicits = this.URIRecord[uri].implicitThisAtPosition;
+        const lastImplicit = theseImplicits[theseImplicits.length - 2];
+
+        return lastImplicit.objName;
     }
 
     public async implicitClearImplicitAtURI(uri: string) {
