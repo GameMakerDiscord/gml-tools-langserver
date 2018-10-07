@@ -29,17 +29,18 @@ export interface GenericResourceDescription {
     type: BasicResourceType;
 }
 declare type BasicResourceType =
-    | 'objects'
-    | 'scriptsAndFunctions'
-    | 'sprites'
-    | 'rooms'
-    | 'tilesets'
-    | 'fonts'
-    | 'extensions'
-    | 'shaders'
-    | 'sounds'
-    | 'timelines'
-    | 'paths';
+    | 'GMObject'
+    | 'GMScript'
+    | 'GMSprite'
+    | 'GMRoom'
+    | 'GMTileSet'
+    | 'GMFont'
+    | 'GMExtension'
+    | 'GMShader'
+    | 'GMSound'
+    | 'GMTimeline'
+    | 'GMPath'
+    | 'GMNote';
 
 export class Reference {
     private lsp: LangServ;
@@ -149,6 +150,14 @@ export class Reference {
             name: resourceName,
             type: resourceType
         });
+
+        if (resourceType == 'GMObject') {
+            this.objectAddObject(resourceName);
+        }
+
+        if (resourceType == 'GMScript') {
+            this.scriptAddScript(resourceName);
+        }
     }
 
     public deleteResource(name: string) {

@@ -108,7 +108,7 @@ export class LangServ {
         }
 
         // Index our YYP
-        await this.initialStartup.initializeWorkspaceFolders(workspaceFolder);
+        await this.initialStartup.initialWorkspaceFolders(workspaceFolder);
 
         // Create project-documentation
         if ((await this.fsManager.isFileCached('project-documentation.json')) == false) {
@@ -317,7 +317,7 @@ export class LangServ {
         if (!matchResults) return;
         const ourJSDOC = await thisDiagnostic.runSemanticJSDOC(matchResults, docInfo.name);
 
-        this.reference.scriptAddJSDOC(docInfo.name, ourJSDOC);
+        this.reference.scriptAddJSDOC(docInfo., ourJSDOC);
     }
     //#endregion
 

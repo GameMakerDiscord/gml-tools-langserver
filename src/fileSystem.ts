@@ -5,7 +5,6 @@ import { Grammar } from 'ohm-js';
 import { DiagnosticHandler } from './diagnostic';
 import { LangServ } from './langserv';
 import { Reference } from './reference';
-import * as upath from 'upath';
 import * as uuidv4 from 'uuid/v4';
 import URI from 'vscode-uri/lib/umd';
 import * as chokidar from 'chokidar';
@@ -275,7 +274,6 @@ export class FileSystem {
      * This is simply the name of the project!
      */
     public projectName: string;
-    private sprites: GMLSpriteContainer;
     private views: GMLFolder[];
 
     /**
@@ -286,15 +284,12 @@ export class FileSystem {
     private projectResourceList: { [UUID: string]: Resource.GMResource };
 
     private workspaceFolder: WorkspaceFolder[];
-    private yypWatcher: chokidar.FSWatcher | undefined;
-    private resourceKeys: string[];
     private cachedFileNames: string[] | undefined;
     private defaultView: number;
 
     constructor(standardGrammar: Grammar, lsp: LangServ) {
         this.objects = {};
         this.scripts = {};
-        this.sprites = {};
         this.views = [];
         this.projectResourceList = {};
         this.diagnosticDictionary = {};
@@ -307,7 +302,6 @@ export class FileSystem {
         this.openedDocuments = [];
         this.indexComplete = false;
         this.workspaceFolder = [];
-        this.resourceKeys = [];
         this.projectDirectory = '';
         this.topLevelDirectories = [];
         this.projectYYPPath = '';
@@ -323,299 +317,299 @@ export class FileSystem {
         this.topLevelDirectories = await fse.readdir(this.projectDirectory);
     }
 
-    // public async initialParseYYP() {
-    //     // Attempt to Index by YYP
-    //     let yypDir = [];
-    //     for (const thisDir of this.topLevelDirectories) {
-    //         const possibleYYP = thisDir.split('.');
+    public async initialParseYYP() {
+        // Attempt to Index by YYP
+        let yypDir = [];
+        for (const thisDir of this.topLevelDirectories) {
+            const possibleYYP = thisDir.split('.');
 
-    //         if (possibleYYP[1] == 'yyp') {
-    //             yypDir.push(possibleYYP.join('.'));
-    //         }
-    //     }
+            if (possibleYYP[1] == 'yyp') {
+                yypDir.push(possibleYYP.join('.'));
+            }
+        }
 
-    //     if (yypDir.length > 1) {
-    //         this.lsp.connection.window.showErrorMessage(
-    //             'More than one YYP present. Cannot index. Type services will be limited.'
-    //         );
-    //         return;
-    //     }
+        if (yypDir.length > 1) {
+            this.lsp.connection.window.showErrorMessage(
+                'More than one YYP present. Cannot index. Type services will be limited.'
+            );
+            return;
+        }
 
-    //     // Do We only have 1 YYFile? Good, we should only have one.
-    //     if (yypDir.length == 1) {
-    //         this.projectYYPPath = path.join(this.projectDirectory, yypDir[0]);
-    //         this.projectName = path.basename(this.projectYYPPath, '.yyp');
+        // Do We only have 1 YYFile? Good, we should only have one.
+        if (yypDir.length == 1) {
+            this.projectYYPPath = path.join(this.projectDirectory, yypDir[0]);
+            this.projectName = path.basename(this.projectYYPPath, '.yyp');
 
-    //         // Add our File Watcher:
-    //         this.yypWatcher = chokidar.watch(this.projectYYPPath);
-    //         this.yypWatcher.on('all', async (someEvent, somePath, someStats) => {
-    //             this.watchYYP(someEvent, somePath, someStats);
-    //         });
+            // Add our File Watcher:
+            this.yypWatcher = chokidar.watch(this.projectYYPPath);
+            this.yypWatcher.on('all', async (someEvent, somePath, someStats) => {
+                this.watchYYP(someEvent, somePath, someStats);
+            });
 
-    //         // basic set up:
-    //         this.projectYYP = JSON.parse(await fse.readFile(this.projectYYPPath, 'utf8'));
-    //         if (this.projectYYP) {
-    //             // Index the YYP
-    //             await this.indexYYP(this.projectYYP, true);
+            // basic set up:
+            this.projectYYP = JSON.parse(await fse.readFile(this.projectYYPPath, 'utf8'));
+            if (this.projectYYP) {
+                // Index the YYP
+                await this.indexYYP(this.projectYYP, true);
 
-    //             // Notify your dingus user that their index is done:
-    //             this.lsp.connection.window.showInformationMessage(
-    //                 'Index Complete. GML-Tools is in beta; always back up your project.'
-    //             );
-    //             this.indexComplete = true;
-    //         }
-    //     } else {
-    //         this.lsp.connection.window.showErrorMessage('No YYP present. Cannot index. Type services will be limited.');
-    //         return;
-    //     }
-    // }
+                // Notify your dingus user that their index is done:
+                this.lsp.connection.window.showInformationMessage(
+                    'Index Complete. GML-Tools is in beta; always back up your project.'
+                );
+                this.indexComplete = true;
+            }
+        } else {
+            this.lsp.connection.window.showErrorMessage('No YYP present. Cannot index. Type services will be limited.');
+            return;
+        }
+    }
 
-    // private async indexYYP(thisYYP: YYP, reIndexViews?: boolean) {
-    //     this.lsp.connection.window.showInformationMessage('Indexing Project, please hold...');
-    //     reIndexViews = reIndexViews || false;
-    //     // views stuff
-    //     let rootViews: Array<Resource.GMFolder> = [];
+    private async indexYYP(thisYYP: YYP, reIndexViews?: boolean) {
+        this.lsp.connection.window.showInformationMessage('Indexing Project, please hold...');
+        reIndexViews = reIndexViews || false;
+        // views stuff
+        let rootViews: Array<Resource.GMFolder> = [];
 
-    //     // go through all the resources, putting them all out
-    //     // into different files
-    //     for (const thisResource of thisYYP.resources) {
-    //         const yyFilePath = path.join(this.projectDirectory, upath.toUnix(thisResource.Value.resourcePath));
-    //         const dirPath = path.dirname(yyFilePath);
+        // go through all the resources, putting them all out
+        // into different files
+        for (const thisResource of thisYYP.resources) {
+            const yyFilePath = path.join(this.projectDirectory, upath.toUnix(thisResource.Value.resourcePath));
+            const dirPath = path.dirname(yyFilePath);
 
-    //         // Add to the Resource Keys
-    //         this.resourceKeys.push(thisResource.Key);
+            // Add to the Resource Keys
+            this.resourceKeys.push(thisResource.Key);
 
-    //         switch (thisResource.Value.resourceType) {
-    //             case 'GMObject':
-    //                 let objYY: Resource.Object;
-    //                 try {
-    //                     objYY = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 } catch (error) {
-    //                     console.log('File: ' + yyFilePath + ' does not exist. Skipping...');
-    //                     continue;
-    //                 }
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[objYY.id] = objYY;
+            switch (thisResource.Value.resourceType) {
+                case 'GMObject':
+                    let objYY: Resource.Object;
+                    try {
+                        objYY = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    } catch (error) {
+                        console.log('File: ' + yyFilePath + ' does not exist. Skipping...');
+                        continue;
+                    }
+                    // Add to UUID Dict
+                    this.projectResourceList[objYY.id] = objYY;
 
-    //                 // Add to our Reference
-    //                 this.reference.objectAddObject(objYY.name);
+                    // Add to our Reference
+                    this.reference.objectAddObject(objYY.name);
 
-    //                 // Figure out our events
-    //                 let ourEvents: Array<EventInfo> = [];
-    //                 for (const thisEvent of objYY.eventList) {
-    //                     const ourPath = this.convertEventEnumToFPath(thisEvent, dirPath);
-    //                     const thisEventEntry: EventInfo = {
-    //                         eventType: thisEvent.eventtype,
-    //                         eventNumb: thisEvent.enumb,
-    //                         eventID: thisEvent.id,
-    //                         eventPath: ourPath
-    //                     };
+                    // Figure out our events
+                    let ourEvents: Array<EventInfo> = [];
+                    for (const thisEvent of objYY.eventList) {
+                        const ourPath = this.convertEventEnumToFPath(thisEvent, dirPath);
+                        const thisEventEntry: EventInfo = {
+                            eventType: thisEvent.eventtype,
+                            eventNumb: thisEvent.enumb,
+                            eventID: thisEvent.id,
+                            eventPath: ourPath
+                        };
 
-    //                     ourEvents.push(thisEventEntry);
-    //                     await this.createDocumentFolder(ourPath, objYY.name, ResourceType.Object, thisEventEntry);
-    //                     await this.initialDiagnostics(ourPath, SemanticsOption.Function | SemanticsOption.Variable);
-    //                 }
+                        ourEvents.push(thisEventEntry);
+                        await this.createDocumentFolder(ourPath, objYY.name, ResourceType.Object, thisEventEntry);
+                        await this.initialDiagnostics(ourPath, SemanticsOption.Function | SemanticsOption.Variable);
+                    }
 
-    //                 // Push to Our References.
-    //                 this.objects[objYY.name] = {
-    //                     directoryFilepath: dirPath,
-    //                     yyFile: objYY,
-    //                     events: ourEvents
-    //                 };
-    //                 this.reference.addResource(objYY.name);
-    //                 break;
+                    // Push to Our References.
+                    this.objects[objYY.name] = {
+                        directoryFilepath: dirPath,
+                        yyFile: objYY,
+                        events: ourEvents
+                    };
+                    this.reference.addResource(objYY.name);
+                    break;
 
-    //             case 'GMScript':
-    //                 let scriptYY: Resource.Script;
+                case 'GMScript':
+                    let scriptYY: Resource.Script;
 
-    //                 try {
-    //                     scriptYY = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 } catch (error) {
-    //                     console.log('File: ' + yyFilePath + ' does not exist. Skipping...');
-    //                     continue;
-    //                 }
+                    try {
+                        scriptYY = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    } catch (error) {
+                        console.log('File: ' + yyFilePath + ' does not exist. Skipping...');
+                        continue;
+                    }
 
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[scriptYY.id] = scriptYY;
+                    // Add to UUID Dict
+                    this.projectResourceList[scriptYY.id] = scriptYY;
 
-    //                 const scriptFP = path.join(dirPath, scriptYY.name + '.gml');
-    //                 let thisScript: GMLScript = {
-    //                     directoryFilepath: dirPath,
-    //                     gmlFile: scriptFP,
-    //                     yyFile: scriptYY
-    //                 };
-    //                 this.reference.scriptAddScript(scriptYY.name, URI.file(scriptFP));
-    //                 await this.createDocumentFolder(scriptFP, scriptYY.name, ResourceType.Script);
-    //                 await this.initialDiagnostics(scriptFP, SemanticsOption.All);
+                    const scriptFP = path.join(dirPath, scriptYY.name + '.gml');
+                    let thisScript: GMLScript = {
+                        directoryFilepath: dirPath,
+                        gmlFile: scriptFP,
+                        yyFile: scriptYY
+                    };
+                    this.reference.scriptAddScript(scriptYY.name, URI.file(scriptFP));
+                    await this.createDocumentFolder(scriptFP, scriptYY.name, ResourceType.Script);
+                    await this.initialDiagnostics(scriptFP, SemanticsOption.All);
 
-    //                 this.scripts[scriptYY.name] = thisScript;
-    //                 this.reference.addResource(scriptYY.name);
-    //                 break;
+                    this.scripts[scriptYY.name] = thisScript;
+                    this.reference.addResource(scriptYY.name);
+                    break;
 
-    //             case 'GMSprite':
-    //                 const spriteYY: Resource.Sprite = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 this.sprites[spriteYY.name] = {
-    //                     directoryFilepath: dirPath,
-    //                     yyFile: spriteYY
-    //                 };
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[spriteYY.id] = spriteYY;
+                case 'GMSprite':
+                    const spriteYY: Resource.Sprite = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    this.sprites[spriteYY.name] = {
+                        directoryFilepath: dirPath,
+                        yyFile: spriteYY
+                    };
+                    // Add to UUID Dict
+                    this.projectResourceList[spriteYY.id] = spriteYY;
 
-    //                 // Add it to the reference
-    //                 this.reference.spriteAddSprite(spriteYY.name);
-    //                 this.reference.addResource(spriteYY.name);
-    //                 break;
+                    // Add it to the reference
+                    this.reference.spriteAddSprite(spriteYY.name);
+                    this.reference.addResource(spriteYY.name);
+                    break;
 
-    //             case 'GMFolder':
-    //                 const viewYY: Resource.GMFolder = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 // Check if we're a Root:
-    //                 if (viewYY.filterType == 'root') {
-    //                     rootViews.push(viewYY);
-    //                 } else {
-    //                     // Add to UUID Dict
-    //                     this.projectResourceList[viewYY.id] = viewYY;
-    //                 }
-    //                 break;
+                case 'GMFolder':
+                    const viewYY: Resource.GMFolder = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    // Check if we're a Root:
+                    if (viewYY.filterType == 'root') {
+                        rootViews.push(viewYY);
+                    } else {
+                        // Add to UUID Dict
+                        this.projectResourceList[viewYY.id] = viewYY;
+                    }
+                    break;
 
-    //             case 'GMTileSet':
-    //                 const tsYY: Resource.Tileset = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[tsYY.id] = tsYY;
+                case 'GMTileSet':
+                    const tsYY: Resource.Tileset = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    // Add to UUID Dict
+                    this.projectResourceList[tsYY.id] = tsYY;
 
-    //                 // References
-    //                 this.reference.tilesets.push(tsYY.name);
-    //                 this.reference.addResource(tsYY.name);
-    //                 break;
+                    // References
+                    this.reference.tilesets.push(tsYY.name);
+                    this.reference.addResource(tsYY.name);
+                    break;
 
-    //             case 'GMSound':
-    //                 const soundYY: Resource.Sound = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[soundYY.id] = soundYY;
+                case 'GMSound':
+                    const soundYY: Resource.Sound = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    // Add to UUID Dict
+                    this.projectResourceList[soundYY.id] = soundYY;
 
-    //                 // References
-    //                 this.reference.sounds.push(soundYY.name);
-    //                 this.reference.addResource(soundYY.name);
-    //                 break;
+                    // References
+                    this.reference.sounds.push(soundYY.name);
+                    this.reference.addResource(soundYY.name);
+                    break;
 
-    //             case 'GMPath':
-    //                 const pathYY: Resource.Path = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[pathYY.id] = pathYY;
+                case 'GMPath':
+                    const pathYY: Resource.Path = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    // Add to UUID Dict
+                    this.projectResourceList[pathYY.id] = pathYY;
 
-    //                 // References
-    //                 this.reference.paths.push(pathYY.name);
-    //                 this.reference.addResource(pathYY.name);
-    //                 break;
+                    // References
+                    this.reference.paths.push(pathYY.name);
+                    this.reference.addResource(pathYY.name);
+                    break;
 
-    //             case 'GMShader':
-    //                 const shaderYY: Resource.Shader = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[shaderYY.id] = shaderYY;
+                case 'GMShader':
+                    const shaderYY: Resource.Shader = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    // Add to UUID Dict
+                    this.projectResourceList[shaderYY.id] = shaderYY;
 
-    //                 // References
-    //                 this.reference.shaders.push(shaderYY.name);
-    //                 this.reference.addResource(shaderYY.name);
-    //                 break;
+                    // References
+                    this.reference.shaders.push(shaderYY.name);
+                    this.reference.addResource(shaderYY.name);
+                    break;
 
-    //             case 'GMFont':
-    //                 const fontYY: Resource.Font = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[fontYY.id] = fontYY;
+                case 'GMFont':
+                    const fontYY: Resource.Font = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    // Add to UUID Dict
+                    this.projectResourceList[fontYY.id] = fontYY;
 
-    //                 // References
-    //                 this.reference.fonts.push(fontYY.name);
-    //                 this.reference.addResource(fontYY.modelName);
-    //                 break;
+                    // References
+                    this.reference.fonts.push(fontYY.name);
+                    this.reference.addResource(fontYY.modelName);
+                    break;
 
-    //             case 'GMTimeline':
-    //                 const timelineYY: Resource.Timeline = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[timelineYY.id] = timelineYY;
+                case 'GMTimeline':
+                    const timelineYY: Resource.Timeline = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    // Add to UUID Dict
+                    this.projectResourceList[timelineYY.id] = timelineYY;
 
-    //                 // References
-    //                 this.reference.timeline.push(timelineYY.name);
-    //                 this.reference.addResource(timelineYY.name);
-    //                 break;
+                    // References
+                    this.reference.timeline.push(timelineYY.name);
+                    this.reference.addResource(timelineYY.name);
+                    break;
 
-    //             case 'GMRoom':
-    //                 const roomYY: Resource.Room = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[roomYY.id] = roomYY;
+                case 'GMRoom':
+                    const roomYY: Resource.Room = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    // Add to UUID Dict
+                    this.projectResourceList[roomYY.id] = roomYY;
 
-    //                 // References
-    //                 this.reference.rooms.push(roomYY.name);
-    //                 this.reference.addResource(roomYY.name);
-    //                 break;
+                    // References
+                    this.reference.rooms.push(roomYY.name);
+                    this.reference.addResource(roomYY.name);
+                    break;
 
-    //             case 'GMNotes':
-    //                 const noteYY: Resource.Note = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[noteYY.id] = noteYY;
+                case 'GMNotes':
+                    const noteYY: Resource.Note = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    // Add to UUID Dict
+                    this.projectResourceList[noteYY.id] = noteYY;
 
-    //                 // Resources
-    //                 this.reference.addResource(noteYY.name);
-    //                 break;
+                    // Resources
+                    this.reference.addResource(noteYY.name);
+                    break;
 
-    //             case 'GMExtension':
-    //                 const extYY: Resource.Extension = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
-    //                 // Add to UUID Dict
-    //                 this.projectResourceList[extYY.id] = extYY;
+                case 'GMExtension':
+                    const extYY: Resource.Extension = JSON.parse(await fse.readFile(yyFilePath, 'utf8'));
+                    // Add to UUID Dict
+                    this.projectResourceList[extYY.id] = extYY;
 
-    //                 // Resources
-    //                 this.reference.extensions.push(extYY.name);
-    //                 this.reference.addResource(extYY.name);
-    //                 break;
+                    // Resources
+                    this.reference.extensions.push(extYY.name);
+                    this.reference.addResource(extYY.name);
+                    break;
 
-    //             default:
-    //                 console.log('We did not index this file: ' + dirPath);
-    //         }
-    //     }
+                default:
+                    console.log('We did not index this file: ' + dirPath);
+            }
+        }
 
-    //     // Finish sorting our views:
-    //     if (reIndexViews) {
-    //         this.sortViews(rootViews);
-    //     }
-    // }
+        // Finish sorting our views:
+        if (reIndexViews) {
+            this.sortViews(rootViews);
+        }
+    }
 
     //#endregion
 
     //#region Views
-    private sortViews(root: Array<Resource.GMFolder>) {
-        // Iterate on our Roots:
-        for (const thisRoot of root) {
-            // Walk the Tree.
-            const finalView = this.walkViewTree(thisRoot);
-            this.views.push(finalView);
+    // private sortViews(root: Array<Resource.GMFolder>) {
+    //     // Iterate on our Roots:
+    //     for (const thisRoot of root) {
+    //         // Walk the Tree.
+    //         const finalView = this.walkViewTree(thisRoot);
+    //         this.views.push(finalView);
 
-            // Add it to the default View
-            if (thisRoot.isDefaultView) {
-                this.defaultView = this.views.length - 1;
-            }
-        }
-    }
+    //         // Add it to the default View
+    //         if (thisRoot.isDefaultView) {
+    //             this.defaultView = this.views.length - 1;
+    //         }
+    //     }
+    // }
 
-    private walkViewTree(initialView: Resource.GMFolder): GMLFolder {
-        let newChildren: any = [];
-        let finalView = this.constructGMLFolderFromGMFolder(initialView);
+    // private walkViewTree(initialView: Resource.GMFolder): GMLFolder {
+    //     let newChildren: any = [];
+    //     let finalView = this.constructGMLFolderFromGMFolder(initialView);
 
-        for (const thisChildNode of initialView.children) {
-            // Find the resource of this UUID by scanning through
-            // *all* our UUIDs in `this.projectResourceList`. We
-            // add every resource to it in the .YYP.
-            const thisChildYY = this.projectResourceList[thisChildNode];
-            if (thisChildYY === undefined) continue;
+    //     for (const thisChildNode of initialView.children) {
+    //         // Find the resource of this UUID by scanning through
+    //         // *all* our UUIDs in `this.projectResourceList`. We
+    //         // add every resource to it in the .YYP.
+    //         const thisChildYY = this.projectResourceList[thisChildNode];
+    //         if (thisChildYY === undefined) continue;
 
-            // Walk down the UUID if it's a view, else store the YY file.
-            if (thisChildYY.modelName && thisChildYY.modelName == 'GMFolder') {
-                newChildren.push(this.walkViewTree(thisChildYY));
-            } else {
-                newChildren.push(thisChildYY);
-            }
-        }
+    //         // Walk down the UUID if it's a view, else store the YY file.
+    //         if (thisChildYY.modelName && thisChildYY.modelName == 'GMFolder') {
+    //             newChildren.push(this.walkViewTree(thisChildYY));
+    //         } else {
+    //             newChildren.push(thisChildYY);
+    //         }
+    //     }
 
-        finalView.children = newChildren;
-        return finalView;
-    }
+    //     finalView.children = newChildren;
+    //     return finalView;
+    // }
 
     public viewsGetInitialViews() {
         return this.viewsGetThisViewClient(this.views[this.defaultView].id);
@@ -779,19 +773,19 @@ export class FileSystem {
         return null;
     }
 
-    private constructGMLFolderFromGMFolder(init: Resource.GMFolder): GMLFolder {
-        return {
-            name: init.name,
-            mvc: init.mvc,
-            modelName: 'GMLFolder',
-            localisedFolderName: init.localisedFolderName,
-            isDefaultView: init.isDefaultView,
-            id: init.id,
-            folderName: init.folderName,
-            filterType: init.filterType,
-            children: []
-        };
-    }
+    // private constructGMLFolderFromGMFolder(init: Resource.GMFolder): GMLFolder {
+    //     return {
+    //         name: init.name,
+    //         mvc: init.mvc,
+    //         modelName: 'GMLFolder',
+    //         localisedFolderName: init.localisedFolderName,
+    //         isDefaultView: init.isDefaultView,
+    //         id: init.id,
+    //         folderName: init.folderName,
+    //         filterType: init.filterType,
+    //         children: []
+    //     };
+    // }
 
     private makePrettyFileNames(fn: string): string {
         // Special Case:
@@ -1696,7 +1690,6 @@ export class FileSystem {
 
         this.objects = {};
         this.scripts = {};
-        this.sprites = {};
         this.views = [];
 
         this.diagnosticDictionary = {};
