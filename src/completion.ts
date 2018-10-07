@@ -255,21 +255,6 @@ export class GMLCompletionProvider {
             });
         }
 
-        // Global Variables
-        if (thisWord == 'global') {
-            const globalList = this.reference.getGlobalVariables();
-            for (const thisGlob of globalList) {
-                workingArray.push({
-                    label: thisGlob,
-                    kind: CompletionItemKind.Interface,
-                    textEdit: {
-                        newText: thisGlob,
-                        range: Range.create(params.position, params.position)
-                    }
-                });
-            }
-        }
-
         // Enums
         const enumMembers = this.reference.enumGetMemberNames(thisWord);
         if (enumMembers) {

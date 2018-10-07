@@ -2,144 +2,56 @@ import { Range, Location, FoldingRangeKind, Position } from 'vscode-languageserv
 import { JSDOC, FileSystem } from './fileSystem';
 import { GMLVarParse } from './diagnostic';
 import URI from 'vscode-uri/lib/umd';
-import { GMLDocs, LanguageService, ResourceType } from './declarations';
+import {
+    GMLDocs,
+    LanguageService,
+    ResourceType,
+    IObjects,
+    IScriptsAndFunctions,
+    IEnum,
+    IMacro,
+    IURIRecord,
+    GMLDocOverrides,
+    GenericResourceModel,
+    IEachScript,
+    IOriginVar,
+    VariableRank,
+    IEnumMembers
+} from './declarations';
 import { FoldingRange } from 'vscode-languageserver-protocol/lib/protocol.foldingRange';
 import { LangServ } from './langserv';
 import { EventType, EventNumber } from 'yyp-typings';
 import { cleanArray, cleanArrayLength } from './utils';
+import { ProjectCache } from './initialStartup';
 
-export interface IScriptsAndFunctions {
-    [key: string]: IEachScript;
-}
-
-export interface IEachScript {
-    JSDOC: JSDOC;
-    uri?: URI;
-    callBackLocation?: number;
-    isBritish?: boolean;
-    referenceLocations: Array<Location>;
-}
-
-export interface IObjects {
-    [objectName: string]: IVars;
-}
-
-export interface IVars {
-    [variableName: string]: IVariable;
-}
-
-export interface GenericResourceModel {
-    origin: GenericOriginInformation;
-    referenceLocations: Array<Location>;
-}
-
-export interface GenericOriginInformation {
-    /**
-     * The index of origin refers to the index in the
-     * `referenceLocations` array in a GenericResourceModel.
-     */
-    indexOfOrigin: number | null;
-}
-
-export interface IVariable extends GenericResourceModel {
-    origin: IOriginVar;
-}
-
-export interface IOriginVar extends GenericOriginInformation {
-    indexOfOrigin: number;
-    varRank: VariableRank;
-    isSelf: boolean;
-}
-
-export interface IMacro extends GenericResourceModel {
-    origin: IMacroOrigin;
-}
-
-export interface IMacroOrigin extends GenericOriginInformation {
-    value: string;
-}
-
-interface IEnum extends GenericResourceModel {
-    origin: IEnumOrigin;
-}
-
-interface IEnumOrigin extends GenericOriginInformation {
-    enumMembers: { [name: string]: IEnumMembers };
-}
-
-interface IEnumMembers extends GenericResourceModel {
-    value: string;
-}
-
-export enum VariableRank {
-    Create,
-    BegStep,
-    Step,
-    EndStep,
-    Other,
-    Num
-}
-
-export interface URIRecord {
-    index: number;
+export interface GenericResourceDescription {
     name: string;
+    type: BasicResourceType;
 }
-
-export interface InstVarRecord extends URIRecord {
-    object: string;
-    isOrigin: boolean;
-}
-
-export interface EnumMemberRecord extends URIRecord {
-    /** This is the name of the Enum like ENUM in "ENUM.member" */
-    enumName: string;
-
-    /** This is the name of the enum member like MEMBER in "enum.MEMBER" */
-    name: string;
-}
-
-export interface IURIRecord {
-    localVariables: { [name: string]: GenericResourceModel };
-    instanceVariables: InstVarRecord[];
-    scriptsAndFunctions: URIRecord[];
-    foldingRanges: FoldingRange[];
-    macros: URIRecord[];
-    enums: URIRecord[];
-    enumMembers: EnumMemberRecord[];
-    implicitThisAtPosition: ThisPositionRecord[];
-}
-
-interface ThisPositionRecord {
-    position: Position;
-    objName: string;
-}
-
-interface GMLDocOverrides {
-    name: string;
-    originalEntry?: IEachScript;
-}
+declare type BasicResourceType =
+    | 'objects'
+    | 'scriptsAndFunctions'
+    | 'sprites'
+    | 'rooms'
+    | 'tilesets'
+    | 'fonts'
+    | 'extensions'
+    | 'shaders'
+    | 'sounds'
+    | 'timelines'
+    | 'paths';
 
 export class Reference {
     private lsp: LangServ;
     private objects: IObjects;
-    private objectList: Array<string>;
+    private objectList: string[];
     private scriptsAndFunctions: IScriptsAndFunctions;
-    private scriptsAndFunctionsList: Array<string>;
-    private globalVariables: IVars;
+    private scriptsAndFunctionsList: string[];
     private gmlDocs: GMLDocs.DocFile | undefined;
     private enums: { [uri: string]: IEnum };
     private macros: { [name: string]: IMacro };
-    private sprites: Array<string>;
-    private allResourceNames: Array<string>;
+    private projectResources: GenericResourceDescription[];
     private URIRecord: { [thisUri: string]: IURIRecord };
-    public rooms: string[];
-    public tilesets: string[];
-    public fonts: string[];
-    public extensions: string[];
-    public shaders: string[];
-    public sounds: string[];
-    public timeline: string[];
-    public paths: string[];
     private gmlDocOverrides: GMLDocOverrides[];
 
     constructor(lsp: LangServ) {
@@ -147,19 +59,9 @@ export class Reference {
         this.objectList = [];
         this.scriptsAndFunctions = {};
         this.scriptsAndFunctionsList = [];
-        this.globalVariables = {};
         this.enums = {};
         this.macros = {};
-        this.sprites = [];
-        this.allResourceNames = [];
-        this.tilesets = [];
-        this.fonts = [];
-        this.extensions = [];
-        this.shaders = [];
-        this.sounds = [];
-        this.timeline = [];
-        this.paths = [];
-        this.rooms = [];
+        this.projectResources = [];
         this.URIRecord = {};
         this.gmlDocOverrides = [];
         this.lsp = lsp;
@@ -236,38 +138,57 @@ export class Reference {
     }
 
     //#region All Resources
-    public addResource(name: string) {
-        this.allResourceNames.push(name);
+    public dumpCachedData(cache: ProjectCache.CachedReferences) {
+        this.objects = cache.object;
+        this.scriptsAndFunctions = cache.scriptsAndFunctions;
+        this.projectResources = cache.resources;
+    }
+
+    public addResource(resourceName: string, resourceType: BasicResourceType) {
+        this.projectResources.push({
+            name: resourceName,
+            type: resourceType
+        });
     }
 
     public deleteResource(name: string) {
-        const resourceLocation = this.allResourceNames.indexOf(name);
+        const resourceLocation = this.projectResources.findIndex((thisResource) => {
+            return thisResource.name === name;
+        });
 
         if (resourceLocation) {
-            this.allResourceNames.splice(resourceLocation, 1);
+            this.projectResources.splice(resourceLocation, 1);
         }
     }
 
     public getAllResources(): string[] {
-        return this.allResourceNames;
+        const returnable: string[] = [];
+
+        for (const thisResource of this.projectResources) {
+            returnable.push(thisResource.name);
+        }
+
+        return returnable;
+    }
+
+    public getAllResourceOfType(resourceType: BasicResourceType): string[] {
+        const returnable: string[] = [];
+
+        for (const thisResource of this.projectResources) {
+            if (thisResource.type === resourceType) returnable.push(thisResource.name);
+        }
+
+        return returnable;
     }
 
     public resourceExists(name: string): boolean {
-        return this.allResourceNames.includes(name);
-    }
+        const resourceExists = this.projectResources.find((thisResource) => {
+            return thisResource.name === name;
+        });
 
-    public clearAllData() {
-        this.objects = {};
-        this.objectList = [];
-        this.scriptsAndFunctions = {};
-        this.scriptsAndFunctionsList = [];
-        this.globalVariables = {};
-        this.enums = {};
-        this.sprites = [];
-        this.allResourceNames = [];
-        this.URIRecord = {};
-
-        if (this.gmlDocs) this.initGMLDocs(this.gmlDocs);
+        if (resourceExists) {
+            return true;
+        } else return false;
     }
 
     private createURIDictEntry(uri: string) {
@@ -831,16 +752,12 @@ export class Reference {
         return !(this.objects[objName] == undefined);
     }
 
-    public getAllObjectVariables(objName: string): Array<string> {
+    public getAllObjectVariables(objName: string): string[] {
         if (this.objects.hasOwnProperty(objName) == false) {
             return [];
         }
 
         return Object.getOwnPropertyNames(this.objects[objName]);
-    }
-
-    public getGlobalVariables() {
-        return Object.getOwnPropertyNames(this.globalVariables);
     }
 
     //#endregion
@@ -1172,7 +1089,7 @@ export class Reference {
     //#endregion
 
     //#region Macros
-    public getMacroList(): Array<string> {
+    public getMacroList(): string[] {
         return Object.getOwnPropertyNames(this.macros);
     }
 
@@ -1306,26 +1223,6 @@ export class Reference {
         this.URIRecord[uri].macros = [];
     }
 
-    //#endregion
-
-    //#region Sprites
-    public spriteAddSprite(name: string) {
-        this.sprites.push(name);
-    }
-
-    public spriteSpriteExists(name: string) {
-        return this.sprites.includes(name);
-    }
-
-    public spriteDeleteSprite(name: string) {
-        const thisIndex = this.sprites.indexOf(name);
-        if (thisIndex == -1) return;
-        this.sprites.splice(thisIndex, 1);
-    }
-
-    public spriteGetAllSprites() {
-        return this.sprites;
-    }
     //#endregion
 
     //#region General

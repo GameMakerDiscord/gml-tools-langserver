@@ -26,6 +26,7 @@ import { SemanticsOption, CreateObjPackage, LanguageService, GMLDocs, GMLToolsSe
 import { DocumentationImporter, FnamesParse } from './documentationImporter';
 import { EventsPackage } from './sharedTypes';
 import { FoldingRange } from 'vscode-languageserver-protocol/lib/protocol.foldingRange';
+import { InitialStartup } from './initialStartup';
 
 export class LangServ {
     readonly gmlGrammar: Grammar;
@@ -35,7 +36,7 @@ export class LangServ {
     public gmlSignatureProvider: GMLSignatureProvider;
     public gmlCompletionProvider: GMLCompletionProvider;
     public reference: Reference;
-    public documentationImporter: DocumentationImporter;
+    public initialStartup: InitialStartup;
     public timer: timeUtil;
     public userSettings: GMLToolsSettings.Config;
     private originalOpenDocuments: DidOpenTextDocumentParams[];
@@ -51,8 +52,8 @@ export class LangServ {
 
         // Create our tools:
         this.reference = new Reference(this);
-        this.documentationImporter = new DocumentationImporter(this, this.reference);
         this.fsManager = new FileSystem(this.gmlGrammar, this);
+        this.initialStartup = new InitialStartup(this.reference);
 
         //#region Language Services
         this.gmlHoverProvider = new GMLHoverProvider(this.reference, this.fsManager);
@@ -70,10 +71,7 @@ export class LangServ {
     }
 
     //#region Init
-    public async workspaceBegin(workspaceFolder: WorkspaceFolder[]) {
-        // Let the FileSystem do its index thing...
-        await this.fsManager.initialWorkspaceFolders(workspaceFolder);
-
+    public async workspaceBegin(workspaceFolder: WorkspaceFolder[]) { 
         // Check or Create the Manual:
         let ourManual: [GMLDocs.DocFile, FnamesParse] | null;
         let cacheManual = false;
@@ -84,7 +82,8 @@ export class LangServ {
             );
             ourManual = JSON.parse(encodedText);
         } catch (err) {
-            ourManual = await this.documentationImporter.createManual();
+            const docImporter = new DocumentationImporter(this, this.reference);
+            ourManual = await docImporter.createManual();
             cacheManual = true;
         }
 
@@ -106,8 +105,10 @@ export class LangServ {
             this.connection.window.showWarningMessage(
                 'Manual not correctly loaded. Please make sure GMS2 is\ninstalled correctly. If the error persists,\n please log an error on the Github page.'
             );
-            console.log('OH NO -- manual not found or loaded. Big errors.');
         }
+
+        // Index our YYP
+        await this.initialStartup.initializeWorkspaceFolders(workspaceFolder);
 
         // Create project-documentation
         if ((await this.fsManager.isFileCached('project-documentation.json')) == false) {
@@ -124,10 +125,6 @@ export class LangServ {
 
         // Assign our settings, per setting:
         this.gmlHoverProvider.numberOfSentences = this.userSettings.numberOfDocumentationSentences;
-    }
-
-    public async initialIndex() {
-        await this.fsManager.initialParseYYP();
     }
 
     public async findNewSettings(): Promise<{ [prop: string]: string }> {
@@ -447,11 +444,12 @@ export class LangServ {
         return this.fsManager.compile(type, yyc, output);
     }
 
-    public async forceReIndex() {
-        this.connection.window.showWarningMessage('Reindexing...Type services may be limited until index is complete.');
-        this.reference.clearAllData();
-        await this.fsManager.clearAllData();
-    }
+    // TODO Actually put force re-index into this project. It needs to be there!
+    // public async forceReIndex() {
+    //     this.connection.window.showWarningMessage('Reindexing...Type services may be limited until index is complete.');
+    //     this.reference.clearAllData();
+    //     await this.fsManager.clearAllData();
+    // }
 
     //#endregion
 

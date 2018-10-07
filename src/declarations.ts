@@ -1,6 +1,7 @@
 import { MacroPackage } from './diagnostic';
-import { CompletionItemKind } from 'vscode-languageserver';
-
+import { CompletionItemKind, FoldingRange, Location, Position } from 'vscode-languageserver';
+import { JSDOC } from './fileSystem';
+import URI from 'vscode-uri';
 
 export const enum SpecialDocTypes {
     Constant = '#',
@@ -183,3 +184,116 @@ export declare type ResourceNames =
     | 'extensions'
     | 'shaders'
     | 'datafiles_yy';
+
+// Reference
+
+export interface IScriptsAndFunctions {
+    [key: string]: IEachScript;
+}
+
+export interface IEachScript {
+    JSDOC: JSDOC;
+    uri?: URI;
+    callBackLocation?: number;
+    isBritish?: boolean;
+    referenceLocations: Array<Location>;
+}
+
+export interface IObjects {
+    [objectName: string]: IVars;
+}
+
+export interface IVars {
+    [variableName: string]: IVariable;
+}
+
+export interface GenericResourceModel {
+    origin: GenericOriginInformation;
+    referenceLocations: Array<Location>;
+}
+
+export interface GenericOriginInformation {
+    /**
+     * The index of origin refers to the index in the
+     * `referenceLocations` array in a GenericResourceModel.
+     */
+    indexOfOrigin: number | null;
+}
+
+export interface IVariable extends GenericResourceModel {
+    origin: IOriginVar;
+}
+
+export interface IOriginVar extends GenericOriginInformation {
+    indexOfOrigin: number;
+    varRank: VariableRank;
+    isSelf: boolean;
+}
+
+export interface IMacro extends GenericResourceModel {
+    origin: IMacroOrigin;
+}
+
+export interface IMacroOrigin extends GenericOriginInformation {
+    value: string;
+}
+
+export interface IEnum extends GenericResourceModel {
+    origin: IEnumOrigin;
+}
+
+export interface IEnumOrigin extends GenericOriginInformation {
+    enumMembers: { [name: string]: IEnumMembers };
+}
+
+export interface IEnumMembers extends GenericResourceModel {
+    value: string;
+}
+
+export enum VariableRank {
+    Create,
+    BegStep,
+    Step,
+    EndStep,
+    Other,
+    Num
+}
+
+export interface URIRecord {
+    index: number;
+    name: string;
+}
+
+export interface InstVarRecord extends URIRecord {
+    object: string;
+    isOrigin: boolean;
+}
+
+export interface EnumMemberRecord extends URIRecord {
+    /** This is the name of the Enum like ENUM in "ENUM.member" */
+    enumName: string;
+
+    /** This is the name of the enum member like MEMBER in "enum.MEMBER" */
+    name: string;
+}
+
+export interface IURIRecord {
+    localVariables: { [name: string]: GenericResourceModel };
+    instanceVariables: InstVarRecord[];
+    scriptsAndFunctions: URIRecord[];
+    foldingRanges: FoldingRange[];
+    macros: URIRecord[];
+    enums: URIRecord[];
+    enumMembers: EnumMemberRecord[];
+    implicitThisAtPosition: ThisPositionRecord[];
+}
+
+export interface ThisPositionRecord {
+    position: Position;
+    objName: string;
+}
+
+export interface GMLDocOverrides {
+    name: string;
+    originalEntry?: IEachScript;
+}

@@ -65,12 +65,6 @@ connection.onInitialize((params) => {
 connection.onInitialized(async () => {
     // Register for configuration changes:
     connection.client.register(DidChangeConfigurationNotification.type);
-
-    // Perform initial index:
-    await ls.initialIndex();
-
-    // Let the Client Know:
-    connection.sendNotification('indexComplete');
 });
 
 //#region Commands
@@ -81,7 +75,7 @@ const ADD_EVENTS = new RequestType0<EventsPackage | null, void, void>('addEvents
 connection.onExecuteCommand(async (params) => {
     switch (params.command) {
         case 'GMLTools.createObject':
-            const ourSprites = ls.reference.spriteGetAllSprites().slice();
+            const ourSprites = ls.reference.getAllResourceOfType("sprites");
             ourSprites.push('No Sprite');
             const objInfo = await connection.sendRequest(CREATE_OBJECT, { sprites: ourSprites });
 
@@ -122,9 +116,9 @@ connection.onExecuteCommand(async (params) => {
             );
             break;
 
-        case 'GMLTools.forceReindex':
-            ls.forceReIndex();
-            break;
+        // case 'GMLTools.forceReindex':
+        //     ls.forceReIndex();
+        //     break;
     }
 });
 
