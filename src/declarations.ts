@@ -1,4 +1,3 @@
-import { MacroPackage } from './diagnostic';
 import { CompletionItemKind, FoldingRange, Location, Position } from 'vscode-languageserver';
 import { JSDOC } from './fileSystem';
 import URI from 'vscode-uri';
@@ -9,12 +8,6 @@ export const enum SpecialDocTypes {
     InstVar = '@',
     Obsolete = '&',
     Script = '!'
-}
-
-export const enum ResourceType {
-    Object = 0,
-    Script = 1,
-    Sprite = 2
 }
 
 export interface Token {
@@ -85,8 +78,6 @@ export interface AddEventsPackage {
     uri: string;
     events: string[];
 }
-
-export type enumsMacros = [string[], MacroPackage[]];
 
 export type OtherResources = [string[], CompletionItemKind];
 

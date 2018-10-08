@@ -1,4 +1,4 @@
-import { Reference, GenericResourceDescription } from './reference';
+import { Reference, GenericResourceDescription, BasicResourceType } from './reference';
 import { WorkspaceFolder } from 'vscode-languageserver';
 import URI from 'vscode-uri';
 import * as fse from 'fs-extra';
@@ -6,7 +6,11 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as upath from 'upath';
 import { YYP, Resource, EventType } from 'yyp-typings';
-import { IURIRecord, IObjects, IScriptsAndFunctions, IEnum, IMacro } from './declarations';
+import { IURIRecord, IObjects, IScriptsAndFunctions, IEnum, IMacro, SemanticsOption } from './declarations';
+import { DocumentFolders, EventInfo, DocumentFolder, GMLFolder } from './fileSystem';
+import { DiagnosticHandler } from './diagnostic';
+import { Grammar } from 'ohm-js';
+import { LangServ } from './langserv';
 
 export namespace ProjectCache {
     export interface Cache {
@@ -31,7 +35,20 @@ export namespace ProjectCache {
     }
 }
 
-export class InitialStartup {
+export interface InitialStartupHandOffPackage {
+    Views: {
+        Folders: GMLFolder[];
+        Default: number;
+    };
+    Documents: DocumentFolders;
+    YYPInformation: {
+        ProjectDirectory: string;
+        TopLevelDirectories: string[];
+        ProjectYYPPath: string;
+    };
+}
+
+export class InitialAndShutdown {
     reference: Reference;
     projectDirectory: string;
     topLevelDirectories: string[];
@@ -39,8 +56,11 @@ export class InitialStartup {
     projectYYPPath: string;
     projectCache: ProjectCache.Cache;
     ourHash: crypto.Hash;
+    documents: DocumentFolders;
+    grammar: Grammar;
+    lsp: LangServ;
 
-    constructor(ref: Reference) {
+    constructor(ref: Reference, grammar: Grammar, lsp: LangServ) {
         // General Project Properties
         this.projectDirectory = '';
         this.topLevelDirectories = [];
@@ -59,11 +79,14 @@ export class InitialStartup {
             }
         };
 
-        // Reference
+        // Other Modules
         this.reference = ref;
+        this.grammar = grammar;
+        this.lsp = lsp;
 
         // Tools
         this.ourHash = crypto.createHash('sha1');
+        this.documents = {};
     }
 
     public async initialWorkspaceFolders(workspaceFolder: WorkspaceFolder[]) {
@@ -154,7 +177,7 @@ export class InitialStartup {
             projectYYs.push(yyFile);
         }
 
-        // ! Step Two: Make a queue of all the GML files in the project:
+        // ! Step Two: Make a queue of all the GML files in the project, adding to the documents:
         let ourGMLFPaths: string[] = [];
         for (const thisYY of projectYYs) {
             const theseFPaths = await this.initialGetGMLFiles(thisYY);
@@ -175,9 +198,10 @@ export class InitialStartup {
             const ourURIRecord = this.projectCache.URIRecords;
 
             // Check our URIRecord
-            if (ourURIRecord[URI.parse(thisFPath).toString()].hash !== thisHash) {
-                if (fileBuffer.includes('#macro') || fileBuffer.includes('enum')) {
-                    // TODO Parse this file
+            const ourURI = URI.file(thisFPath).toString();
+            if (ourURIRecord[ourURI].hash !== thisHash) {
+                if (fileText.includes('#macro') || fileText.includes('enum')) {
+                    await this.initialGMLParse(ourURI, fileText);
                 } else {
                     filesToParse.push({
                         fpath: thisFPath,
@@ -196,6 +220,7 @@ export class InitialStartup {
 
         // ! Step Four: Parse everything else!
         for (const thisFile of filesToParse) {
+            const ourURI = URI.file(thisFile.fpath).toString();
             // Passed Hash Check:
             if (thisFile.passedHash) {
                 if (
@@ -206,16 +231,73 @@ export class InitialStartup {
                         return thisFile.fullText.includes(thisMacro);
                     })
                 ) {
-                    // TODO Parse this file
+                    this.initialGMLParse(ourURI, thisFile.fullText);
                 } else {
-                    // TODO Dump the URI of this File
+                    this.reference.dumpCachedURIRecord(this.projectCache.URIRecords[ourURI], ourURI);
                 }
             } else {
-                // TODO Parse this file
+                this.initialGMLParse(ourURI, thisFile.fullText);
             }
         }
 
         // ! Step Five: Return an object to the LangServ for the FS
+    }
+
+    private async initialGMLParse(thisURI: string, fullTextDocument: string) {
+        // Fill our our Document Folder
+        const ourDocFolder = await this.documentInitFText(thisURI, fullTextDocument);
+        if (!ourDocFolder.diagnosticHandler) return;
+        ourDocFolder.diagnosticHandler.setInput(fullTextDocument);
+
+        // Figure out the Semantics To Run:
+        let ourSemantics = SemanticsOption.Function | SemanticsOption.Variable;
+
+        if (ourDocFolder.type === 'GMScript') {
+            ourSemantics = SemanticsOption.All;
+        }
+        await this.lsp.lint(ourDocFolder.diagnosticHandler, ourSemantics);
+    }
+
+    private async documentCreateDocumentFolder(
+        path: string,
+        name: string,
+        type: BasicResourceType,
+        eventEntry?: EventInfo
+    ) {
+        let uri = URI.file(path).toString();
+
+        const thisDocFolder: DocumentFolder = {
+            name: name,
+            type: type,
+            file: '',
+            diagnosticHandler: null
+        };
+
+        if (eventEntry) {
+            thisDocFolder.eventInfo = eventEntry;
+        }
+
+        this.documents[uri] = thisDocFolder;
+    }
+
+    private async documentInitFText(thisURI: string, fullText: string): Promise<DocumentFolder> {
+        // Create our File
+        const thisDocFolder = this.documents[thisURI];
+        if (thisDocFolder) {
+            thisDocFolder.file = fullText;
+        } else {
+            console.log('Document:' + thisURI + ' has no document Folder to set this text to!');
+            return thisDocFolder;
+        }
+
+        // Create our Diagnostic Handler
+        thisDocFolder.diagnosticHandler = new DiagnosticHandler(this.grammar, thisURI, this.reference);
+
+        // Create our URI Dictionary
+        this.reference.createURIDictEntry(thisURI);
+
+        // Return our File-Folder
+        return thisDocFolder;
     }
 
     private async initialParseYYFile(yyFile: Resource.GMResource) {
@@ -234,8 +316,16 @@ export class InitialStartup {
             const ourReturn = [];
 
             for (const thisEvent of yyFile.eventList) {
+                // Get the Filename
                 const fileName = this.convertEventEnumToFPath(thisEvent);
-                ourReturn.push(path.join(this.projectDirectory, 'objects', yyFile.name, fileName));
+                const fullPath = path.join(this.projectDirectory, 'objects', yyFile.name, fileName);
+                ourReturn.push(fullPath);
+
+                // Add to our Documents
+                this.documentCreateDocumentFolder(fullPath, yyFile.name, 'GMObject', {
+                    eventNumb: thisEvent.enumb,
+                    eventType: thisEvent.eventtype
+                });
             }
 
             return ourReturn;
@@ -243,7 +333,22 @@ export class InitialStartup {
 
         // * Scripts
         if (yyFile.modelName === 'GMScript') {
-            return [path.join(this.projectDirectory, 'scripts', yyFile.name, yyFile.name + '.gml')];
+            // Add to our Documents
+            const ourPath = path.join(this.projectDirectory, 'scripts', yyFile.name, yyFile.name + '.gml');
+            this.documentCreateDocumentFolder(ourPath, yyFile.name, 'GMScript');
+
+            return [ourPath];
+        }
+
+        // * Views
+        if (yyFile.modelName === 'GMFolder') {
+            // Check if we're a Root:
+            if (yyFile.filterType == 'root') {
+                rootViews.push(viewYY);
+            } else {
+                // Add to UUID Dict
+                this.projectResourceList[viewYY.id] = viewYY;
+            }
         }
 
         // TODO Extension support

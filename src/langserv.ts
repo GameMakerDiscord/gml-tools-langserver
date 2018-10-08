@@ -22,11 +22,10 @@ import { Reference } from './reference';
 import { GMLDefinitionProvider } from './definition';
 import { GMLSignatureProvider } from './signature';
 import { GMLCompletionProvider } from './completion';
-import { SemanticsOption, CreateObjPackage, LanguageService, GMLDocs, GMLToolsSettings } from './declarations';
+import { SemanticsOption, LanguageService, GMLDocs, GMLToolsSettings } from './declarations';
 import { DocumentationImporter, FnamesParse } from './documentationImporter';
-import { EventsPackage } from './sharedTypes';
 import { FoldingRange } from 'vscode-languageserver-protocol/lib/protocol.foldingRange';
-import { InitialStartup } from './initialStartup';
+import { InitialAndShutdown } from './startAndShutdown';
 
 export class LangServ {
     readonly gmlGrammar: Grammar;
@@ -36,7 +35,7 @@ export class LangServ {
     public gmlSignatureProvider: GMLSignatureProvider;
     public gmlCompletionProvider: GMLCompletionProvider;
     public reference: Reference;
-    public initialStartup: InitialStartup;
+    public initialStartup: InitialAndShutdown;
     public timer: timeUtil;
     public userSettings: GMLToolsSettings.Config;
     private originalOpenDocuments: DidOpenTextDocumentParams[];
@@ -53,7 +52,7 @@ export class LangServ {
         // Create our tools:
         this.reference = new Reference(this);
         this.fsManager = new FileSystem(this.gmlGrammar, this);
-        this.initialStartup = new InitialStartup(this.reference);
+        this.initialStartup = new InitialAndShutdown(this.reference, this.gmlGrammar, this);
 
         //#region Language Services
         this.gmlHoverProvider = new GMLHoverProvider(this.reference, this.fsManager);
@@ -317,7 +316,7 @@ export class LangServ {
         if (!matchResults) return;
         const ourJSDOC = await thisDiagnostic.runSemanticJSDOC(matchResults, docInfo.name);
 
-        this.reference.scriptAddJSDOC(docInfo., ourJSDOC);
+        this.reference.scriptAddJSDOC(docInfo.name, ourJSDOC);
     }
     //#endregion
 
@@ -371,74 +370,74 @@ export class LangServ {
     //#endregion
 
     //#region Commands
-    public async createObject(objectPackage: CreateObjPackage) {
-        // Basic Conversions straight here:
-        if (typeof objectPackage.objectEvents == 'string') {
-            objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(',');
-            objectPackage.objectEvents = objectPackage.objectEvents.map(function(x) {
-                return x.trim();
-            });
-        }
+    // public async createObject(objectPackage: CreateObjPackage) {
+    //     // Basic Conversions straight here:
+    //     if (typeof objectPackage.objectEvents == 'string') {
+    //         objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(',');
+    //         objectPackage.objectEvents = objectPackage.objectEvents.map(function(x) {
+    //             return x.trim();
+    //         });
+    //     }
 
-        objectPackage.objectName = objectPackage.objectName.trim();
+    //     objectPackage.objectName = objectPackage.objectName.trim();
 
-        // Valid name
-        if (this.isValidResourceName(objectPackage.objectName) == false) {
-            this.connection.window.showErrorMessage(
-                'Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9.'
-            );
-            return;
-        }
+    //     // Valid name
+    //     if (this.isValidResourceName(objectPackage.objectName) == false) {
+    //         this.connection.window.showErrorMessage(
+    //             'Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9.'
+    //         );
+    //         return;
+    //     }
 
-        // Check for duplicate resources:
-        if (this.resourceExistsAlready(objectPackage.objectName)) {
-            this.connection.window.showErrorMessage('Invalid object name given. Resource already exists.');
-            return;
-        }
+    //     // Check for duplicate resources:
+    //     if (this.resourceExistsAlready(objectPackage.objectName)) {
+    //         this.connection.window.showErrorMessage('Invalid object name given. Resource already exists.');
+    //         return;
+    //     }
 
-        // If we made it here, send to the FS for the rest.
-        const ourGMLFilePath = await this.fsManager.createObject(objectPackage);
-        if (ourGMLFilePath) {
-            this.connection.sendNotification('goToURI', ourGMLFilePath);
-        }
-    }
+    //     // If we made it here, send to the FS for the rest.
+    //     const ourGMLFilePath = await this.fsManager.createObject(objectPackage);
+    //     if (ourGMLFilePath) {
+    //         this.connection.sendNotification('goToURI', ourGMLFilePath);
+    //     }
+    // }
 
-    public async createScript(scriptName: string) {
-        // Basic Check
-        if (this.isValidResourceName(scriptName) == false) {
-            this.connection.window.showErrorMessage(
-                'Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9.'
-            );
-            return;
-        }
+    // public async createScript(scriptName: string) {
+    //     // Basic Check
+    //     if (this.isValidResourceName(scriptName) == false) {
+    //         this.connection.window.showErrorMessage(
+    //             'Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9.'
+    //         );
+    //         return;
+    //     }
 
-        // Check for duplicate resources:
-        if (this.resourceExistsAlready(scriptName)) {
-            this.connection.window.showErrorMessage('Invalid script name given. Resource already exists.');
-            return;
-        }
+    //     // Check for duplicate resources:
+    //     if (this.resourceExistsAlready(scriptName)) {
+    //         this.connection.window.showErrorMessage('Invalid script name given. Resource already exists.');
+    //         return;
+    //     }
 
-        const ourGMLFilePath = await this.fsManager.createScript(scriptName);
-        if (ourGMLFilePath) {
-            this.connection.sendNotification('goToURI', ourGMLFilePath);
-        }
-    }
+    //     const ourGMLFilePath = await this.fsManager.createScript(scriptName);
+    //     if (ourGMLFilePath) {
+    //         this.connection.sendNotification('goToURI', ourGMLFilePath);
+    //     }
+    // }
 
-    public async addEvents(events: EventsPackage) {
-        let eventsArray = events.events.toLowerCase().split(',');
-        eventsArray = eventsArray.map(function(x) {
-            return x.trim();
-        });
+    // public async addEvents(events: EventsPackage) {
+    //     let eventsArray = events.events.toLowerCase().split(',');
+    //     eventsArray = eventsArray.map(function(x) {
+    //         return x.trim();
+    //     });
 
-        // Send it to fs_manager
-        const ourGMLFilePath = await this.fsManager.addEvents({
-            events: eventsArray,
-            uri: events.uri
-        });
-        if (ourGMLFilePath) {
-            this.connection.sendNotification('goToURI', ourGMLFilePath);
-        }
-    }
+    //     // Send it to fs_manager
+    //     const ourGMLFilePath = await this.fsManager.addEvents({
+    //         events: eventsArray,
+    //         uri: events.uri
+    //     });
+    //     if (ourGMLFilePath) {
+    //         this.connection.sendNotification('goToURI', ourGMLFilePath);
+    //     }
+    // }
 
     public beginCompile(type: 'test' | 'zip' | 'installer', yyc: boolean, output?: string) {
         return this.fsManager.compile(type, yyc, output);
@@ -476,13 +475,13 @@ export class LangServ {
         }
     }
 
-    private isValidResourceName(name: string) {
-        return /^[a-z_]+[a-z0-9_]*$/i.test(name);
-    }
+    // private isValidResourceName(name: string) {
+    //     return /^[a-z_]+[a-z0-9_]*$/i.test(name);
+    // }
 
-    private resourceExistsAlready(name: string) {
-        return this.reference.resourceExists(name);
-    }
+    // private resourceExistsAlready(name: string) {
+    //     return this.reference.resourceExists(name);
+    // }
 
     //#endregion
 }

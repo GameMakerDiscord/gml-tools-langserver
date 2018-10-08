@@ -16,7 +16,7 @@ import {
     RequestType0
 } from 'vscode-languageserver/lib/main';
 import { LangServ } from './langserv';
-import { ClientViewNode, EventsPackage } from './sharedTypes';
+import { ClientViewNode } from './sharedTypes';
 import { CreateObjPackage } from './declarations';
 
 // Create a connection for the server. The connection uses Node's IPC as a transport
@@ -70,18 +70,18 @@ connection.onInitialized(async () => {
 //#region Commands
 const CREATE_OBJECT = new RequestType<{ sprites: string[] }, CreateObjPackage | null, void, void>('createObject');
 const CREATE_SCRIPT = new RequestType0<string | null, void, void>('createScript');
-const ADD_EVENTS = new RequestType0<EventsPackage | null, void, void>('addEvents');
+// const ADD_EVENTS = new RequestType0<EventsPackage | null, void, void>('addEvents');
 
 connection.onExecuteCommand(async (params) => {
     switch (params.command) {
         case 'GMLTools.createObject':
-            const ourSprites = ls.reference.getAllResourceOfType("sprites");
+            const ourSprites = ls.reference.getAllResourceOfType('GMSprite');
             ourSprites.push('No Sprite');
             const objInfo = await connection.sendRequest(CREATE_OBJECT, { sprites: ourSprites });
 
             // Actually Create the Object
             if (objInfo) {
-                ls.createObject(objInfo);
+                // ls.createObject(objInfo);
             }
             break;
 
@@ -90,13 +90,13 @@ connection.onExecuteCommand(async (params) => {
 
             // Actually Create the Script
             if (myScript) {
-                ls.createScript(myScript);
+                // ls.createScript(myScript);
             }
             break;
 
         case 'GMLTools.addEvents':
-            const ourEvents: any = await connection.sendRequest(ADD_EVENTS);
-            ls.addEvents(ourEvents);
+            // const ourEvents: any = await connection.sendRequest(ADD_EVENTS);
+            // ls.addEvents(ourEvents);
             break;
 
         case 'GMLTools.compileTestVM':

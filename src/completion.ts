@@ -11,7 +11,7 @@ import {
     MarkupKind
 } from 'vscode-languageserver';
 import { getWordAtPositionFS } from './utils';
-import { ResourceType, OtherResources } from './declarations';
+import { OtherResources } from './declarations';
 
 export class GMLCompletionProvider {
     private completionList: CompletionList;
@@ -63,7 +63,7 @@ export class GMLCompletionProvider {
         const docInformation = await this.fs.getDocumentFolder(params.textDocument.uri);
 
         // Iterate on the Instance Variables:
-        if (docInformation && docInformation.type == ResourceType.Object) {
+        if (docInformation && docInformation.type == 'GMObject') {
             const variableList = this.reference.getAllObjectVariables(docInformation.name);
 
             for (const thisVar of variableList) {
@@ -187,30 +187,17 @@ export class GMLCompletionProvider {
             }
         }
 
-        // Sprites
-        for (const thisSprite of this.reference.spriteGetAllSprites()) {
-            if (thisSprite.match(rx) !== null) {
-                workingArray.push({
-                    label: thisSprite,
-                    kind: CompletionItemKind.Color,
-                    textEdit: {
-                        newText: thisSprite.replace(thisWord, ''),
-                        range: thisRange
-                    }
-                });
-            }
-        }
-
         // All other resources:
-        let otherResources: OtherResources[] = [];
-        otherResources.push([this.reference.tilesets, CompletionItemKind.Struct]);
-        otherResources.push([this.reference.sounds, CompletionItemKind.Interface]);
-        otherResources.push([this.reference.paths, CompletionItemKind.Unit]);
-        otherResources.push([this.reference.shaders, CompletionItemKind.Event]);
-        otherResources.push([this.reference.fonts, CompletionItemKind.TypeParameter]);
-        otherResources.push([this.reference.timeline, CompletionItemKind.Keyword]);
-        otherResources.push([this.reference.rooms, CompletionItemKind.Folder]);
-        otherResources.push([this.reference.extensions, CompletionItemKind.Operator]);
+        const otherResources: OtherResources[] = [];
+        otherResources.push([this.reference.getAllResourceOfType("GMSprite"), CompletionItemKind.Color])
+        otherResources.push([this.reference.getAllResourceOfType("GMTileSet"), CompletionItemKind.Struct]);
+        otherResources.push([this.reference.getAllResourceOfType("GMSound"), CompletionItemKind.Interface]);
+        otherResources.push([this.reference.getAllResourceOfType("GMPath"), CompletionItemKind.Unit]);
+        otherResources.push([this.reference.getAllResourceOfType("GMShader"), CompletionItemKind.Event]);
+        otherResources.push([this.reference.getAllResourceOfType("GMFont"), CompletionItemKind.TypeParameter]);
+        otherResources.push([this.reference.getAllResourceOfType("GMTimeline"), CompletionItemKind.Keyword]);
+        otherResources.push([this.reference.getAllResourceOfType("GMRoom"), CompletionItemKind.Folder]);
+        otherResources.push([this.reference.getAllResourceOfType("GMExtension"), CompletionItemKind.Operator]);
 
         // Other Resource Double Loop
         for (const thisResourceType of otherResources) {

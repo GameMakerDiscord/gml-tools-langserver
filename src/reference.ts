@@ -5,7 +5,6 @@ import URI from 'vscode-uri/lib/umd';
 import {
     GMLDocs,
     LanguageService,
-    ResourceType,
     IObjects,
     IScriptsAndFunctions,
     IEnum,
@@ -22,13 +21,13 @@ import { FoldingRange } from 'vscode-languageserver-protocol/lib/protocol.foldin
 import { LangServ } from './langserv';
 import { EventType, EventNumber } from 'yyp-typings';
 import { cleanArray, cleanArrayLength } from './utils';
-import { ProjectCache } from './initialStartup';
+import { ProjectCache } from './startAndShutdown';
 
 export interface GenericResourceDescription {
     name: string;
     type: BasicResourceType;
 }
-declare type BasicResourceType =
+export declare type BasicResourceType =
     | 'GMObject'
     | 'GMScript'
     | 'GMSprite'
@@ -147,6 +146,10 @@ export class Reference {
         this.macros = cache.macros;
     }
 
+    public dumpCachedURIRecord(cachedRecord: IURIRecord, thisURI: string) {
+        this.URIRecord[thisURI] = cachedRecord;
+    }
+
     public addResource(resourceName: string, resourceType: BasicResourceType) {
         this.projectResources.push({
             name: resourceName,
@@ -202,7 +205,7 @@ export class Reference {
         } else return false;
     }
 
-    private createURIDictEntry(uri: string) {
+    public createURIDictEntry(uri: string) {
         this.URIRecord[uri] = {
             localVariables: {},
             foldingRanges: [],
@@ -674,7 +677,7 @@ export class Reference {
             if (!thisVar) continue;
 
             const thisURIInfo = await fsManager.getDocumentFolder(thisVar.uri);
-            if (!thisURIInfo || !thisURIInfo.eventInfo || thisURIInfo.type !== ResourceType.Object) continue;
+            if (!thisURIInfo || !thisURIInfo.eventInfo || thisURIInfo.type !== 'GMObject') continue;
             const isSelf = thisURIInfo.name == objName;
             if (bestCandidate.isSelf == true && isSelf == false) continue;
 

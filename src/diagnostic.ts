@@ -8,9 +8,9 @@ import {
     getPositionFromIndex,
     regexLastIndexOf
 } from './utils';
-import { Reference, VariableRank } from './reference';
+import { Reference } from './reference';
 import { JSDOC, JSDOCParameter, DocumentFolder } from './fileSystem';
-import { Token } from './declarations';
+import { Token, VariableRank } from './declarations';
 import { EventType, EventNumber } from 'yyp-typings';
 
 export enum EIterArray {
