@@ -143,6 +143,8 @@ export class Reference {
         this.objects = cache.object;
         this.scriptsAndFunctions = cache.scriptsAndFunctions;
         this.projectResources = cache.resources;
+        this.enums = cache.enums;
+        this.macros = cache.macros;
     }
 
     public addResource(resourceName: string, resourceType: BasicResourceType) {

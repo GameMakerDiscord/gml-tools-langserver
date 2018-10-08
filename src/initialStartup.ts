@@ -11,6 +11,7 @@ import { IURIRecord, IObjects, IScriptsAndFunctions, IEnum, IMacro } from './dec
 export namespace ProjectCache {
     export interface Cache {
         URIRecords: CacheURIRecords;
+        CachedReference: CachedReferences;
     }
 
     export interface CacheURIRecords {
@@ -48,7 +49,14 @@ export class InitialStartup {
         this.projectYYP = null;
         this.projectYYPPath = '';
         this.projectCache = {
-            URIRecords: {}
+            URIRecords: {},
+            CachedReference: {
+                enums: {},
+                macros: {},
+                object: {},
+                scriptsAndFunctions: {},
+                resources: []
+            }
         };
 
         // Reference
@@ -115,14 +123,17 @@ export class InitialStartup {
          *
          * * 3. We do a preliminary pass on each file in the queue. If they match the
          * *    hash before, we skip it. If the hash doesn't match, or we don't have a hash,
-         * *    we index from scratch.
+         * *    we check if there's a macro or enum declaration. If so, we index that file.
          *
-         * * 4. We hash the file and check our save of the hash. If it's valid,
-         * *    then we dump our saved contents and continue on our merry way. Otherwise,
-         * *    we reparse the file and throw our save away.
+         * * 4. We check our hash again, then we dump our saved contents and continue on our
+         * *    merry way if it passed. If it includes a new Enum or Macro, we throw our save away.
+         * *    If the hash didn't match, we reparse again as well!
          *
          * * 5. We pass our YYP off to the langserv, which passes it to the FS. And, we outie!
          */
+
+        // ! Step Zero: Dump the Reference from the Cache
+        this.reference.dumpCachedData(this.projectCache.CachedReference);
 
         // ! Step One: Index the YYP Resources, so we have all resource names:
         const projectYYs: Resource.GMResource[] = [];
@@ -144,10 +155,67 @@ export class InitialStartup {
         }
 
         // ! Step Two: Make a queue of all the GML files in the project:
-        const ourGMLFilePath: string[] = [];
+        let ourGMLFPaths: string[] = [];
         for (const thisYY of projectYYs) {
-            const ourGMLFiles = await this.initialGetGMLFiles(thisYY);
+            const theseFPaths = await this.initialGetGMLFiles(thisYY);
+            ourGMLFPaths = ourGMLFPaths.concat(theseFPaths);
         }
+
+        // ! Step Three: Do a pass on the queue for macros and enums
+        const filesToParse: { fullText: string; fpath: string; passedHash: boolean }[] = [];
+        const enumsAdded: string[] = [];
+        const macrosAdded: string[] = [];
+
+        for (const thisFPath of ourGMLFPaths) {
+            // Load everything into memory
+            const fileBuffer = await fse.readFile(thisFPath);
+            const thisHash = this.ourHash.update(fileBuffer).digest('base64');
+            const fileText = fileBuffer.toString('utf8');
+
+            const ourURIRecord = this.projectCache.URIRecords;
+
+            // Check our URIRecord
+            if (ourURIRecord[URI.parse(thisFPath).toString()].hash !== thisHash) {
+                if (fileBuffer.includes('#macro') || fileBuffer.includes('enum')) {
+                    // TODO Parse this file
+                } else {
+                    filesToParse.push({
+                        fpath: thisFPath,
+                        fullText: fileText,
+                        passedHash: false
+                    });
+                }
+            } else {
+                filesToParse.push({
+                    fpath: thisFPath,
+                    fullText: fileText,
+                    passedHash: true
+                });
+            }
+        }
+
+        // ! Step Four: Parse everything else!
+        for (const thisFile of filesToParse) {
+            // Passed Hash Check:
+            if (thisFile.passedHash) {
+                if (
+                    enumsAdded.some((thisEnumStatement) => {
+                        return thisFile.fullText.includes(thisEnumStatement);
+                    }) ||
+                    macrosAdded.some((thisMacro) => {
+                        return thisFile.fullText.includes(thisMacro);
+                    })
+                ) {
+                    // TODO Parse this file
+                } else {
+                    // TODO Dump the URI of this File
+                }
+            } else {
+                // TODO Parse this file
+            }
+        }
+
+        // ! Step Five: Return an object to the LangServ for the FS
     }
 
     private async initialParseYYFile(yyFile: Resource.GMResource) {
@@ -161,58 +229,70 @@ export class InitialStartup {
     }
 
     private async initialGetGMLFiles(yyFile: Resource.GMResource): Promise<string[]> {
-        // Early exit
+        // * Objects
         if (yyFile.modelName === 'GMObject') {
             const ourReturn = [];
-            
-            
+
+            for (const thisEvent of yyFile.eventList) {
+                const fileName = this.convertEventEnumToFPath(thisEvent);
+                ourReturn.push(path.join(this.projectDirectory, 'objects', yyFile.name, fileName));
+            }
+
+            return ourReturn;
         }
+
+        // * Scripts
+        if (yyFile.modelName === 'GMScript') {
+            return [path.join(this.projectDirectory, 'scripts', yyFile.name, yyFile.name + '.gml')];
+        }
+
+        // TODO Extension support
+
+        // TODO Support for Room Creation Code
+
+        // TODO Support for Instance Creation Code
 
         return [];
     }
 
-
-    private convertEventEnumToFPath(thisEvent: Resource.ObjectEvent, dirPath: string): string {
+    private convertEventEnumToFPath(thisEvent: Resource.ObjectEvent): string {
         switch (thisEvent.eventtype) {
             case EventType.Create:
-                return path.join(dirPath, 'Create_0.gml');
+                return 'Create_0.gml';
             case EventType.Alarm:
-                return path.join(dirPath, 'Alarm_' + thisEvent.enumb.toString() + '.gml');
+                return 'Alarm_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Destroy:
-                return path.join(dirPath, 'Destroy_0.gml');
+                return 'Destroy_0.gml';
             case EventType.Step:
-                return path.join(dirPath, 'Step_' + thisEvent.enumb.toString() + '.gml');
+                return 'Step_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Collision:
-                return path.join(dirPath, 'Collision_' + thisEvent.id + '.gml');
+                return 'Collision_' + thisEvent.id + '.gml';
             case EventType.Keyboard:
-                return path.join(dirPath, 'Keyboard_' + thisEvent.enumb.toString() + '.gml');
+                return 'Keyboard_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Mouse:
-                return path.join(dirPath, 'Mouse_' + thisEvent.enumb.toString() + '.gml');
+                return 'Mouse_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Other:
-                return path.join(dirPath, 'Other_' + thisEvent.enumb.toString() + '.gml');
+                return 'Other_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Draw:
-                return path.join(dirPath, 'Draw_' + thisEvent.enumb.toString() + '.gml');
+                return 'Draw_' + thisEvent.enumb.toString() + '.gml';
             case EventType.KeyPress:
-                return path.join(dirPath, 'KeyPress_' + thisEvent.enumb.toString() + '.gml');
+                return 'KeyPress_' + thisEvent.enumb.toString() + '.gml';
             case EventType.KeyRelease:
-                return path.join(dirPath, 'KeyRelease_' + thisEvent.enumb.toString() + '.gml');
+                return 'KeyRelease_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Trigger:
                 console.log('We got a Trigger event here. Somehow this project is from GM8?');
-                return path.join(dirPath, 'Trigger_' + thisEvent.enumb.toString() + '.gml');
+                return 'Trigger_' + thisEvent.enumb.toString() + '.gml';
             case EventType.CleanUp:
-                return path.join(dirPath, 'CleanUp_0.gml');
+                return 'CleanUp_0.gml';
             case EventType.Gesture:
-                return path.join(dirPath, 'Gesture_' + thisEvent.enumb.toString() + '.gml');
+                return 'Gesture_' + thisEvent.enumb.toString() + '.gml';
         }
         console.log(
             'NonGML file indexed by YYP? Serious error. \n' +
                 'This event: ' +
                 thisEvent.eventtype +
                 '/' +
-                thisEvent.enumb +
-                '\n' +
-                'This directory: ' +
-                dirPath
+                thisEvent.enumb
         );
         return '';
     }
