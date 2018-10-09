@@ -35,9 +35,9 @@
 		"intellisense": "0.0.1",
 		"ohm-js": "^0.14.0",
 		"path": "^0.12.7",
-		"upath": "^1.1.0",
 		"uuid": "^3.3.2",
 		"vscode-languageserver": "^5.0.3",
+		"xxhashjs": "^0.2.2",
 		"yyp-typings": "^2.0.6"
 	},
 	"scripts": {

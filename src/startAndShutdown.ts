@@ -3,8 +3,7 @@ import { WorkspaceFolder } from 'vscode-languageserver';
 import URI from 'vscode-uri';
 import * as fse from 'fs-extra';
 import * as path from 'path';
-import * as crypto from 'crypto';
-import * as upath from 'upath';
+import * as xxhashjs from 'xxhashjs';
 import { YYP, Resource, EventType } from 'yyp-typings';
 import { IURIRecord, IObjects, IScriptsAndFunctions, IEnum, IMacro, SemanticsOption } from './declarations';
 import { DocumentFolders, EventInfo, DocumentFolder, GMLFolder } from './fileSystem';
@@ -57,7 +56,7 @@ export class InitialAndShutdown {
     private projectYYP: YYP | null;
     private projectYYPPath: string;
     private projectCache: ProjectCache.Cache;
-    private ourHash: crypto.Hash;
+    private ourHash: xxhashjs.HashInterface;
     private documents: DocumentFolders;
     private grammar: Grammar;
     private lsp: LangServ;
@@ -97,7 +96,7 @@ export class InitialAndShutdown {
         this.lsp = lsp;
 
         // Tools
-        this.ourHash = crypto.createHash('sha1');
+        this.ourHash = xxhashjs.h32;
         this.documents = {};
     }
 
@@ -111,9 +110,7 @@ export class InitialAndShutdown {
         this.topLevelDirectories = await fse.readdir(this.projectDirectory);
 
         // Get our YYPs
-        const possibleYYPs: string[] = this.topLevelDirectories.filter((thisFile) => {
-            path.extname(thisFile) === '.yyp';
-        });
+        const possibleYYPs: string[] = this.topLevelDirectories.filter((thisFile) => path.extname(thisFile) === '.yyp');
 
         // Sort our Dinguses
         if (possibleYYPs.length !== 1) return null;
@@ -126,24 +123,24 @@ export class InitialAndShutdown {
         if (this.topLevelDirectories.includes('.gml-tools')) {
             cachedFileNames = await fse.readdir(path.join(this.projectDirectory, '.gml-tools'));
         } else {
-            await fse.mkdir(path.join(path.join(this.projectDirectory, '.gml-tools')));
+            await fse.mkdir(path.join(this.projectDirectory, '.gml-tools'));
         }
 
         const projectCache = cachedFileNames.filter((thisFile) => {
             thisFile == 'project-cache.json';
         });
 
-        if (projectCache.length === 0) {
-            return null;
+        if (projectCache.length === 1) {
+            // Get our Project Cache
+            this.projectCache = JSON.parse(
+                await fse.readFile(path.join(this.projectDirectory, '.gml-tools', 'project-cache.json'), 'utf8')
+            );
         }
 
-        return await this.initialIndexProject(path.join(this.projectDirectory, '.gml-tools', projectCache[0]));
+        return await this.initialIndexProject();
     }
 
-    private async initialIndexProject(projCacheFPath: string): Promise<InitialStartupHandOffPackage | null> {
-        // Get our Project Cache and Self-Validate
-        this.projectCache = JSON.parse(await fse.readFile(projCacheFPath, 'utf8'));
-
+    private async initialIndexProject(): Promise<InitialStartupHandOffPackage | null> {
         // Get our YYP
         const rawYYP = await fse.readFile(this.projectYYPPath, 'utf8');
         this.projectYYP = JSON.parse(rawYYP);
@@ -180,10 +177,7 @@ export class InitialAndShutdown {
             let yyFile: Resource.GMResource;
             try {
                 yyFile = JSON.parse(
-                    await fse.readFile(
-                        path.join(this.projectDirectory, upath.toUnix(thisResource.Value.resourcePath)),
-                        'utf8'
-                    )
+                    await fse.readFile(path.join(this.projectDirectory, thisResource.Value.resourcePath), 'utf8')
                 );
             } catch (e) {
                 continue;
@@ -207,15 +201,14 @@ export class InitialAndShutdown {
 
         for (const thisFPath of ourGMLFPaths) {
             // Load everything into memory
-            const fileBuffer = await fse.readFile(thisFPath);
-            const thisHash = this.ourHash.update(fileBuffer).digest('base64');
-            const fileText = fileBuffer.toString('utf8');
+            const fileText = await fse.readFile(thisFPath, 'utf8');
+            const thisHash = this.ourHash(fileText, 0xabcd).toString(16);
 
             const ourURIRecord = this.projectCache.URIRecords;
 
             // Check our URIRecord
             const ourURI = URI.file(thisFPath).toString();
-            if (ourURIRecord[ourURI].hash !== thisHash) {
+            if (ourURIRecord[ourURI] && ourURIRecord[ourURI].hash !== thisHash) {
                 if (fileText.includes('#macro') || fileText.includes('enum')) {
                     await this.initialGMLParse(ourURI, fileText);
                 } else {

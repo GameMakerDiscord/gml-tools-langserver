@@ -1,8 +1,3 @@
-/* --------------------------------------------------------------------------------------------
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See License.txt in the project root for license information.
- * ------------------------------------------------------------------------------------------ */
-'use strict';
 import {
     IPCMessageReader,
     IPCMessageWriter,
@@ -65,6 +60,9 @@ connection.onInitialize((params) => {
 connection.onInitialized(async () => {
     // Register for configuration changes:
     connection.client.register(DidChangeConfigurationNotification.type);
+
+    // Let the Client Know:
+    connection.sendNotification('indexComplete');
 });
 
 //#region Commands
