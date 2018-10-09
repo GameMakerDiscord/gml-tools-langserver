@@ -1,4 +1,3 @@
-import { WorkspaceFolder } from 'vscode-languageserver/lib/main';
 import * as fse from 'fs-extra';
 import * as path from 'path';
 import { Grammar } from 'ohm-js';
@@ -13,6 +12,7 @@ import * as rubber from 'gamemaker-rubber';
 import { Resource, EventType, EventNumber, YYP, YYPResource } from 'yyp-typings';
 import { ClientViewNode } from './sharedTypes';
 import * as Ajv from 'ajv';
+import { InitialStartupHandOffPackage } from './startAndShutdown';
 
 export interface GMLScriptContainer {
     [propName: string]: GMLScript;
@@ -176,11 +176,6 @@ export class FileSystem {
      * happens in here.
      */
     private projectDirectory: string;
-    /**
-     * A boolean we manipulate to check if the GMFolder exists. This
-     * must be maintained when working with the folder for
-     * performance.
-     */
 
     /**
      * All the folders and files in this.topLevelFolder
@@ -236,7 +231,6 @@ export class FileSystem {
     private projectYYPPath: string;
     private views: GMLFolder[];
 
-    private workspaceFolder: WorkspaceFolder[];
     private cachedFileNames: string[] | undefined;
     private defaultView: number;
 
@@ -248,61 +242,33 @@ export class FileSystem {
         this.documents = {};
         this.openedDocuments = [];
         this.indexComplete = false;
-        this.workspaceFolder = [];
         this.projectDirectory = '';
         this.topLevelDirectories = [];
         this.projectYYPPath = '';
         this.defaultView = 0;
     }
-    //#region Initialization
-    public async initialWorkspaceFolders(workspaceFolder: WorkspaceFolder[]) {
-        this.workspaceFolder = workspaceFolder;
-        this.projectDirectory = URI.parse(this.workspaceFolder[0].uri).fsPath;
 
-        // Get our Directories
-        this.topLevelDirectories = await fse.readdir(this.projectDirectory);
+    //#region Init
+    public async initHanfOff(handOff: InitialStartupHandOffPackage) {
+        // YYP Nonsense
+        this.projectDirectory = handOff.YYPInformation.ProjectDirectory;
+        this.projectYYPPath = handOff.YYPInformation.ProjectYYPPath;
+        this.projectYYP = handOff.YYPInformation.ProjectYYP;
+
+        // Views
+        this.views = handOff.Views.Folders;
+        this.defaultView = handOff.Views.Default;
+
+        // Documents
+        this.documents = handOff.Documents;
+
+        // Index Complete
+        this.indexComplete = true;
     }
 
     //#endregion
 
     //#region Views
-    // private sortViews(root: Array<Resource.GMFolder>) {
-    //     // Iterate on our Roots:
-    //     for (const thisRoot of root) {
-    //         // Walk the Tree.
-    //         const finalView = this.walkViewTree(thisRoot);
-    //         this.views.push(finalView);
-
-    //         // Add it to the default View
-    //         if (thisRoot.isDefaultView) {
-    //             this.defaultView = this.views.length - 1;
-    //         }
-    //     }
-    // }
-
-    // private walkViewTree(initialView: Resource.GMFolder): GMLFolder {
-    //     let newChildren: any = [];
-    //     let finalView = this.constructGMLFolderFromGMFolder(initialView);
-
-    //     for (const thisChildNode of initialView.children) {
-    //         // Find the resource of this UUID by scanning through
-    //         // *all* our UUIDs in `this.projectResourceList`. We
-    //         // add every resource to it in the .YYP.
-    //         const thisChildYY = this.projectResourceList[thisChildNode];
-    //         if (thisChildYY === undefined) continue;
-
-    //         // Walk down the UUID if it's a view, else store the YY file.
-    //         if (thisChildYY.modelName && thisChildYY.modelName == 'GMFolder') {
-    //             newChildren.push(this.walkViewTree(thisChildYY));
-    //         } else {
-    //             newChildren.push(thisChildYY);
-    //         }
-    //     }
-
-    //     finalView.children = newChildren;
-    //     return finalView;
-    // }
-
     public viewsGetInitialViews() {
         return this.viewsGetThisViewClient(this.views[this.defaultView].id);
     }
@@ -464,20 +430,6 @@ export class FileSystem {
         }
         return null;
     }
-
-    // private constructGMLFolderFromGMFolder(init: Resource.GMFolder): GMLFolder {
-    //     return {
-    //         name: init.name,
-    //         mvc: init.mvc,
-    //         modelName: 'GMLFolder',
-    //         localisedFolderName: init.localisedFolderName,
-    //         isDefaultView: init.isDefaultView,
-    //         id: init.id,
-    //         folderName: init.folderName,
-    //         filterType: init.filterType,
-    //         children: []
-    //     };
-    // }
 
     private makePrettyFileNames(fn: string): string {
         // Special Case:
@@ -1335,15 +1287,5 @@ export class FileSystem {
     public async deleteResources(resourceToDelete: YYPResource) {
         // Clear the basic resource
     }
-
-    public async clearAllData() {
-        this.views = [];
-
-        this.documents = {};
-        this.openedDocuments = [];
-        this.indexComplete = false;
-        this.initialWorkspaceFolders(this.workspaceFolder);
-    }
-
     //#endregion
 }

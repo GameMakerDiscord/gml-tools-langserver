@@ -45,20 +45,26 @@ export interface InitialStartupHandOffPackage {
         ProjectDirectory: string;
         TopLevelDirectories: string[];
         ProjectYYPPath: string;
+        ProjectYYP: YYP;
+        projectResourceList: { [UUID: string]: Resource.GMResource };
     };
 }
 
 export class InitialAndShutdown {
-    reference: Reference;
-    projectDirectory: string;
-    topLevelDirectories: string[];
-    projectYYP: YYP | null;
-    projectYYPPath: string;
-    projectCache: ProjectCache.Cache;
-    ourHash: crypto.Hash;
-    documents: DocumentFolders;
-    grammar: Grammar;
-    lsp: LangServ;
+    private reference: Reference;
+    private projectDirectory: string;
+    private topLevelDirectories: string[];
+    private projectYYP: YYP | null;
+    private projectYYPPath: string;
+    private projectCache: ProjectCache.Cache;
+    private ourHash: crypto.Hash;
+    private documents: DocumentFolders;
+    private grammar: Grammar;
+    private lsp: LangServ;
+    private projectResourceList: { [UUID: string]: Resource.GMResource };
+    private rootViews: Resource.GMFolder[];
+    private views: GMLFolder[];
+    private defaultView: number;
 
     constructor(ref: Reference, grammar: Grammar, lsp: LangServ) {
         // General Project Properties
@@ -78,6 +84,12 @@ export class InitialAndShutdown {
                 resources: []
             }
         };
+        this.projectResourceList = {};
+
+        // Views crap
+        this.rootViews = [];
+        this.views = [];
+        this.defaultView = 0;
 
         // Other Modules
         this.reference = ref;
@@ -89,7 +101,9 @@ export class InitialAndShutdown {
         this.documents = {};
     }
 
-    public async initialWorkspaceFolders(workspaceFolder: WorkspaceFolder[]) {
+    public async initialWorkspaceFolders(
+        workspaceFolder: WorkspaceFolder[]
+    ): Promise<InitialStartupHandOffPackage | null> {
         // Save our Project Directory
         this.projectDirectory = URI.parse(workspaceFolder[0].uri).fsPath;
 
@@ -102,7 +116,7 @@ export class InitialAndShutdown {
         });
 
         // Sort our Dinguses
-        if (possibleYYPs.length !== 1) return;
+        if (possibleYYPs.length !== 1) return null;
 
         // Set our YYP
         this.projectYYPPath = possibleYYPs[0];
@@ -120,26 +134,26 @@ export class InitialAndShutdown {
         });
 
         if (projectCache.length === 0) {
-            return;
+            return null;
         }
 
-        this.initialIndexProject(path.join(this.projectDirectory, '.gml-tools', projectCache[0]));
+        return await this.initialIndexProject(path.join(this.projectDirectory, '.gml-tools', projectCache[0]));
     }
 
-    private async initialIndexProject(projCacheFPath: string) {
+    private async initialIndexProject(projCacheFPath: string): Promise<InitialStartupHandOffPackage | null> {
         // Get our Project Cache and Self-Validate
         this.projectCache = JSON.parse(await fse.readFile(projCacheFPath, 'utf8'));
 
         // Get our YYP
         const rawYYP = await fse.readFile(this.projectYYPPath, 'utf8');
         this.projectYYP = JSON.parse(rawYYP);
-        if (!this.projectYYP) return;
+        if (!this.projectYYP) return null;
 
         /**
          * * General overview of how we parse the YYP:
          *
-         * * 1. If the YYP isn't the exact same, we do a first pass on each YY and GML
-         * *    file referenced by the YYP, filling in resource names and parentage.
+         * * 1. We do a first pass on each YY and GML file referenced by the YYP,
+         *  *   filling in resource names and parentage.
          *
          * * 2. We also check the GML files of anything that has a GML file and we
          * *    put them in a queue.
@@ -152,7 +166,9 @@ export class InitialAndShutdown {
          * *    merry way if it passed. If it includes a new Enum or Macro, we throw our save away.
          * *    If the hash didn't match, we reparse again as well!
          *
-         * * 5. We pass our YYP off to the langserv, which passes it to the FS. And, we outie!
+         * * 5. Do our initial view sort.
+         *
+         * * 6. We pass off tons and tons of info.
          */
 
         // ! Step Zero: Dump the Reference from the Cache
@@ -240,7 +256,34 @@ export class InitialAndShutdown {
             }
         }
 
-        // ! Step Five: Return an object to the LangServ for the FS
+        // ! Step Five: Figure out our Silly View Situation
+        // Iterate on our Roots:
+        for (const thisRoot of this.rootViews) {
+            // Walk the Tree.
+            const finalView = await this.walkViewTree(thisRoot);
+            this.views.push(finalView);
+
+            // Add it to the default View
+            if (thisRoot.isDefaultView) {
+                this.defaultView = this.views.length - 1;
+            }
+        }
+
+        // ! Step Six: Return our Returnable:
+        return {
+            Documents: this.documents,
+            Views: {
+                Default: this.defaultView,
+                Folders: this.views
+            },
+            YYPInformation: {
+                ProjectDirectory: this.projectDirectory,
+                projectResourceList: this.projectResourceList,
+                ProjectYYPPath: this.projectYYPPath,
+                TopLevelDirectories: this.topLevelDirectories,
+                ProjectYYP: this.projectYYP
+            }
+        };
     }
 
     private async initialGMLParse(thisURI: string, fullTextDocument: string) {
@@ -301,8 +344,15 @@ export class InitialAndShutdown {
     }
 
     private async initialParseYYFile(yyFile: Resource.GMResource) {
-        // Non-indexed classes:
-        if (yyFile.modelName == 'GMFolder') {
+        // Index our views:
+        if (yyFile.modelName === 'GMFolder') {
+            // Check if we're a Root:
+            if (yyFile.filterType == 'root') {
+                this.rootViews.push(yyFile);
+            } else {
+                // Add to UUID Dict
+                this.projectResourceList[yyFile.id] = yyFile;
+            }
             return;
         }
 
@@ -338,17 +388,6 @@ export class InitialAndShutdown {
             this.documentCreateDocumentFolder(ourPath, yyFile.name, 'GMScript');
 
             return [ourPath];
-        }
-
-        // * Views
-        if (yyFile.modelName === 'GMFolder') {
-            // Check if we're a Root:
-            if (yyFile.filterType == 'root') {
-                rootViews.push(viewYY);
-            } else {
-                // Add to UUID Dict
-                this.projectResourceList[viewYY.id] = viewYY;
-            }
         }
 
         // TODO Extension support
@@ -400,5 +439,42 @@ export class InitialAndShutdown {
                 thisEvent.enumb
         );
         return '';
+    }
+
+    private async walkViewTree(initialView: Resource.GMFolder): Promise<GMLFolder> {
+        let newChildren: any = [];
+        let finalView = await this.constructGMLFolderFromGMFolder(initialView);
+
+        for (const thisChildNode of initialView.children) {
+            // Find the resource of this UUID by scanning through
+            // *all* our UUIDs in `this.projectResourceList`. We
+            // add every resource to it in the .YYP.
+            const thisChildYY = this.projectResourceList[thisChildNode];
+            if (thisChildYY === undefined) continue;
+
+            // Walk down the UUID if it's a view, else store the YY file.
+            if (thisChildYY.modelName && thisChildYY.modelName == 'GMFolder') {
+                newChildren.push(this.walkViewTree(thisChildYY));
+            } else {
+                newChildren.push(thisChildYY);
+            }
+        }
+
+        finalView.children = newChildren;
+        return finalView;
+    }
+
+    private async constructGMLFolderFromGMFolder(init: Resource.GMFolder): Promise<GMLFolder> {
+        return {
+            name: init.name,
+            mvc: init.mvc,
+            modelName: 'GMLFolder',
+            localisedFolderName: init.localisedFolderName,
+            isDefaultView: init.isDefaultView,
+            id: init.id,
+            folderName: init.folderName,
+            filterType: init.filterType,
+            children: []
+        };
     }
 }

@@ -107,7 +107,8 @@ export class LangServ {
         }
 
         // Index our YYP
-        await this.initialStartup.initialWorkspaceFolders(workspaceFolder);
+        const fsHandoff = await this.initialStartup.initialWorkspaceFolders(workspaceFolder);
+        if (fsHandoff) await this.fsManager.initHanfOff(fsHandoff);
 
         // Create project-documentation
         if ((await this.fsManager.isFileCached('project-documentation.json')) == false) {
