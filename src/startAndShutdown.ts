@@ -3,7 +3,6 @@ import { WorkspaceFolder } from 'vscode-languageserver';
 import URI from 'vscode-uri';
 import * as fse from 'fs-extra';
 import * as path from 'path';
-import * as xxhashjs from 'xxhashjs';
 import { YYP, Resource, EventType } from 'yyp-typings';
 import { IURIRecord, IObjects, IScriptsAndFunctions, IEnum, IMacro, SemanticsOption } from './declarations';
 import { DocumentFolders, EventInfo, DocumentFolder, GMLFolder } from './fileSystem';
@@ -56,7 +55,6 @@ export class InitialAndShutdown {
     private projectYYP: YYP | null;
     private projectYYPPath: string;
     private projectCache: ProjectCache.Cache;
-    private ourHash: xxhashjs.HashInterface;
     private documents: DocumentFolders;
     private grammar: Grammar;
     private lsp: LangServ;
@@ -96,7 +94,6 @@ export class InitialAndShutdown {
         this.lsp = lsp;
 
         // Tools
-        this.ourHash = xxhashjs.h32;
         this.documents = {};
     }
 
@@ -202,29 +199,29 @@ export class InitialAndShutdown {
         for (const thisFPath of ourGMLFPaths) {
             // Load everything into memory
             const fileText = await fse.readFile(thisFPath, 'utf8');
-            const thisHash = this.ourHash(fileText, 0xabcd).toString(16);
+            // const thisHash = metroHash.metrohash64(fileText, 0xabcd);
 
-            const ourURIRecord = this.projectCache.URIRecords;
+            // const ourURIRecord = this.projectCache.URIRecords;
 
             // Check our URIRecord
-            const ourURI = URI.file(thisFPath).toString();
-            if (ourURIRecord[ourURI] && ourURIRecord[ourURI].hash !== thisHash) {
-                if (fileText.includes('#macro') || fileText.includes('enum')) {
-                    await this.initialGMLParse(ourURI, fileText);
-                } else {
-                    filesToParse.push({
-                        fpath: thisFPath,
-                        fullText: fileText,
-                        passedHash: false
-                    });
-                }
-            } else {
+            // const ourURI = URI.file(thisFPath).toString();
+            // if (ourURIRecord[ourURI] && ourURIRecord[ourURI].hash !== thisHash) {
+            //     if (fileText.includes('#macro') || fileText.includes('enum')) {
+            //         await this.initialGMLParse(ourURI, fileText);
+            //     } else {
+            //         filesToParse.push({
+            //             fpath: thisFPath,
+            //             fullText: fileText,
+            //             passedHash: false
+            //         });
+            //     }
+            // } else {
                 filesToParse.push({
                     fpath: thisFPath,
                     fullText: fileText,
                     passedHash: true
                 });
-            }
+            // }
         }
 
         // ! Step Four: Parse everything else!

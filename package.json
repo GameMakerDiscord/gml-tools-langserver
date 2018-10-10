@@ -33,6 +33,7 @@
 		"fs-extra": "^7.0.0",
 		"gamemaker-rubber": "^2.0.3",
 		"intellisense": "0.0.1",
+		"metrohash": "^2.5.0",
 		"ohm-js": "^0.14.0",
 		"path": "^0.12.7",
 		"uuid": "^3.3.2",
