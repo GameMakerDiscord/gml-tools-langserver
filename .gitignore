@@ -2,6 +2,5 @@ out/
 
 node_modules/
 
-.yalc/
-
-yalc.lock
+## No docs in the Github repo!
+lib/gmlDocs.json

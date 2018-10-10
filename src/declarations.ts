@@ -1,6 +1,5 @@
 import { CompletionItemKind, FoldingRange, Location, Position } from 'vscode-languageserver';
 import { JSDOC } from './fileSystem';
-import URI from 'vscode-uri';
 
 export const enum SpecialDocTypes {
     Constant = '#',
@@ -184,7 +183,7 @@ export interface IScriptsAndFunctions {
 
 export interface IEachScript {
     JSDOC: JSDOC;
-    uri?: URI;
+    uri?: string;
     callBackLocation?: number;
     isBritish?: boolean;
     referenceLocations: Array<Location>;
@@ -277,6 +276,7 @@ export interface IURIRecord {
     enums: URIRecord[];
     enumMembers: EnumMemberRecord[];
     implicitThisAtPosition: ThisPositionRecord[];
+    hash: string;
 }
 
 export interface ThisPositionRecord {

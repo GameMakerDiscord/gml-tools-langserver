@@ -189,15 +189,15 @@ export class GMLCompletionProvider {
 
         // All other resources:
         const otherResources: OtherResources[] = [];
-        otherResources.push([this.reference.getAllResourceOfType("GMSprite"), CompletionItemKind.Color])
-        otherResources.push([this.reference.getAllResourceOfType("GMTileSet"), CompletionItemKind.Struct]);
-        otherResources.push([this.reference.getAllResourceOfType("GMSound"), CompletionItemKind.Interface]);
-        otherResources.push([this.reference.getAllResourceOfType("GMPath"), CompletionItemKind.Unit]);
-        otherResources.push([this.reference.getAllResourceOfType("GMShader"), CompletionItemKind.Event]);
-        otherResources.push([this.reference.getAllResourceOfType("GMFont"), CompletionItemKind.TypeParameter]);
-        otherResources.push([this.reference.getAllResourceOfType("GMTimeline"), CompletionItemKind.Keyword]);
-        otherResources.push([this.reference.getAllResourceOfType("GMRoom"), CompletionItemKind.Folder]);
-        otherResources.push([this.reference.getAllResourceOfType("GMExtension"), CompletionItemKind.Operator]);
+        otherResources.push([this.reference.getAllResourceOfType('GMSprite'), CompletionItemKind.Color]);
+        otherResources.push([this.reference.getAllResourceOfType('GMTileSet'), CompletionItemKind.Struct]);
+        otherResources.push([this.reference.getAllResourceOfType('GMSound'), CompletionItemKind.Interface]);
+        otherResources.push([this.reference.getAllResourceOfType('GMPath'), CompletionItemKind.Unit]);
+        otherResources.push([this.reference.getAllResourceOfType('GMShader'), CompletionItemKind.Event]);
+        otherResources.push([this.reference.getAllResourceOfType('GMFont'), CompletionItemKind.TypeParameter]);
+        otherResources.push([this.reference.getAllResourceOfType('GMTimeline'), CompletionItemKind.Keyword]);
+        otherResources.push([this.reference.getAllResourceOfType('GMRoom'), CompletionItemKind.Folder]);
+        otherResources.push([this.reference.getAllResourceOfType('GMExtension'), CompletionItemKind.Operator]);
 
         // Other Resource Double Loop
         for (const thisResourceType of otherResources) {
@@ -280,36 +280,36 @@ export class GMLCompletionProvider {
 
     private resolveFunction(thisItem: CompletionItem) {
         const scriptPack = this.reference.scriptGetScriptPackage(thisItem.label);
-        if (scriptPack) {
-            const jsdoc = scriptPack.JSDOC;
-            let documentation: MarkupContent = {
-                kind: MarkupKind.Markdown,
-                value: ''
-            };
+        if (!scriptPack) return thisItem;
+        const jsdoc = scriptPack.JSDOC;
+        if (!jsdoc) return thisItem;
 
-            // Details
-            let type = jsdoc.isScript ? '(script)' : '(function)';
+        let documentation: MarkupContent = {
+            kind: MarkupKind.Markdown,
+            value: ''
+        };
 
-            // Documentation
-            let parameterContent: Array<string> = [];
-            for (const thisParam of jsdoc.parameters) {
-                let ourParam = '*@param* ```' + thisParam.label + '```';
-                ourParam += thisParam.documentation == '' ? '' : ' — ' + thisParam.documentation;
-                parameterContent.push(ourParam);
-            }
+        // Details
+        let type = jsdoc.isScript ? '(script)' : '(function)';
 
-            documentation.value += parameterContent.join('\n\n');
-
-            // Return Value:
-            documentation.value += jsdoc.returns == '' ? '' : '\n\n' + '*@returns* ' + jsdoc.returns;
-
-            // Documentation
-            documentation.value +=
-                jsdoc.description == '' ? '' : '\n\n' + jsdoc.description.split('.', 1).join('.') + '.';
-
-            thisItem.detail = type + ' ' + jsdoc.signature;
-            thisItem.documentation = documentation;
+        // Documentation
+        let parameterContent: Array<string> = [];
+        for (const thisParam of jsdoc.parameters) {
+            let ourParam = '*@param* ```' + thisParam.label + '```';
+            ourParam += thisParam.documentation == '' ? '' : ' — ' + thisParam.documentation;
+            parameterContent.push(ourParam);
         }
+
+        documentation.value += parameterContent.join('\n\n');
+
+        // Return Value:
+        documentation.value += jsdoc.returns == '' ? '' : '\n\n' + '*@returns* ' + jsdoc.returns;
+
+        // Documentation
+        documentation.value += jsdoc.description == '' ? '' : '\n\n' + jsdoc.description.split('.', 1).join('.') + '.';
+
+        thisItem.detail = type + ' ' + jsdoc.signature;
+        thisItem.documentation = documentation;
 
         return thisItem;
     }

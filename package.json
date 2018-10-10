@@ -1,76 +1,76 @@
 {
-	"name": "gml-tools-langserver",
-	"displayName": "GML-Tools, Intellisense for GameMaker Studio 2 Project.",
-	"description": "GML Intellisense through the GML-Tools Language Server.",
-	"publisher": "Jonathan Spira (sanbox)",
-	"author": "Jonathan Spira",
-	"preview": true,
-	"version": "0.9.4",
-	"license": "MIT",
-	"engines": {
-		"vscode": "^1.26.0"
-	},
-	"keywords": [
-		"LSP",
-		"compile",
-		"language",
-		"GML",
-		"GMS2",
-		"editor",
-		"GML-Tools"
-	],
-	"bugs": "https://github.com/GameMakerDiscord/gml-tools-langserver/issues",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/GameMakerDiscord/gml-tools-langserver"
-	},
-	"dependencies": {
-		"adm-zip": "^0.4.11",
-		"ajv": "^6.5.3",
-		"cheerio": "^1.0.0-rc.2",
-		"chokidar": "^2.0.4",
-		"fast-json-stringify": "^1.9.0",
-		"fs-extra": "^7.0.0",
-		"gamemaker-rubber": "^2.0.3",
-		"intellisense": "0.0.1",
-		"metrohash": "^2.5.0",
-		"ohm-js": "^0.14.0",
-		"path": "^0.12.7",
-		"uuid": "^3.3.2",
-		"vscode-languageserver": "^5.0.3",
-		"yyp-typings": "^2.0.6"
-	},
-	"scripts": {
-		"testBuild": "tsc && yalc publish",
-		"testWatch": "concurrently --kill-others \"tsc --watch\" \"yalc publish && nodemon --exec npm run dev\"",
-		"dev": "yalc push",
-		"build": "tsc"
-	},
-	"lint-staged": {
-		"*.{ts,json}": [
-			"prettier --write",
-			"git add"
-		]
-	},
-	"files": [
-		"out",
-		"lib",
-		"License.txt",
-		"README.md",
-		"CODE_OF_CONDUCT.md"
-	],
-	"devDependencies": {
-		"@types/adm-zip": "^0.4.31",
-		"@types/cheerio": "^0.22.8",
-		"@types/chokidar": "^1.7.5",
-		"@types/fs-extra": "^5.0.4",
-		"@types/node": "^10.7.0",
-		"@types/uuid": "^3.4.3",
-		"concurrently": "^3.6.1",
-		"husky": "^1.0.0-rc.13",
-		"lint-staged": "^7.2.2",
-		"nodemon": "^1.18.3",
-		"typescript": "^3.0.1",
-		"yalc": "^1.0.0-pre.22"
-	}
+    "name": "gml-tools-langserver",
+    "displayName": "GML-Tools, Intellisense for GameMaker Studio 2 Project.",
+    "description": "GML Intellisense through the GML-Tools Language Server.",
+    "publisher": "Jonathan Spira (sanbox)",
+    "author": "Jonathan Spira",
+    "preview": true,
+    "version": "0.9.4",
+    "license": "MIT",
+    "engines": {
+        "vscode": "^1.26.0"
+    },
+    "keywords": [
+        "LSP",
+        "compile",
+        "language",
+        "GML",
+        "GMS2",
+        "editor",
+        "GML-Tools"
+    ],
+    "bugs": "https://github.com/GameMakerDiscord/gml-tools-langserver/issues",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/GameMakerDiscord/gml-tools-langserver"
+    },
+    "dependencies": {
+        "adm-zip": "^0.4.11",
+        "ajv": "^6.5.3",
+        "cheerio": "^1.0.0-rc.2",
+        "chokidar": "^2.0.4",
+        "fast-json-stringify": "^1.9.0",
+        "fs-extra": "^7.0.0",
+        "gamemaker-rubber": "^2.0.3",
+        "intellisense": "0.0.1",
+        "ohm-js": "^0.14.0",
+        "path": "^0.12.7",
+        "uuid": "^3.3.2",
+        "vscode-languageserver": "^5.0.3",
+        "yyp-typings": "^2.0.6"
+    },
+    "scripts": {
+        "testBuild": "tsc && yarn link",
+        "testWatch": "tsc -w && yarn link",
+        "build": "tsc",
+        "prepublish": "yarn unlink && tsc"
+    },
+    "lint-staged": {
+        "*.{ts,json}": [
+            "prettier --write",
+            "git add"
+        ]
+    },
+    "files": [
+        "out",
+        "lib",
+        "License.txt",
+        "README.md",
+        "CODE_OF_CONDUCT.md"
+    ],
+    "devDependencies": {
+        "@types/adm-zip": "^0.4.31",
+        "@types/cheerio": "^0.22.8",
+        "@types/chokidar": "^1.7.5",
+        "@types/fs-extra": "^5.0.4",
+        "@types/node": "^10.7.0",
+        "@types/uuid": "^3.4.3",
+        "concurrently": "^3.6.1",
+        "electron-prebuilt": "^1.4.13",
+        "electron-rebuild": "^1.8.2",
+        "husky": "^1.0.0-rc.13",
+        "lint-staged": "^7.2.2",
+        "nodemon": "^1.18.3",
+        "typescript": "^3.0.1"
+    }
 }

@@ -63,6 +63,7 @@ connection.onInitialized(async () => {
 
     // Let the Client Know:
     connection.sendNotification('indexComplete');
+    console.log('Language Server is ready.');
 });
 
 //#region Commands
@@ -160,8 +161,8 @@ connection.onSignatureHelp(async (params) => {
     return await ls.onSignatureRequest(params);
 });
 
-connection.onHover((params) => {
-    return ls.hoverOnHover(params);
+connection.onHover(async (params) => {
+    return await ls.hoverOnHover(params);
 });
 
 connection.onDefinition((params) => {
@@ -194,8 +195,8 @@ connection.onDidCloseTextDocument((params) => {
 });
 
 // Cache on shutdown:
-connection.onShutdown(() => {
-    // lsp.fsManager.cacheProject();
+connection.onShutdown(async () => {
+    await ls.cacheProject();
 });
 //#endregion
 

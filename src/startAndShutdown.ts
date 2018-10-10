@@ -3,12 +3,14 @@ import { WorkspaceFolder } from 'vscode-languageserver';
 import URI from 'vscode-uri';
 import * as fse from 'fs-extra';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { YYP, Resource, EventType } from 'yyp-typings';
 import { IURIRecord, IObjects, IScriptsAndFunctions, IEnum, IMacro, SemanticsOption } from './declarations';
 import { DocumentFolders, EventInfo, DocumentFolder, GMLFolder } from './fileSystem';
 import { DiagnosticHandler } from './diagnostic';
 import { Grammar } from 'ohm-js';
 import { LangServ } from './langserv';
+import { timeUtil } from './utils';
 
 export namespace ProjectCache {
     export interface Cache {
@@ -17,11 +19,7 @@ export namespace ProjectCache {
     }
 
     export interface CacheURIRecords {
-        [thisURI: string]: CachedURIRecord;
-    }
-
-    export interface CachedURIRecord extends IURIRecord {
-        hash: string;
+        [thisURI: string]: IURIRecord;
     }
 
     export interface CachedReferences {
@@ -46,6 +44,9 @@ export interface InitialStartupHandOffPackage {
         ProjectYYP: YYP;
         projectResourceList: { [UUID: string]: Resource.GMResource };
     };
+    CachedInformation: {
+        CachedFileNames: string[];
+    };
 }
 
 export class InitialAndShutdown {
@@ -62,6 +63,7 @@ export class InitialAndShutdown {
     private rootViews: Resource.GMFolder[];
     private views: GMLFolder[];
     private defaultView: number;
+    private cachedFileNames: string[];
 
     constructor(ref: Reference, grammar: Grammar, lsp: LangServ) {
         // General Project Properties
@@ -82,6 +84,7 @@ export class InitialAndShutdown {
             }
         };
         this.projectResourceList = {};
+        this.cachedFileNames = [];
 
         // Views crap
         this.rootViews = [];
@@ -116,15 +119,10 @@ export class InitialAndShutdown {
         this.projectYYPPath = possibleYYPs[0];
 
         // Load our Project Cache if it's there:
-        let cachedFileNames: string[] = [];
-        if (this.topLevelDirectories.includes('.gml-tools')) {
-            cachedFileNames = await fse.readdir(path.join(this.projectDirectory, '.gml-tools'));
-        } else {
-            await fse.mkdir(path.join(this.projectDirectory, '.gml-tools'));
-        }
+        this.cachedFileNames = await this.initialCheckCache();
 
-        const projectCache = cachedFileNames.filter((thisFile) => {
-            thisFile == 'project-cache.json';
+        const projectCache = this.cachedFileNames.filter((thisFile) => {
+            return thisFile == 'project-cache.json';
         });
 
         if (projectCache.length === 1) {
@@ -138,6 +136,8 @@ export class InitialAndShutdown {
     }
 
     private async initialIndexProject(): Promise<InitialStartupHandOffPackage | null> {
+        const timer = new timeUtil();
+        timer.setTimeFast();
         // Get our YYP
         const rawYYP = await fse.readFile(this.projectYYPPath, 'utf8');
         this.projectYYP = JSON.parse(rawYYP);
@@ -192,36 +192,41 @@ export class InitialAndShutdown {
         }
 
         // ! Step Three: Do a pass on the queue for macros and enums
-        const filesToParse: { fullText: string; fpath: string; passedHash: boolean }[] = [];
+        const filesToParse: { fullText: string; fpath: string; passedHash: boolean; hash: string }[] = [];
         const enumsAdded: string[] = [];
         const macrosAdded: string[] = [];
 
         for (const thisFPath of ourGMLFPaths) {
             // Load everything into memory
             const fileText = await fse.readFile(thisFPath, 'utf8');
-            // const thisHash = metroHash.metrohash64(fileText, 0xabcd);
+            const ourHasher = crypto.createHash('sha1');
+            const thisHash = ourHasher.update(fileText).digest('hex');
 
-            // const ourURIRecord = this.projectCache.URIRecords;
+            const ourURIRecord = this.projectCache.URIRecords;
 
             // Check our URIRecord
-            // const ourURI = URI.file(thisFPath).toString();
-            // if (ourURIRecord[ourURI] && ourURIRecord[ourURI].hash !== thisHash) {
-            //     if (fileText.includes('#macro') || fileText.includes('enum')) {
-            //         await this.initialGMLParse(ourURI, fileText);
-            //     } else {
-            //         filesToParse.push({
-            //             fpath: thisFPath,
-            //             fullText: fileText,
-            //             passedHash: false
-            //         });
-            //     }
-            // } else {
+            const ourURI = URI.file(thisFPath).toString();
+
+            if (!ourURIRecord[ourURI] || ourURIRecord[ourURI].hash !== thisHash) {
+                // and if it includes "macro" or "enum"...
+                if (fileText.includes('#macro') || fileText.includes('enum')) {
+                    await this.initialGMLParse(ourURI, fileText, thisHash);
+                } else {
+                    filesToParse.push({
+                        fpath: thisFPath,
+                        fullText: fileText,
+                        passedHash: false,
+                        hash: thisHash
+                    });
+                }
+            } else {
                 filesToParse.push({
                     fpath: thisFPath,
                     fullText: fileText,
-                    passedHash: true
+                    passedHash: true,
+                    hash: thisHash
                 });
-            // }
+            }
         }
 
         // ! Step Four: Parse everything else!
@@ -237,12 +242,12 @@ export class InitialAndShutdown {
                         return thisFile.fullText.includes(thisMacro);
                     })
                 ) {
-                    this.initialGMLParse(ourURI, thisFile.fullText);
+                    this.initialGMLParse(ourURI, thisFile.fullText, thisFile.hash);
                 } else {
-                    this.reference.dumpCachedURIRecord(this.projectCache.URIRecords[ourURI], ourURI);
+                    this.reference.dumpCachedURIRecord(this.projectCache.URIRecords[ourURI], ourURI, thisFile.hash);
                 }
             } else {
-                this.initialGMLParse(ourURI, thisFile.fullText);
+                this.initialGMLParse(ourURI, thisFile.fullText, thisFile.hash);
             }
         }
 
@@ -259,6 +264,8 @@ export class InitialAndShutdown {
             }
         }
 
+        console.log(timer.timeDifferenceNowNice());
+
         // ! Step Six: Return our Returnable:
         return {
             Documents: this.documents,
@@ -272,23 +279,27 @@ export class InitialAndShutdown {
                 ProjectYYPPath: this.projectYYPPath,
                 TopLevelDirectories: this.topLevelDirectories,
                 ProjectYYP: this.projectYYP
+            },
+            CachedInformation: {
+                CachedFileNames: this.cachedFileNames
             }
         };
     }
 
-    private async initialGMLParse(thisURI: string, fullTextDocument: string) {
+    private async initialGMLParse(thisURI: string, fullTextDocument: string, hash: string) {
         // Fill our our Document Folder
         const ourDocFolder = await this.documentInitFText(thisURI, fullTextDocument);
         if (!ourDocFolder.diagnosticHandler) return;
         ourDocFolder.diagnosticHandler.setInput(fullTextDocument);
 
         // Figure out the Semantics To Run:
-        let ourSemantics = SemanticsOption.Function | SemanticsOption.Variable;
+        let ourSemantics: SemanticsOption = SemanticsOption.Function | SemanticsOption.Variable;
 
         if (ourDocFolder.type === 'GMScript') {
             ourSemantics = SemanticsOption.All;
         }
-        await this.lsp.lint(ourDocFolder.diagnosticHandler, ourSemantics);
+        await this.lsp.lint(ourDocFolder.diagnosticHandler, ourSemantics, ourDocFolder);
+        await this.reference.URISetHash(thisURI, hash);
     }
 
     private async documentCreateDocumentFolder(
@@ -302,7 +313,7 @@ export class InitialAndShutdown {
         const thisDocFolder: DocumentFolder = {
             name: name,
             type: type,
-            file: '',
+            fileFullText: '',
             diagnosticHandler: null
         };
 
@@ -317,7 +328,7 @@ export class InitialAndShutdown {
         // Create our File
         const thisDocFolder = this.documents[thisURI];
         if (thisDocFolder) {
-            thisDocFolder.file = fullText;
+            thisDocFolder.fileFullText = fullText;
         } else {
             console.log('Document:' + thisURI + ' has no document Folder to set this text to!');
             return thisDocFolder;
@@ -327,7 +338,7 @@ export class InitialAndShutdown {
         thisDocFolder.diagnosticHandler = new DiagnosticHandler(this.grammar, thisURI, this.reference);
 
         // Create our URI Dictionary
-        this.reference.createURIDictEntry(thisURI);
+        this.reference.URIcreateURIDictEntry(thisURI);
 
         // Return our File-Folder
         return thisDocFolder;
@@ -340,7 +351,7 @@ export class InitialAndShutdown {
             if (yyFile.filterType == 'root') {
                 this.rootViews.push(yyFile);
             } else {
-                // Add to UUID Dict
+                // Add to Project Resources
                 this.projectResourceList[yyFile.id] = yyFile;
             }
             return;
@@ -348,6 +359,7 @@ export class InitialAndShutdown {
 
         // Add the resource (creates objects/scripts here too!)
         this.reference.addResource(yyFile.name, yyFile.modelName);
+        this.projectResourceList[yyFile.id] = yyFile;
     }
 
     private async initialGetGMLFiles(yyFile: Resource.GMResource): Promise<string[]> {
@@ -376,6 +388,7 @@ export class InitialAndShutdown {
             // Add to our Documents
             const ourPath = path.join(this.projectDirectory, 'scripts', yyFile.name, yyFile.name + '.gml');
             this.documentCreateDocumentFolder(ourPath, yyFile.name, 'GMScript');
+            this.reference.scriptAddURI(yyFile.name, URI.file(ourPath).toString());
 
             return [ourPath];
         }
@@ -437,14 +450,14 @@ export class InitialAndShutdown {
 
         for (const thisChildNode of initialView.children) {
             // Find the resource of this UUID by scanning through
-            // *all* our UUIDs in `this.projectResourceList`. We
+            // all our UUIDs in `this.projectResourceList`. We
             // add every resource to it in the .YYP.
             const thisChildYY = this.projectResourceList[thisChildNode];
             if (thisChildYY === undefined) continue;
 
             // Walk down the UUID if it's a view, else store the YY file.
             if (thisChildYY.modelName && thisChildYY.modelName == 'GMFolder') {
-                newChildren.push(this.walkViewTree(thisChildYY));
+                newChildren.push(await this.walkViewTree(thisChildYY));
             } else {
                 newChildren.push(thisChildYY);
             }
@@ -466,5 +479,19 @@ export class InitialAndShutdown {
             filterType: init.filterType,
             children: []
         };
+    }
+
+    private async initialCheckCache(): Promise<string[]> {
+        if (this.topLevelDirectories.includes('.gml-tools')) {
+            return await fse.readdir(path.join(this.projectDirectory, '.gml-tools'));
+        } else {
+            // Create the Cache:
+            await this.createCache();
+            return [];
+        }
+    }
+
+    private async createCache() {
+        await fse.mkdir(path.join(this.projectDirectory, '.gml-tools'));
     }
 }

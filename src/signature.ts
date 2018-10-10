@@ -16,8 +16,9 @@ export class GMLSignatureProvider {
     public async onSignatureRequest(params: TextDocumentPositionParams): Promise<SignatureHelp | null> {
         const uri = params.textDocument.uri;
         const tokenList = await (await this.fs.getDiagnosticHandler(uri)).getTokenList();
-        const thisDoc = await this.fs.getDocument(uri);
-        if (!thisDoc) return null;
+        const thisDocFolder = await this.fs.getDocumentFolder(uri);
+        if (!thisDocFolder) return null;
+        const thisDoc = thisDocFolder.fileFullText;
         const thisPos = getIndexFromPosition(thisDoc, params.position);
 
         //Early exit for very first word!

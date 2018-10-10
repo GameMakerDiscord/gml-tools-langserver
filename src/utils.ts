@@ -285,16 +285,18 @@ export function uri2path(uri: string): string {
  * @param fs The FileSystem.
  */
 export async function getWordAtPositionFS(uri: string, pos: Position, fs: FileSystem) {
-    const thisDoc = await fs.getDocument(uri);
-    if (!thisDoc) return;
+    const thisDocFolder = await fs.getDocumentFolder(uri);
+    if (!thisDocFolder) return;
+    const thisDoc = thisDocFolder.fileFullText;
     const textDocument = normalizeEoLSequences(thisDoc);
     const offset = getIndexFromPosition(textDocument, pos);
     return getWordAtIndex(textDocument, offset - 1);
 }
 
 export async function getRangeAtPosition(uri: string, pos: Position, fs: FileSystem) {
-    const thisDoc = await fs.getDocument(uri);
-    if (!thisDoc) return undefined;
+    const thisDocFolder = await fs.getDocumentFolder(uri);
+    if (!thisDocFolder) return;
+    const thisDoc = thisDocFolder.fileFullText;
     const textDocument = normalizeEoLSequences(thisDoc);
 
     const offset = getIndexFromPosition(textDocument, pos);

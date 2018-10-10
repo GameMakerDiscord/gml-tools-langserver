@@ -52,7 +52,7 @@ export class GMLDefinitionProvider {
 
         // Scripts
         const scriptPack = this.reference.scriptGetScriptPackage(thisWord);
-        if (scriptPack && scriptPack.JSDOC.isScript && scriptPack.uri) {
+        if (scriptPack && scriptPack.JSDOC && scriptPack.JSDOC.isScript && scriptPack.uri) {
             return Location.create(scriptPack.uri.toString(), Range.create(0, 0, 0, 0));
         }
 

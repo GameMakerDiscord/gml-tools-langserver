@@ -67,18 +67,6 @@ export interface VariablesPackage {
     localVariables: Array<GMLLocalVarParse>;
 }
 
-export abstract class LintPackageFactory {
-    static create(diag: Diagnostic[], matchRess: MatchResultsPackage[]) {
-        return new LintPackage(diag, matchRess);
-    }
-    static createBlank(): LintPackage {
-        let diag: Diagnostic[] = [];
-        let matchRes: undefined = undefined;
-
-        return new LintPackage(diag, matchRes);
-    }
-}
-
 export interface IActionDict {
     actionDict: ActionDict;
     name: string;
@@ -113,11 +101,11 @@ export interface MacroPackage {
 
 export class LintPackage {
     private diagnostics: Diagnostic[];
-    private matchResults: MatchResultsPackage[] | undefined;
+    private matchResults: MatchResultsPackage[];
 
-    constructor(diag: Diagnostic[], matchRess: MatchResultsPackage[] | undefined) {
-        this.diagnostics = diag;
-        this.matchResults = matchRess;
+    constructor() {
+        this.diagnostics = [];
+        this.matchResults = [];
     }
 
     public set(diag: Diagnostic[], matchRess: MatchResultsPackage[]) {

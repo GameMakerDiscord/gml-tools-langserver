@@ -1,7 +1,6 @@
 import { Range, Location, FoldingRangeKind, Position } from 'vscode-languageserver/lib/main';
 import { JSDOC, FileSystem } from './fileSystem';
 import { GMLVarParse } from './diagnostic';
-import URI from 'vscode-uri/lib/umd';
 import {
     GMLDocs,
     LanguageService,
@@ -12,10 +11,10 @@ import {
     IURIRecord,
     GMLDocOverrides,
     GenericResourceModel,
-    IEachScript,
     IOriginVar,
     VariableRank,
-    IEnumMembers
+    IEnumMembers,
+    IEachScript
 } from './declarations';
 import { FoldingRange } from 'vscode-languageserver-protocol/lib/protocol.foldingRange';
 import { LangServ } from './langserv';
@@ -139,15 +138,47 @@ export class Reference {
 
     //#region All Resources
     public dumpCachedData(cache: ProjectCache.CachedReferences) {
-        this.objects = cache.object;
-        this.scriptsAndFunctions = cache.scriptsAndFunctions;
-        this.projectResources = cache.resources;
-        this.enums = cache.enums;
-        this.macros = cache.macros;
+        // Dump Objects
+        for (const thisObjectName in cache.object) {
+            if (cache.object.hasOwnProperty(thisObjectName)) {
+                const thisObj = cache.object[thisObjectName];
+                this.objects[thisObjectName] = thisObj;
+                this.objectList.push(thisObjectName);
+            }
+        }
+
+        // Dump Scripts and Functions
+        for (const thisScriptName in cache.scriptsAndFunctions) {
+            if (cache.scriptsAndFunctions.hasOwnProperty(thisScriptName)) {
+                const thisScript = cache.scriptsAndFunctions[thisScriptName];
+                this.scriptsAndFunctions[thisScriptName] = thisScript;
+                this.scriptsAndFunctionsList.push(thisScriptName);
+            }
+        }
+
+        // Enums
+        for (const thisEnumName in cache.enums) {
+            if (cache.enums.hasOwnProperty(thisEnumName)) {
+                const thisEnum = cache.enums[thisEnumName];
+                this.enums[thisEnumName] = thisEnum;
+            }
+        }
+
+        // Macros
+        for (const thisMacroName in cache.macros) {
+            if (cache.macros.hasOwnProperty(thisMacroName)) {
+                const thisMacro = cache.macros[thisMacroName];
+                this.macros[thisMacroName] = thisMacro;
+            }
+        }
+
+        // Concat the Project Resources
+        this.projectResources = this.projectResources.concat(cache.resources);
     }
 
-    public dumpCachedURIRecord(cachedRecord: IURIRecord, thisURI: string) {
+    public dumpCachedURIRecord(cachedRecord: IURIRecord, thisURI: string, thisHash: string) {
         this.URIRecord[thisURI] = cachedRecord;
+        this.URIRecord[thisURI].hash = thisHash;
     }
 
     public addResource(resourceName: string, resourceType: BasicResourceType) {
@@ -205,8 +236,8 @@ export class Reference {
         } else return false;
     }
 
-    public createURIDictEntry(uri: string) {
-        this.URIRecord[uri] = {
+    public URIcreateURIDictEntry(thisURI: string) {
+        this.URIRecord[thisURI] = {
             localVariables: {},
             foldingRanges: [],
             macros: [],
@@ -214,8 +245,22 @@ export class Reference {
             scriptsAndFunctions: [],
             enums: [],
             enumMembers: [],
-            implicitThisAtPosition: []
+            implicitThisAtPosition: [],
+            hash: ''
         };
+        return this.URIRecord[thisURI];
+    }
+
+    public URISetHash(thisURI: string, hash: string) {
+        const thisURIRecord = this.URIgetURIRecord(thisURI);
+        thisURIRecord.hash = hash;
+    }
+
+    public URIgetURIRecord(thisURI: string) {
+        const ourURIRecord = this.URIRecord[thisURI];
+        if (ourURIRecord) {
+            return this.URIRecord[thisURI];
+        } else return this.URIcreateURIDictEntry(thisURI);
     }
 
     public async URIRecordClearAtURI(thisURI: string) {
@@ -231,7 +276,7 @@ export class Reference {
     //#region Folding Ranges
     public foldingAddFoldingRange(uri: string, thisRange: Range, kind: FoldingRangeKind) {
         if (!this.URIRecord[uri]) {
-            this.createURIDictEntry(uri);
+            this.URIcreateURIDictEntry(uri);
         }
 
         this.URIRecord[uri].foldingRanges.push({
@@ -266,7 +311,7 @@ export class Reference {
      */
     public localCreateLocal(localName: string, thisURI: string, thisRange: Range) {
         // Create our URI Record
-        if (!this.URIRecord[thisURI]) this.createURIDictEntry(thisURI);
+        if (!this.URIRecord[thisURI]) this.URIcreateURIDictEntry(thisURI);
 
         // Get our working URI Object
         const localObject = this.URIRecord[thisURI].localVariables;
@@ -313,7 +358,7 @@ export class Reference {
      */
     public async localClearAtllLocsAtURI(uri: string) {
         if (!this.URIRecord[uri]) {
-            this.createURIDictEntry(uri);
+            this.URIcreateURIDictEntry(uri);
             return;
         }
 
@@ -353,8 +398,10 @@ export class Reference {
     //#endregion
 
     //#region Scripts
-    public scriptAddScript(name: string, uri?: URI, jsdoc?: JSDOC, doNotAutocomplete?: boolean) {
-        this.scriptsAndFunctions[name] = {
+    public scriptAddScript(thisName: string, thisURI?: string, jsdoc?: JSDOC, doNotAutocomplete?: boolean) {
+        if (this.scriptExists(thisName)) return;
+        
+        this.scriptsAndFunctions[thisName] = {
             JSDOC: jsdoc || {
                 description: '',
                 isScript: true,
@@ -364,16 +411,21 @@ export class Reference {
                 returns: '',
                 signature: ''
             },
-            uri: uri,
+            uri: thisURI,
             callBackLocation:
                 doNotAutocomplete === undefined
-                    ? this.scriptsAndFunctionsList.push(name)
+                    ? this.scriptsAndFunctionsList.push(thisName)
                     : doNotAutocomplete === true
-                        ? this.scriptsAndFunctionsList.push(name)
+                        ? this.scriptsAndFunctionsList.push(thisName)
                         : -1,
             isBritish: doNotAutocomplete,
             referenceLocations: []
         };
+    }
+
+    public scriptAddURI(thisName: string, thisURI: string) {
+        const thisScript = this.scriptGetScriptPackage(thisName);
+        if (thisScript) thisScript.uri = thisURI;
     }
 
     public scriptAddJSDOC(name: string, jsdoc: JSDOC) {
@@ -427,7 +479,7 @@ export class Reference {
         const i = this.scriptsAndFunctions[name].referenceLocations.push(Location.create(uri, range)) - 1;
 
         // Create the Record Object if it doesn't exist
-        if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
+        if (!this.URIRecord[uri]) this.URIcreateURIDictEntry(uri);
 
         this.URIRecord[uri].scriptsAndFunctions.push({
             index: i,
@@ -440,7 +492,7 @@ export class Reference {
      * a given URI.
      */
     public scriptRemoveAllReferencesAtURI(uri: string) {
-        if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
+        if (!this.URIRecord[uri]) this.URIcreateURIDictEntry(uri);
 
         for (const thisScriptIndex of this.URIRecord[uri].scriptsAndFunctions) {
             // Get our Script Pack
@@ -526,6 +578,7 @@ export class Reference {
 
     public objectAddObject(objName: string): boolean {
         if (this.scriptExists(objName)) return false;
+        if (this.objectExists(objName)) return false;
 
         this.objects[objName] = {};
         this.objectList.push(objName);
@@ -780,7 +833,7 @@ export class Reference {
     public enumCreateEnum(name: string, thisRange: Range, thisURI: string) {
         // Add our URI if it's not there:
         if (this.URIRecord[thisURI] === undefined) {
-            this.createURIDictEntry(thisURI);
+            this.URIcreateURIDictEntry(thisURI);
         }
 
         // Check if we have a headless enum:
@@ -976,7 +1029,7 @@ export class Reference {
      */
     public async enumClearAllEnumsAtURI(uri: string) {
         // Iterate through our URIRecord;
-        if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
+        if (!this.URIRecord[uri]) this.URIcreateURIDictEntry(uri);
 
         for (const thisEnumRecord of this.URIRecord[uri].enums) {
             // Get our Macro Information:
@@ -1013,7 +1066,7 @@ export class Reference {
      */
     public async enumMemberClearAllEnumMembersAtURI(uri: string) {
         // Iterate through our URIRecord
-        if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
+        if (!this.URIRecord[uri]) this.URIcreateURIDictEntry(uri);
 
         for (const thisEnumMemberRecord of this.URIRecord[uri].enumMembers) {
             // Get our Enum Info:
@@ -1110,7 +1163,7 @@ export class Reference {
     public macroCreateMacro(name: string, value: string, thisRange: Range, thisURI: string) {
         // Add our URI if it's not there:
         if (this.URIRecord[thisURI] === undefined) {
-            this.createURIDictEntry(thisURI);
+            this.URIcreateURIDictEntry(thisURI);
         }
 
         const macroInfo = this.macroGetMacroInformation(name);
@@ -1205,7 +1258,7 @@ export class Reference {
 
     public async macroClearMacrosAtURI(uri: string) {
         // Iterate through our URIRecord;
-        if (!this.URIRecord[uri]) this.createURIDictEntry(uri);
+        if (!this.URIRecord[uri]) this.URIcreateURIDictEntry(uri);
 
         for (const thisMacroRecord of this.URIRecord[uri].macros) {
             // Get our Macro Information:
@@ -1245,6 +1298,19 @@ export class Reference {
         if (genModel.origin.indexOfOrigin === null) return null;
 
         return genModel.referenceLocations[genModel.origin.indexOfOrigin];
+    }
+
+    public shutdownHandoff(): ProjectCache.Cache {
+        return {
+            CachedReference: {
+                enums: this.enums,
+                macros: this.macros,
+                object: this.objects,
+                resources: this.projectResources,
+                scriptsAndFunctions: this.scriptsAndFunctions
+            },
+            URIRecords: this.URIRecord
+        };
     }
 
     //#endregion

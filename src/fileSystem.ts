@@ -12,7 +12,8 @@ import * as rubber from 'gamemaker-rubber';
 import { Resource, EventType, EventNumber, YYP, YYPResource } from 'yyp-typings';
 import { ClientViewNode } from './sharedTypes';
 import * as Ajv from 'ajv';
-import { InitialStartupHandOffPackage } from './startAndShutdown';
+import { InitialStartupHandOffPackage, ProjectCache } from './startAndShutdown';
+import * as crypto from 'crypto';
 
 export interface GMLScriptContainer {
     [propName: string]: GMLScript;
@@ -71,7 +72,7 @@ export interface DocumentFolders {
 export interface DocumentFolder {
     name: string;
     type: BasicResourceType;
-    file: string;
+    fileFullText: string;
     diagnosticHandler: DiagnosticHandler | null;
     eventInfo?: EventInfo;
 }
@@ -180,7 +181,7 @@ export class FileSystem {
     /**
      * All the folders and files in this.topLevelFolder
      */
-    private topLevelDirectories: string[];
+    // private topLevelDirectories: string[];
 
     /**
      * Grammar object, which can contain more than one
@@ -231,7 +232,7 @@ export class FileSystem {
     private projectYYPPath: string;
     private views: GMLFolder[];
 
-    private cachedFileNames: string[] | undefined;
+    private cachedFileNames: string[];
     private defaultView: number;
 
     constructor(standardGrammar: Grammar, lsp: LangServ) {
@@ -243,17 +244,19 @@ export class FileSystem {
         this.openedDocuments = [];
         this.indexComplete = false;
         this.projectDirectory = '';
-        this.topLevelDirectories = [];
+        // this.topLevelDirectories = [];
         this.projectYYPPath = '';
         this.defaultView = 0;
+        this.cachedFileNames = [];
     }
 
-    //#region Init
-    public async initHanfOff(handOff: InitialStartupHandOffPackage) {
+    //#region Init & Shutdown
+    public async initHandOff(handOff: InitialStartupHandOffPackage) {
         // YYP Nonsense
         this.projectDirectory = handOff.YYPInformation.ProjectDirectory;
         this.projectYYPPath = handOff.YYPInformation.ProjectYYPPath;
         this.projectYYP = handOff.YYPInformation.ProjectYYP;
+        // this.topLevelDirectories = handOff.YYPInformation.TopLevelDirectories;
 
         // Views
         this.views = handOff.Views.Folders;
@@ -266,6 +269,13 @@ export class FileSystem {
         this.indexComplete = true;
     }
 
+    public async shutdownCache(fileHandOff: ProjectCache.Cache) {
+        // Encode the text
+        const encoded = JSON.stringify(fileHandOff, null, 4);
+
+        // Save the text
+        fse.writeFileSync(path.join(this.projectDirectory, '.gml-tools', 'project-cache.json'), encoded);
+    }
     //#endregion
 
     //#region Views
@@ -468,31 +478,6 @@ export class FileSystem {
 
     //#region Caching
     /**
-     * Run our initial cache check. If the cache exists, it will
-     * save the file names; otherwise, it will create the cache.
-     */
-    private async initCheckCache() {
-        // Try to Read the Cache
-        if (this.topLevelDirectories.includes('.gml-tools')) {
-            return await fse.readdir(path.join(this.projectDirectory, '.gml-tools'));
-        } else {
-            // Create the Cache:
-            await this.createCache(path.join(this.projectDirectory, '.gml-tools'));
-            return [];
-        }
-    }
-
-    /**
-     * Creates the .gml-tools folder, where we will cache all
-     * our data.
-     * @param fpath The absolute file path where the manual
-     * should be cached.
-     */
-    private async createCache(fpath: string) {
-        await fse.mkdir(fpath);
-    }
-
-    /**
      * Checks if the manual is cached or not. It
      * is safe to run without knowing if the cache
      * exists yet.
@@ -500,11 +485,6 @@ export class FileSystem {
      * check for. Example: "gmlDocs.json"
      */
     public async isFileCached(fileName: string): Promise<boolean> {
-        // Make sure our Cache is initialized:
-        if (!this.cachedFileNames) {
-            this.cachedFileNames = await this.initCheckCache();
-        }
-
         return this.cachedFileNames.includes(fileName);
     }
 
@@ -651,17 +631,11 @@ export class FileSystem {
         return this.documents[uri];
     }
 
-    public async getDocument(uri: string) {
+    public async addDocument(uri: string, file: string): Promise<DocumentFolder | null> {
         const thisFileFolder = this.documents[uri];
         if (thisFileFolder) {
-            return thisFileFolder.file;
-        } else return null;
-    }
-
-    public async addDocument(uri: string, file: string): Promise<void | null> {
-        const thisFileFolder = this.documents[uri];
-        if (thisFileFolder) {
-            thisFileFolder.file = file;
+            thisFileFolder.fileFullText = file;
+            return thisFileFolder;
         } else {
             console.log('Document:' + uri + " doesn't exist!");
             return null;
@@ -679,15 +653,25 @@ export class FileSystem {
         return this.openedDocuments.includes(uri);
     }
 
-    public async closeOpenDocument(uri: string) {
-        const indexNumber = this.openedDocuments.indexOf(uri);
+    public async closeOpenDocument(thisURI: string) {
+        // Close the Open Document
+        const indexNumber = this.openedDocuments.indexOf(thisURI);
         if (indexNumber === -1) {
             console.log(
                 'Error -- attempting to close a document \n which is not open. \n Make sure you are opening them properly.'
             );
         }
-
         this.openedDocuments.splice(indexNumber, 1);
+
+        // Hash the document
+        const thisDocInfo = await this.getDocumentFolder(thisURI);
+        if (!thisDocInfo) {
+            console.log(`Document folder does not exist for ${thisURI}`);
+            return;
+        }
+        const ourHasher = crypto.createHash('sha1');
+        const thisHash = ourHasher.update(thisDocInfo.fileFullText).digest('hex');
+        this.reference.URISetHash(thisURI, thisHash);
     }
 
     //#endregion

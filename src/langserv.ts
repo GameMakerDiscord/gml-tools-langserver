@@ -17,7 +17,7 @@ import {
     FoldingRangeRequestParam,
     ReferenceParams
 } from 'vscode-languageserver/lib/main';
-import { DiagnosticHandler, LintPackageFactory, DiagnosticsPackage, LintPackage } from './diagnostic';
+import { DiagnosticHandler, DiagnosticsPackage, LintPackage } from './diagnostic';
 import { Reference } from './reference';
 import { GMLDefinitionProvider } from './definition';
 import { GMLSignatureProvider } from './signature';
@@ -70,7 +70,7 @@ export class LangServ {
     }
 
     //#region Init
-    public async workspaceBegin(workspaceFolder: WorkspaceFolder[]) { 
+    public async workspaceBegin(workspaceFolder: WorkspaceFolder[]) {
         // Check or Create the Manual:
         let ourManual: [GMLDocs.DocFile, FnamesParse] | null;
         let cacheManual = false;
@@ -108,7 +108,7 @@ export class LangServ {
 
         // Index our YYP
         const fsHandoff = await this.initialStartup.initialWorkspaceFolders(workspaceFolder);
-        if (fsHandoff) await this.fsManager.initHanfOff(fsHandoff);
+        if (fsHandoff) await this.fsManager.initHandOff(fsHandoff);
 
         // Create project-documentation
         if ((await this.fsManager.isFileCached('project-documentation.json')) == false) {
@@ -184,6 +184,14 @@ export class LangServ {
     }
     //#endregion
 
+    //#region Shutdown
+    public async cacheProject() {
+        const fileHandOff = await this.reference.shutdownHandoff();
+        this.fsManager.shutdownCache(fileHandOff);
+    }
+
+    //#endregion
+
     //#region Text Events
     public async openTextDocument(params: DidOpenTextDocumentParams) {
         // Commit to open Q if indexing still...
@@ -197,10 +205,11 @@ export class LangServ {
 
         const thisDiagnostic = await this.fsManager.getDiagnosticHandler(uri);
         await thisDiagnostic.setInput(text);
-        this.fsManager.addDocument(uri, text);
+        const docInfo = await this.fsManager.addDocument(uri, text);
+        if (!docInfo) return;
         this.fsManager.addOpenDocument(uri);
 
-        const finalDiagnosticPackage = await this.lint(thisDiagnostic, SemanticsOption.All);
+        const finalDiagnosticPackage = await this.lint(thisDiagnostic, SemanticsOption.All, docInfo);
 
         // Send Final Diagnostics
         this.connection.sendDiagnostics(DiagnosticsPackage.create(uri, finalDiagnosticPackage));
@@ -217,21 +226,15 @@ export class LangServ {
             await thisDiagnostic.setInput(contentChange.text);
         }
 
-        await this.fsManager.addDocument(uri, thisDiagnostic.getInput());
-        const finalDiagnosticPackage = await this.lint(thisDiagnostic, SemanticsOption.All);
+        const docInfo = await this.fsManager.addDocument(uri, thisDiagnostic.getInput());
+        if (!docInfo) return;
+        const finalDiagnosticPackage = await this.lint(thisDiagnostic, SemanticsOption.All, docInfo);
         // Send Final Diagnostics
         this.connection.sendDiagnostics(DiagnosticsPackage.create(uri, finalDiagnosticPackage));
     }
     //#endregion
 
     //#region Diagnostics
-    public async initLint(thisDiagnostic: DiagnosticHandler): Promise<LintPackage> {
-        // Set up:
-        let lintPackage = LintPackageFactory.createBlank();
-
-        return lintPackage;
-    }
-
     public async getMatchResultsPackage(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage) {
         if (thisDiagnostic.match() == false) {
             await thisDiagnostic.primarySyntaxLint(lintPackage);
@@ -252,15 +255,20 @@ export class LangServ {
         }
     }
 
-    public async lint(thisDiagnostic: DiagnosticHandler, bit: SemanticsOption) {
-        let lintPack = await this.initLint(thisDiagnostic);
+    public async lint(thisDiagnostic: DiagnosticHandler, bit: SemanticsOption, docInfo: DocumentFolder) {
+        let lintPack = new LintPackage();
         const initDiagnostics = await this.getMatchResultsPackage(thisDiagnostic, lintPack);
-        const semDiagnostics = await this.runSemantics(thisDiagnostic, lintPack, bit);
+        const semDiagnostics = await this.runSemantics(thisDiagnostic, lintPack, bit, docInfo);
 
         return initDiagnostics.concat(semDiagnostics);
     }
 
-    public async runSemantics(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, bit: SemanticsOption) {
+    public async runSemantics(
+        thisDiagnostic: DiagnosticHandler,
+        lintPackage: LintPackage,
+        bit: SemanticsOption,
+        docInfo: DocumentFolder
+    ) {
         let diagnosticArray: Diagnostic[] = [];
 
         // Semantic Lint
@@ -270,13 +278,12 @@ export class LangServ {
 
         // Variable Index
         if ((bit & SemanticsOption.Variable) == SemanticsOption.Variable) {
-            await this.semanticVariableIndex(thisDiagnostic, lintPackage);
+            await this.semanticVariableIndex(thisDiagnostic, lintPackage, docInfo);
         }
 
         // JSDOC
         if ((bit & SemanticsOption.JavaDoc) == SemanticsOption.JavaDoc) {
-            const docInfo = await this.fsManager.getDocumentFolder(thisDiagnostic.getURI);
-            if (docInfo && docInfo.type) {
+            if (docInfo.type == 'GMScript') {
                 await this.semanticJSDOC(thisDiagnostic, lintPackage, docInfo);
             }
         }
@@ -299,17 +306,19 @@ export class LangServ {
         }
     }
 
-    public async semanticVariableIndex(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage) {
+    public async semanticVariableIndex(
+        thisDiagnostic: DiagnosticHandler,
+        lintPackage: LintPackage,
+        docInfo: DocumentFolder
+    ) {
         const ourURI = thisDiagnostic.getURI;
         const theseMatchResults = lintPackage.getMatchResults();
         if (!theseMatchResults) return;
-        const URIInformation = await this.fsManager.getDocumentFolder(ourURI);
-        if (!URIInformation) return;
 
         // Clear out all our Clearables
         await this.reference.URIRecordClearAtURI(ourURI);
 
-        thisDiagnostic.runSemanticIndexVariableOperation(theseMatchResults, URIInformation);
+        thisDiagnostic.runSemanticIndexVariableOperation(theseMatchResults, docInfo);
     }
 
     public async semanticJSDOC(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, docInfo: DocumentFolder) {
