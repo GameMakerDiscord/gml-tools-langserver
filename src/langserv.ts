@@ -89,7 +89,7 @@ export class LangServ {
         // If we have a manual, load it into memory:
         if (ourManual) {
             // Load our Manual into Memory
-            this.reference.initGMLDocs(ourManual[0]);
+            this.reference.initDocs(ourManual[0]);
 
             // Cache the Manual:
             if (cacheManual) {

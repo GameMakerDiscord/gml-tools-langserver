@@ -69,7 +69,8 @@ export class Reference {
         this.objects['global'] = {};
     }
 
-    public initGMLDocs(gmlDocs: GMLDocs.DocFile) {
+    //#region Initi
+    public initDocs(gmlDocs: GMLDocs.DocFile) {
         this.gmlDocs = gmlDocs;
         // Add our docs into our scriptsAndFunctions.
         for (const thisFunction of this.gmlDocs.functions) {
@@ -88,7 +89,7 @@ export class Reference {
         }
     }
 
-    public docsAddSecondaryDocs(gmlDocs: GMLDocs.DocFile) {
+    public initDocsAddSecondaryDocs(gmlDocs: GMLDocs.DocFile) {
         for (const thisFunction of gmlDocs.functions) {
             // Add to Overrides List:
             if (this.scriptExists(thisFunction.name)) {
@@ -136,8 +137,7 @@ export class Reference {
         this.gmlDocOverrides = [];
     }
 
-    //#region All Resources
-    public dumpCachedData(cache: ProjectCache.CachedReferences) {
+    public initDumpCachedData(cache: ProjectCache.CachedReferences) {
         // Dump Objects
         for (const thisObjectName in cache.object) {
             if (cache.object.hasOwnProperty(thisObjectName)) {
@@ -176,11 +176,147 @@ export class Reference {
         this.projectResources = this.projectResources.concat(cache.resources);
     }
 
-    public dumpCachedURIRecord(cachedRecord: IURIRecord, thisURI: string, thisHash: string) {
+    public initDumpCachedURIRecord(cachedRecord: IURIRecord, thisURI: string, thisHash: string) {
         this.URIRecord[thisURI] = cachedRecord;
         this.URIRecord[thisURI].hash = thisHash;
     }
 
+    public async initValidateCache() {
+        // Enums
+        for (const thisEnumName in this.enums) {
+            if (this.enums.hasOwnProperty(thisEnumName)) {
+                const thisEnum = this.enums[thisEnumName];
+                thisEnum.referenceLocations.map((thisLocation: Location|null, i) => {
+                    // Cleave our URI Records
+                    if (thisLocation && this.URIRecord[thisLocation.uri] === undefined) {
+                        // Are we about to kill off the Origin?
+                        if (i === thisEnum.origin.indexOfOrigin) {
+                            // Clear the indexOfOrigin to Null:
+                            thisEnum.origin.indexOfOrigin = null;
+                        }
+
+                        // Splice out the old Reference
+                        delete thisEnum.referenceLocations[i];
+
+                        // Kill the Enum if it's empty
+                        if (cleanArrayLength(thisEnum.referenceLocations) === 0) {
+                            console.log(
+                                `Clearing enum from cache '${thisEnumName}'. All references have been removed.`
+                            );
+                            delete this.enums[thisEnumName];
+                        }
+                    }
+                });
+
+                // Continue if we killed the enum:
+                if (!this.enums[thisEnumName]) continue;
+
+                // Loop through EnumMembers
+                for (const thisEnumMemberName in thisEnum.origin.enumMembers) {
+                    if (thisEnum.origin.enumMembers.hasOwnProperty(thisEnumMemberName)) {
+                        const thisEnumMember = thisEnum.origin.enumMembers[thisEnumMemberName];
+                        thisEnumMember.referenceLocations.map((thisLocation: Location|null, i) => {
+                            // Cleave our URI Records
+                            if (thisLocation && this.URIRecord[thisLocation.uri] === undefined) {
+                                // Are we about to kill off the Origin?
+                                if (i === thisEnumMember.origin.indexOfOrigin) {
+                                    // Clear the indexOfOrigin to Null:
+                                    thisEnumMember.origin.indexOfOrigin = null;
+                                }
+
+                                // Splice out the old Reference
+                                delete thisEnum.referenceLocations[i];
+
+                                // Kill it if it's empty
+                                if (cleanArrayLength(thisEnumMember.referenceLocations) === 0) {
+                                    console.log(
+                                        `Clearing enum member from cache '${thisEnumMemberName}'. All references have been removed.`
+                                    );
+                                    delete this.enums[thisEnumName].origin.enumMembers[thisEnumMemberName];
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        // Macros
+        for (const thisMacroName in this.macros) {
+            if (this.macros.hasOwnProperty(thisMacroName)) {
+                const thisMacro = this.macros[thisMacroName];
+                thisMacro.referenceLocations.map((thisLocation: Location|null, i) => {
+                    if (thisLocation && this.URIRecord[thisLocation.uri] === undefined) {
+                        // Are we about to kill off the Origin?
+                        if (i === thisMacro.origin.indexOfOrigin) {
+                            // Clear the indexOfOrigin to Null:
+                            thisMacro.origin.indexOfOrigin = null;
+                        }
+
+                        // Splice out the old Reference
+                        delete thisMacro.referenceLocations[i];
+
+                        // Kill the Enum if it's empty
+                        if (cleanArrayLength(thisMacro.referenceLocations) === 0) {
+                            console.log(
+                                `Clearing enum from cache '${thisMacroName}'. All references have been removed.`
+                            );
+                            delete this.macros[thisMacroName];
+                        }
+                    }
+                });
+            }
+        }
+
+        // Scripts
+        for (const thisScriptName in this.scriptsAndFunctions) {
+            if (this.scriptsAndFunctions.hasOwnProperty(thisScriptName)) {
+                const thisScript = this.scriptsAndFunctions[thisScriptName];
+                if (thisScript.uri && this.URIRecord[thisScript.uri] === undefined) {
+                    // Delete the script and clear it from the list
+                    delete this.scriptsAndFunctions[thisScriptName];
+
+                    const thisIndex = this.scriptsAndFunctionsList.indexOf(thisScriptName);
+                    if (thisIndex !== -1) {
+                        delete this.scriptsAndFunctionsList[thisIndex];
+                    }
+                }
+            }
+        }
+
+        // Objects
+        for (const thisObjectName in this.objects) {
+            if (this.objects.hasOwnProperty(thisObjectName)) {
+                const thisObject = this.objects[thisObjectName];
+
+                // Each Variable... le sigh
+                for (const thisVarName in thisObject) {
+                    if (thisObject.hasOwnProperty(thisVarName)) {
+                        const thisVar = thisObject[thisVarName];
+                        thisVar.referenceLocations.map(async (thisLocation: Location|null, i) => {
+                            if (thisLocation && this.URIRecord[thisLocation.uri] === undefined) {
+                                // Splice out the Record from this Var:
+                                delete this.objects[thisObjectName][thisVarName].referenceLocations[i];
+
+                                if (i === thisVar.origin.indexOfOrigin) {
+                                    const newOrigin = await this.instAssignNewOrigin(thisVar.referenceLocations, thisObjectName);
+                                    if (newOrigin === null) {
+                                        // Delete the variable entirely -- we've lost all reference to it.
+                                        delete this.objects[thisObjectName][thisVarName];
+                                    } else {
+                                        thisVar.origin = newOrigin;
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    }
+    //#endregion
+
+    //#region All Resources
     public addResource(resourceName: string, resourceType: BasicResourceType) {
         this.projectResources.push({
             name: resourceName,
@@ -400,7 +536,7 @@ export class Reference {
     //#region Scripts
     public scriptAddScript(thisName: string, thisURI?: string, jsdoc?: JSDOC, doNotAutocomplete?: boolean) {
         if (this.scriptExists(thisName)) return;
-        
+
         this.scriptsAndFunctions[thisName] = {
             JSDOC: jsdoc || {
                 description: '',
@@ -696,7 +832,7 @@ export class Reference {
                 delete this.objects[thisOldVar.object][thisOldVar.name].referenceLocations[thisOldVar.index];
 
                 if (thisOldVar.isOrigin) {
-                    const newOrigin = await this.instAssignNewOrigin(thisVarEntry.referenceLocations, uri);
+                    const newOrigin = await this.instAssignNewOrigin(thisVarEntry.referenceLocations, thisOldVar.object);
                     if (newOrigin === null) {
                         // Delete the variable entirely -- we've lost all reference to it.
                         delete this.objects[thisOldVar.object][thisOldVar.name];
@@ -710,12 +846,8 @@ export class Reference {
         }
     }
 
-    private async instAssignNewOrigin(referenceArray: Location[], uri: string): Promise<IOriginVar | null> {
+    private async instAssignNewOrigin(referenceArray: Location[], objName: string): Promise<IOriginVar | null> {
         const fsManager: FileSystem = this.lsp.requestLanguageServiceHandler(LanguageService.FileSystem);
-        const URIInfo = await fsManager.getDocumentFolder(uri);
-        if (!URIInfo) return null;
-        const objName = URIInfo.name;
-
         // Our Dummy "Best Candidate"
         let bestCandidate = {
             arrayIndex: 0,

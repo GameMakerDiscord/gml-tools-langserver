@@ -271,10 +271,10 @@ export class FileSystem {
 
     public async shutdownCache(fileHandOff: ProjectCache.Cache) {
         // Encode the text
-        const encoded = JSON.stringify(fileHandOff, null, 4);
+        const buff = Buffer.from(JSON.stringify(fileHandOff));
 
         // Save the text
-        fse.writeFileSync(path.join(this.projectDirectory, '.gml-tools', 'project-cache.json'), encoded);
+        fse.writeFileSync(path.join(this.projectDirectory, '.gml-tools', 'project-cache.json'), buff);
     }
     //#endregion
 
@@ -566,7 +566,7 @@ export class FileSystem {
 
         if (!isValid) return;
         this.reference.docsClearSecondaryDocs();
-        this.reference.docsAddSecondaryDocs(ourJSON);
+        this.reference.initDocsAddSecondaryDocs(ourJSON);
 
         ourDocsWatch.on('all', async (someEvent, somePath, someStats) => {
             switch (someEvent) {
@@ -582,7 +582,7 @@ export class FileSystem {
 
                     if (!isValid) return;
                     this.reference.docsClearSecondaryDocs();
-                    this.reference.docsAddSecondaryDocs(ourJSON);
+                    this.reference.initDocsAddSecondaryDocs(ourJSON);
                     break;
 
                 default:

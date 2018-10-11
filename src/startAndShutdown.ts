@@ -166,7 +166,7 @@ export class InitialAndShutdown {
          */
 
         // ! Step Zero: Dump the Reference from the Cache
-        this.reference.dumpCachedData(this.projectCache.CachedReference);
+        this.reference.initDumpCachedData(this.projectCache.CachedReference);
 
         // ! Step One: Index the YYP Resources, so we have all resource names:
         const projectYYs: Resource.GMResource[] = [];
@@ -208,10 +208,13 @@ export class InitialAndShutdown {
             const ourURI = URI.file(thisFPath).toString();
 
             if (!ourURIRecord[ourURI] || ourURIRecord[ourURI].hash !== thisHash) {
+                console.log(`We don't have a hash for: \n   ${ourURI}.`);
                 // and if it includes "macro" or "enum"...
                 if (fileText.includes('#macro') || fileText.includes('enum')) {
+                    console.log(`...and it had a macro or enum declaration in it. Parsing...`);
                     await this.initialGMLParse(ourURI, fileText, thisHash);
                 } else {
+                    console.log(`...and it did NOT have a macro or enum declaration in it.`);
                     filesToParse.push({
                         fpath: thisFPath,
                         fullText: fileText,
@@ -234,6 +237,7 @@ export class InitialAndShutdown {
             const ourURI = URI.file(thisFile.fpath).toString();
             // Passed Hash Check:
             if (thisFile.passedHash) {
+                // ! This check is always empty. We don't need it yet -- it's for super rare cases.
                 if (
                     enumsAdded.some((thisEnumStatement) => {
                         return thisFile.fullText.includes(thisEnumStatement);
@@ -244,9 +248,10 @@ export class InitialAndShutdown {
                 ) {
                     this.initialGMLParse(ourURI, thisFile.fullText, thisFile.hash);
                 } else {
-                    this.reference.dumpCachedURIRecord(this.projectCache.URIRecords[ourURI], ourURI, thisFile.hash);
+                    this.reference.initDumpCachedURIRecord(this.projectCache.URIRecords[ourURI], ourURI, thisFile.hash);
                 }
             } else {
+                console.log(`Initial GML Parse for: \n  ${ourURI}`);
                 this.initialGMLParse(ourURI, thisFile.fullText, thisFile.hash);
             }
         }
@@ -263,6 +268,10 @@ export class InitialAndShutdown {
                 this.defaultView = this.views.length - 1;
             }
         }
+
+        // ! Step Six: Validate our Reference Cache for ghosts
+        // Tell the reference to validate
+        await this.reference.initValidateCache();
 
         console.log(timer.timeDifferenceNowNice());
 
