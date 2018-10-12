@@ -59,16 +59,19 @@ export class GMLCompletionProvider {
         let workingArray: CompletionItem[] = [];
         const rx = new RegExp('^' + thisWord);
 
-        // All our variables in this object:
-        const docInformation = await this.fs.getDocumentFolder(params.textDocument.uri);
+        // Find our Implicit
+        const thisImplicitName = await this.reference.implicitGetCurrentImplicitEntry(
+            params.textDocument.uri,
+            params.position
+        );
 
         // Iterate on the Instance Variables:
-        if (docInformation && docInformation.type == 'GMObject') {
-            const variableList = this.reference.getAllObjectVariables(docInformation.name);
+        if (thisImplicitName) {
+            const variableList = this.reference.getAllObjectVariables(thisImplicitName);
 
             for (const thisVar of variableList) {
                 if (thisVar.match(rx) !== null) {
-                    const orig = this.reference.instGetOriginLocation(docInformation.name, thisVar);
+                    const orig = this.reference.instGetOriginLocation(thisImplicitName, thisVar);
                     if (
                         orig &&
                         (orig.range.start.line !== thisRange.start.line &&
@@ -114,7 +117,7 @@ export class GMLCompletionProvider {
         // Functions/Scripts
         const functionList = this.reference.scriptGetScriptList();
         for (const item of functionList) {
-            if (item.match(rx) !== null) {
+            if (item && item.match(rx) !== null) {
                 const total = workingArray.push({
                     label: item,
                     kind: CompletionItemKind.Function,

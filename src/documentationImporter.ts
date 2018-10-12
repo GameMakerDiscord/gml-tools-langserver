@@ -534,6 +534,9 @@ export class DocumentationImporter {
                         type: this.clearLineTerminators(thisFunction.return)
                     };
 
+                    // clear spaces :eye roll: from our links:
+                    thisVar.link = thisVar.link.replace(/[\s]/g, '%20');
+
                     if (this.variableValidator(thisVar)) {
                         // Stupid, stupid British spelling Check:
                         for (const thisSpelling of this.UKSpellingsA) {

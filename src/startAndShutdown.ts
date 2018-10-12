@@ -208,13 +208,13 @@ export class InitialAndShutdown {
             const ourURI = URI.file(thisFPath).toString();
 
             if (!ourURIRecord[ourURI] || ourURIRecord[ourURI].hash !== thisHash) {
-                console.log(`We don't have a hash for: \n   ${ourURI}.`);
+                if (ourURIRecord[ourURI]) console.log(`We don't have a hash for: \n   ${ourURI}.`);
+                else console.log("We had a hash but it was wrong.")
                 // and if it includes "macro" or "enum"...
                 if (fileText.includes('#macro') || fileText.includes('enum')) {
                     console.log(`...and it had a macro or enum declaration in it. Parsing...`);
                     await this.initialGMLParse(ourURI, fileText, thisHash);
                 } else {
-                    console.log(`...and it did NOT have a macro or enum declaration in it.`);
                     filesToParse.push({
                         fpath: thisFPath,
                         fullText: fileText,
@@ -402,7 +402,10 @@ export class InitialAndShutdown {
             return [ourPath];
         }
 
-        // TODO Extension support
+        // * Extensions
+        if (yyFile.modelName === "GMExtension") {
+            
+        }
 
         // TODO Support for Room Creation Code
 
