@@ -6,7 +6,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { YYP, Resource, EventType } from 'yyp-typings';
 import { IURIRecord, IObjects, IScriptsAndFunctions, IEnum, IMacro, SemanticsOption } from './declarations';
-import { DocumentFolders, EventInfo, DocumentFolder, GMLFolder } from './fileSystem';
+import { DocumentFolders, EventInfo, DocumentFolder, GMLFolder, JSDOC, JSDOCParameter } from './fileSystem';
 import { DiagnosticHandler } from './diagnostic';
 import { Grammar } from 'ohm-js';
 import { LangServ } from './langserv';
@@ -209,7 +209,7 @@ export class InitialAndShutdown {
 
             if (!ourURIRecord[ourURI] || ourURIRecord[ourURI].hash !== thisHash) {
                 if (ourURIRecord[ourURI]) console.log(`We don't have a hash for: \n   ${ourURI}.`);
-                else console.log("We had a hash but it was wrong.")
+                else console.log('We had a hash but it was wrong.');
                 // and if it includes "macro" or "enum"...
                 if (fileText.includes('#macro') || fileText.includes('enum')) {
                     console.log(`...and it had a macro or enum declaration in it. Parsing...`);
@@ -403,8 +403,78 @@ export class InitialAndShutdown {
         }
 
         // * Extensions
-        if (yyFile.modelName === "GMExtension") {
-            
+        if (yyFile.modelName === 'GMExtension') {
+            for (const thisFile of yyFile.files) {
+                // For non-GML extensions, we parse the YY
+                if (thisFile.kind !== 2 || thisFile.filename.includes('.gml') === false) {
+                    // Iterate on each function
+                    for (const thisFunc of thisFile.functions) {
+                        // Number of Params
+                        const minArg = thisFunc.argCount === -1 ? 0 : thisFunc.argCount;
+                        const maxArg = minArg === -1 ? 9999 : minArg;
+
+                        // Param Descriptions
+                        const ourParams: JSDOCParameter[] = [];
+                        for (let i = 0; i < thisFunc.args.length; i++) {
+                            const thisArg = thisFunc.args[i];
+                            const thisArgDescription = thisArg == 1 ? 'string' : 'real';
+
+                            ourParams.push({
+                                documentation: thisArgDescription,
+                                label: 'Argument' + (i + 1)
+                            });
+                        }
+
+                        // Return Type
+                        const ourReturn = thisFunc.returnType == 1 ? 'string' : 'real';
+
+                        const ourJSDOC: JSDOC = {
+                            description: thisFunc.help,
+                            isScript: true,
+                            minParameters: minArg,
+                            maxParameters: maxArg,
+                            signature: thisFunc.name + '()',
+                            parameters: ourParams,
+                            returns: ourReturn
+                        };
+
+                        // Do autocomplete?
+                        const autoComplete = thisFunc.hidden || thisFunc.name.charAt(0) === '_';
+
+                        this.reference.scriptAddScript(thisFunc.name, undefined, ourJSDOC, autoComplete);
+                    }
+                } else {
+                    // Get our GML File:
+                    const fpath = path.join(this.projectDirectory, 'extensions', yyFile.name, thisFile.filename);
+                    const extensionFile = await fse.readFile(fpath, 'utf8');
+
+                    // Split up our GML File, because this thing is fucked:
+                    const ourGMLFiles = extensionFile.split(/#define.*/);
+
+                    // Create a document handler. Boy this is gonna be slow.
+                    const thisDocHandler = new DiagnosticHandler(
+                        this.grammar,
+                        URI.file(fpath).toString(),
+                        this.reference
+                    );
+
+                    for (const thisFunc of ourGMLFiles) {
+                        // Set our Match
+                        thisDocHandler.setInput(thisFunc);
+
+                        // Match
+                        if (thisDocHandler.match() == false) {
+                            console.log('Failed to parse: ' + thisFunc.slice(0, 20) + '...');
+                            continue;
+                        }
+
+                        // Run our Diagnostics:
+                        const ourJSDOC = await thisDocHandler.runSemanticExtensionJSDOC(
+                            thisDocHandler.getMatchResult()
+                        );
+                    }
+                }
+            }
         }
 
         // TODO Support for Room Creation Code

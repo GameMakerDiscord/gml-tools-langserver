@@ -48,6 +48,7 @@ gml {
         |   MacroDeclaration
         |   EnumDeclaration
         |   RegionStatement
+        |   DefineStatement
         |   PureMacro<#endSemiColon>
     StatementList
         =   Statement<#sc>*
@@ -120,11 +121,13 @@ gml {
     RegionStatement
         =   OpenRegion|CloseRegion
     OpenRegion
-        =   "#region" #regionName?
+        =   "#region " #regionName?
     CloseRegion
         =   "#endregion"
     regionName
         =   (~lineTerminator sourceCharacter)*
+    DefineStatement
+        =   "#define " #(~lineTerminator sourceCharacter)*
     PureMacro<endSemiColon>
         =   macroIdentifier #endSemiColon
 

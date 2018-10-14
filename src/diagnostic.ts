@@ -142,7 +142,6 @@ export class DiagnosticHandler {
     private semanticIndex: number;
     private currentFullTextDocument: string;
     private reference: Reference;
-    private macrosAddedThisCycle: Array<MacroPackage>;
     private jsdocGenerated: JSDOC;
     private tokenList: Token[];
     private currentObjectName: string;
@@ -167,7 +166,6 @@ export class DiagnosticHandler {
         this.currentFullTextDocument = '';
 
         this.localQuickCheck = [];
-        this.macrosAddedThisCycle = [];
         this.tokenList = [];
         this.jsdocGenerated = {
             description: '',
@@ -388,17 +386,19 @@ export class DiagnosticHandler {
                     // Right now, we don't walk this
                     // Next update, we'll add types to try to walk this:
                     if (objName.includes('.') == false) {
-
                         // The Ariak check
                         const macroVal = this.reference.macroGetMacroValue(objName);
                         if (macroVal) {
-                            this.reference.macroAddReference(objName, this.uri, 
-                                this.getRangeAtNode(this.currentFullTextDocument, thisObject));
+                            this.reference.macroAddReference(
+                                objName,
+                                this.uri,
+                                this.getRangeAtNode(this.currentFullTextDocument, thisObject)
+                            );
                             objName = macroVal;
                         }
 
                         // The other check
-                        if (objName == "other") {
+                        if (objName == 'other') {
                             objName = this.reference.implicitGetLastImplicit(this.uri);
                         }
 
@@ -430,8 +430,11 @@ export class DiagnosticHandler {
                         // The Ariak check
                         const macroVal = this.reference.macroGetMacroValue(objName);
                         if (macroVal) {
-                            this.reference.macroAddReference(objName, this.uri, 
-                                this.getRangeAtNode(this.currentFullTextDocument, thisObject));
+                            this.reference.macroAddReference(
+                                objName,
+                                this.uri,
+                                this.getRangeAtNode(this.currentFullTextDocument, thisObject)
+                            );
                             objName = macroVal;
                         }
 
@@ -466,8 +469,11 @@ export class DiagnosticHandler {
                     // The Ariak check
                     const macroVal = this.reference.macroGetMacroValue(objName);
                     if (macroVal) {
-                        this.reference.macroAddReference(objName, this.uri, 
-                            this.getRangeAtNode(this.currentFullTextDocument, thisObject));
+                        this.reference.macroAddReference(
+                            objName,
+                            this.uri,
+                            this.getRangeAtNode(this.currentFullTextDocument, thisObject)
+                        );
                         objName = macroVal;
                     }
 
@@ -549,11 +555,6 @@ export class DiagnosticHandler {
                     const name = macroName.sourceString;
                     const val = macroValue.sourceString.trim();
 
-                    this.macrosAddedThisCycle.push({
-                        macroName: name,
-                        macroValue: val
-                    });
-
                     const thisRange = Range.create(
                         getPositionFromIndex(this.currentFullTextDocument, hashtag.source.startIdx),
                         getPositionFromIndex(this.currentFullTextDocument, macroValue.source.endIdx)
@@ -629,6 +630,25 @@ export class DiagnosticHandler {
                         this.currentEnumeration.toString()
                     );
                     this.currentEnumeration++;
+                },
+
+                DefineStatement: (defineWord: Node, funcName: Node) => {
+                    const startPos = getPositionFromIndex(
+                        this.currentFullTextDocument,
+                        defineWord.source.startIdx + this.semanticIndex
+                    );
+
+                    const endPos = getPositionFromIndex(
+                        this.currentFullTextDocument,
+                        funcName.source.endIdx + this.semanticIndex
+                    );
+
+                    this.semanticDiagnostics.push({
+                        severity: DiagnosticSeverity.Warning,
+                        message: 'Define statement only allowed in GML Extension. We will support this in the future.',
+                        range: Range.create(startPos, endPos),
+                        source: 'gml'
+                    });
                 },
 
                 // Generic for all non-terminal nodes
@@ -724,7 +744,7 @@ export class DiagnosticHandler {
                 },
 
                 identifier: (id: Node) => {
-                    const ourID = id.nesourceString;
+                    const ourID = id.sourceString;
 
                     if (/\bargument[0-9]+\b/.test(ourID)) {
                         this.jsdocGenerated.minParameters++;
@@ -735,6 +755,10 @@ export class DiagnosticHandler {
                         this.jsdocGenerated.minParameters = -9999;
                         this.jsdocGenerated.maxParameters = 9999;
                     }
+                },
+
+                DefineStatement: (defineWord: Node, funcName: Node) => {
+                    this.jsdocGenerated.signature = funcName.sourceString;
                 },
 
                 // Generic for all non-terminal nodes
@@ -1110,27 +1134,33 @@ export class DiagnosticHandler {
 
         for (const element of matchArray) {
             this.semanticIndex = element.indexRange.startIndex;
-            await this.semantics(this.matchResult).jsdoc();
+            await this.semantics(element.matchResult).jsdoc();
         }
 
-        // // Create Signature here (kinda crappy):
-        // if (this.jsdocGenerated.signature === "") {
-        // 	this.jsdocGenerated.signature = name;
-        // }
-        // this.jsdocGenerated.signature += "(";
-
-        // // Add up params:
-        // for (let i = 0, l = this.jsdocGenerated.parameterCount; i < l; i++) {
-        // 	const element = this.jsdocGenerated.parameters[i];
-
-        // 	this.jsdocGenerated.signature += element.label;
-        // 	this.jsdocGenerated.signature += i == l - 1 ? "" : ", ";
-        // }
-        // this.jsdocGenerated.signature += ")";
         this.jsdocGenerated.signature = name;
 
         return this.jsdocGenerated;
     }
+
+    public async runSemanticExtensionJSDOC(matchResult: MatchResult) {
+        // Clear past JSDOC
+        this.jsdocGenerated = {
+            description: '',
+            isScript: true,
+            minParameters: 0,
+            maxParameters: 9999,
+            parameters: [],
+            returns: '',
+            signature: ''
+        };
+
+        await this.semantics(matchResult).extJSDOC();
+
+        this.jsdocGenerated.signature = name;
+
+        return this.jsdocGenerated;
+    }
+
     // #endregion
 
     public async createSignatureTokenListGoodMatch() {
