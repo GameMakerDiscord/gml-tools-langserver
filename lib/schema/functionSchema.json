@@ -1,88 +1,88 @@
 {
-	"$schema": "http://json-schema.org/draft-06/schema#",
-	"$ref": "#/definitions/Function",
-	"definitions": {
-		"Function": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"$ref": "#/definitions/non-empty-string"
-				},
-				"signature": {
-					"type": "string"
-				},
-				"parameters": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/Parameter"
-					}
-				},
-				"example": {
-					"$ref": "#/definitions/Example"
-				},
-				"documentation": {
-					"type": "string"
-				},
-				"return": {
-					"type": "string"
-				},
-				"link": {
-					"$ref": "#/definitions/non-empty-string"
-				},
-				"minParameters": {
-					"type": "number"
-				},
-				"maxParameters": {
-					"type": "number"
-				},
-				"isBritish": {
-					"type": "boolean"
-				}
-			},
-			"required": [
-				"documentation",
-				"example",
-				"name",
-				"parameters",
-				"return",
-				"signature",
-				"minParameters",
-				"maxParameters"
-			],
-			"title": "Function"
-		},
-		"Example": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"code": {
-					"type": "string"
-				},
-				"description": {
-					"type": "string"
-				}
-			},
-			"required": ["code", "description"],
-			"title": "Example"
-		},
-		"Parameter": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"label": {
-					"$ref": "#/definitions/non-empty-string"
-				},
-				"documentation": {
-					"$ref": "#/definitions/non-empty-string"
-				}
-			},
-			"required": ["documentation", "label"],
-			"title": "Parameter"
-		},
-		"non-empty-string": {
-			"type": "string",
-			"minLength": 1
-		}
-	}
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/Function",
+    "definitions": {
+        "Function": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "$ref": "#/definitions/non-empty-string"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Parameter"
+                    }
+                },
+                "example": {
+                    "$ref": "#/definitions/Example"
+                },
+                "documentation": {
+                    "type": "string"
+                },
+                "return": {
+                    "type": "string"
+                },
+                "link": {
+                    "$ref": "#/definitions/non-empty-string"
+                },
+                "minParameters": {
+                    "type": "number"
+                },
+                "maxParameters": {
+                    "type": "number"
+                },
+                "doNotAutoComplete": {
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "documentation",
+                "example",
+                "name",
+                "parameters",
+                "return",
+                "signature",
+                "minParameters",
+                "maxParameters"
+            ],
+            "title": "Function"
+        },
+        "Example": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                }
+            },
+            "required": ["code", "description"],
+            "title": "Example"
+        },
+        "Parameter": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "label": {
+                    "$ref": "#/definitions/non-empty-string"
+                },
+                "documentation": {
+                    "$ref": "#/definitions/non-empty-string"
+                }
+            },
+            "required": ["documentation", "label"],
+            "title": "Parameter"
+        },
+        "non-empty-string": {
+            "type": "string",
+            "minLength": 1
+        }
+    }
 }

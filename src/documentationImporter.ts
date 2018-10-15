@@ -8,13 +8,6 @@ import * as Ajv from 'ajv';
 import * as cheerio from 'cheerio';
 import { normalizeEoLSequences } from './utils';
 
-export interface FnamesParse {
-    InstanceVar: string[];
-    Constants: string[];
-    Obsolete: string[];
-    ReadOnly: string[];
-}
-
 /**
  * The DocumentationImporter is responsible for two tasks:
  * 1. Importing the
@@ -63,7 +56,7 @@ export class DocumentationImporter {
         this.UKSpellingsA = Object.getOwnPropertyNames(this.UKSpellings);
     }
 
-    public async createManual(): Promise<[GMLDocs.DocFile, FnamesParse] | null> {
+    public async createManual(): Promise<GMLDocs.DocFile | null> {
         // Get our path to the GMS2 Program folder. If nothing there,
         // exit early.
         const gms2FPath = await this.getManualPath();
@@ -75,7 +68,7 @@ export class DocumentationImporter {
 
         // Figure out our Fnames file if we can:
         const fnamesParse = await this.parsefnames(path.join(gms2FPath, 'TextEditor', 'fnames'));
-        if (!fnamesParse) return null;
+        if (fnamesParse === null) return null;
 
         // Main Loop:
         // We're going to iterate on the entire contents of the ZIP file,
@@ -86,7 +79,8 @@ export class DocumentationImporter {
         // Main docs
         let gmlDocs: GMLDocs.DocFile = {
             functions: [],
-            variables: []
+            variables: [],
+            fnames: fnamesParse
         };
         let failureList: { [stupid: string]: string[] } = {
             'May have been parsed incorrectly:': [],
@@ -514,6 +508,7 @@ export class DocumentationImporter {
                         // Commit our Main Function here
                         gmlDocs.functions.push(thisFunction);
                     } else {
+                        console.log('Invalid parse for ' + thisFunction.name);
                         // Push our *invalid* functions here.
                         if (failureList['May have been parsed incorrectly:'].includes(thisFunction.name) == false) {
                             failureList['Was not Parsed; likely not a function:'].push(thisFunction.name);
@@ -579,7 +574,7 @@ export class DocumentationImporter {
             }
         }
 
-        return [gmlDocs, fnamesParse];
+        return gmlDocs;
     }
 
     private async getManualPath(): Promise<string> {
@@ -632,7 +627,7 @@ export class DocumentationImporter {
         return data.replace(/\r?\n|\r/g, ' ');
     }
 
-    private async parsefnames(fpath: string): Promise<FnamesParse | null> {
+    private async parsefnames(fpath: string): Promise<GMLDocs.FnamesParse | null> {
         let fnamesFile: string;
         try {
             fnamesFile = normalizeEoLSequences(await fse.readFile(fpath, 'utf8'));
@@ -643,7 +638,7 @@ export class DocumentationImporter {
         const ourLines = fnamesFile.split('\n');
 
         // Create our object and parse:
-        const ourParse: FnamesParse = {
+        const ourParse: GMLDocs.FnamesParse = {
             Constants: [],
             InstanceVar: [],
             Obsolete: [],

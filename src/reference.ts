@@ -8,7 +8,6 @@ import {
     IEnum,
     IMacro,
     IURIRecord,
-    GMLDocOverrides,
     GenericResourceModel,
     IOriginVar,
     VariableRank,
@@ -341,7 +340,7 @@ export class Reference {
     }
 
     public deleteResource(name: string) {
-        const resourceLocation = this.projectResources.findIndex((thisResource) => {
+        const resourceLocation = this.projectResources.findIndex(thisResource => {
             return thisResource.name === name;
         });
 
@@ -371,7 +370,7 @@ export class Reference {
     }
 
     public resourceExists(name: string): boolean {
-        const resourceExists = this.projectResources.find((thisResource) => {
+        const resourceExists = this.projectResources.find(thisResource => {
             return thisResource.name === name;
         });
 
@@ -721,7 +720,12 @@ export class Reference {
     }
 
     //#region Extensions
-    public extensionAddExtension(thisName: string, thisJSDOC: JSDOC, doNotAutoComplete: boolean, thisLocation: Location) {
+    public extensionAddExtension(
+        thisName: string,
+        thisJSDOC: JSDOC,
+        doNotAutoComplete: boolean,
+        thisLocation: Location
+    ) {
         this.callables.extensions[thisName] = {
             doNotAutoComplete: doNotAutoComplete,
             JSDOC: thisJSDOC,
@@ -1566,7 +1570,10 @@ export class Reference {
                 macros: this.macros,
                 object: this.objects,
                 resources: this.projectResources,
-                callables: this.callables
+                callables: {
+                    extensions: this.callables.extensions,
+                    scripts: this.callables.scripts
+                }
             },
             URIRecords: this.URIRecord
         };

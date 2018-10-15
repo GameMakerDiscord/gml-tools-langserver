@@ -90,6 +90,14 @@ export namespace GMLDocs {
     export interface DocFile {
         functions: DocFunction[];
         variables: DocVariable[];
+        fnames: FnamesParse;
+    }
+
+    export interface FnamesParse {
+        InstanceVar: string[];
+        Constants: string[];
+        Obsolete: string[];
+        ReadOnly: string[];
     }
 
     /**

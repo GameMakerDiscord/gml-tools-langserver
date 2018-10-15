@@ -23,7 +23,7 @@ import { GMLDefinitionProvider } from './definition';
 import { GMLSignatureProvider } from './signature';
 import { GMLCompletionProvider } from './completion';
 import { SemanticsOption, LanguageService, GMLDocs, GMLToolsSettings } from './declarations';
-import { DocumentationImporter, FnamesParse } from './documentationImporter';
+import { DocumentationImporter } from './documentationImporter';
 import { FoldingRange } from 'vscode-languageserver-protocol/lib/protocol.foldingRange';
 import { InitialAndShutdown } from './startAndShutdown';
 
@@ -72,7 +72,7 @@ export class LangServ {
     //#region Init
     public async workspaceBegin(workspaceFolder: WorkspaceFolder[]) {
         // Check or Create the Manual:
-        let ourManual: [GMLDocs.DocFile, FnamesParse] | null;
+        let ourManual: GMLDocs.DocFile | null;
         let cacheManual = false;
         try {
             const encodedText = fse.readFileSync(
@@ -89,7 +89,7 @@ export class LangServ {
         // If we have a manual, load it into memory:
         if (ourManual) {
             // Load our Manual into Memory
-            this.reference.initDocs(ourManual[0]);
+            this.reference.initDocs(ourManual);
 
             // Cache the Manual:
             if (cacheManual) {
