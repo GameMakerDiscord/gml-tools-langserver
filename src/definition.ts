@@ -51,9 +51,21 @@ export class GMLDefinitionProvider {
         }
 
         // Scripts
-        const scriptPack = this.reference.scriptGetScriptPackage(thisWord);
+        const scriptPack = this.reference.scriptGetPackage(thisWord);
         if (scriptPack && scriptPack.JSDOC && scriptPack.JSDOC.isScript && scriptPack.uri) {
-            return Location.create(scriptPack.uri.toString(), Range.create(0, 0, 0, 0));
+            return Location.create(scriptPack.uri, Range.create(0, 0, 0, 0));
+        }
+
+        // Functions?
+        const funcPack = this.reference.functionGetPackage(thisWord);
+        if (funcPack && funcPack.JSDOC.link) {
+            return Location.create(funcPack.JSDOC.link, Range.create(0, 0, 0, 0));
+        }
+
+        // Extensions
+        const extPack = this.reference.extensionGetPackage(thisWord);
+        if (extPack) {
+            return extPack.originLocation;
         }
 
         // Enums
@@ -101,7 +113,7 @@ export class GMLDefinitionProvider {
             const macroVal = this.reference.macroGetMacroValue(thisWord[ws.objName]);
             if (macroVal) ourWord[ws.objName] = macroVal;
 
-            const locations = await this.reference.objectGetAllVariableReferences(
+            const locations = await this.reference.instGetAllVariableReferences(
                 ourWord[ws.objName],
                 ourWord[ws.varName]
             );
@@ -135,7 +147,7 @@ export class GMLDefinitionProvider {
         const fs: FileSystem = this.lsp.requestLanguageServiceHandler(LanguageService.FileSystem);
         const docInfo = await fs.getDocumentFolder(params.textDocument.uri);
         if (docInfo) {
-            const locations = await this.reference.objectGetAllVariableReferences(docInfo.name, thisWord);
+            const locations = await this.reference.instGetAllVariableReferences(docInfo.name, thisWord);
             if (locations) return locations;
         }
 

@@ -142,7 +142,8 @@ export class DocumentationImporter {
                     maxParameters: 999,
                     return: '',
                     signature: '',
-                    link: 'https://docs2.yoyogames.com/' + thisZipEntry.entryName
+                    link: 'https://docs2.yoyogames.com/' + thisZipEntry.entryName,
+                    doNotAutoComplete: false
                 };
 
                 let resourceType: GMLDocs.DocType | undefined;
@@ -496,12 +497,12 @@ export class DocumentationImporter {
 
                                 // Figure out the Right spelling
                                 if (
-                                    this.lsp.userSettings.preferredSpellings ==
+                                    this.lsp.userSettings.preferredSpellings ===
                                     GMLToolsSettings.SpellingSettings.british
                                 ) {
                                     americanVersion.doNotAutoComplete = true;
                                 } else if (
-                                    this.lsp.userSettings.preferredSpellings ==
+                                    this.lsp.userSettings.preferredSpellings ===
                                     GMLToolsSettings.SpellingSettings.american
                                 ) {
                                     thisFunction.doNotAutoComplete = true;

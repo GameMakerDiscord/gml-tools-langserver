@@ -105,7 +105,7 @@ export namespace GMLDocs {
         documentation: string;
         return: string;
         link: string;
-        doNotAutoComplete?: boolean;
+        doNotAutoComplete: boolean;
     }
     /**
      * Scrapped Documentation Variable information.
@@ -176,17 +176,28 @@ export declare type ResourceNames =
     | 'datafiles_yy';
 
 // Reference
-
-export interface IScriptsAndFunctions {
-    [key: string]: IEachScript;
+export interface ICallables {
+    scripts: {[key: string]: IScript};
+    functions: {[key: string]: IFunction};
+    extensions: {[key: string]: IExtension}
 }
 
-export interface IEachScript {
+export interface ICallable {
     JSDOC: JSDOC;
-    uri?: string;
-    callBackLocation?: number;
-    isBritish?: boolean;
-    referenceLocations: Array<Location>;
+    referenceLocations: Location[];
+}
+
+export interface IScript extends ICallable {
+    uri: string;
+}
+
+export interface IFunction extends ICallable {
+    doNotAutoComplete: boolean;
+}
+
+export interface IExtension extends ICallable {
+    doNotAutoComplete: boolean;
+    originLocation: Location;
 }
 
 export interface IObjects {
@@ -270,7 +281,9 @@ export interface EnumMemberRecord extends URIRecord {
 export interface IURIRecord {
     localVariables: { [name: string]: GenericResourceModel };
     instanceVariables: InstVarRecord[];
-    scriptsAndFunctions: URIRecord[];
+    scripts: URIRecord[];
+    functions: URIRecord[];
+    extensions: URIRecord[];
     foldingRanges: FoldingRange[];
     macros: URIRecord[];
     enums: URIRecord[];
@@ -286,5 +299,5 @@ export interface ThisPositionRecord {
 
 export interface GMLDocOverrides {
     name: string;
-    originalEntry?: IEachScript;
+    originalEntry?: IScript;
 }

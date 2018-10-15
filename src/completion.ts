@@ -67,8 +67,9 @@ export class GMLCompletionProvider {
 
         // Iterate on the Instance Variables:
         if (thisImplicitName) {
-            const variableList = this.reference.getAllObjectVariables(thisImplicitName);
+            const variableList = this.reference.instGetAllInsts(thisImplicitName);
 
+            // Send our Insts out:
             for (const thisVar of variableList) {
                 if (thisVar.match(rx) !== null) {
                     const orig = this.reference.instGetOriginLocation(thisImplicitName, thisVar);
@@ -114,8 +115,8 @@ export class GMLCompletionProvider {
             }
         }
 
-        // Functions/Scripts
-        const functionList = this.reference.scriptGetScriptList();
+        // Functions
+        const functionList = this.reference.functionGetAllFunctionNames();
         for (const item of functionList) {
             if (item && item.match(rx) !== null) {
                 const total = workingArray.push({
@@ -130,6 +131,36 @@ export class GMLCompletionProvider {
                 if (total > 16) {
                     break;
                 }
+            }
+        }
+
+        // Scripts
+        const scriptList = this.reference.scriptGetAllScriptNames();
+        for (const item of scriptList) {
+            if (item && item.match(rx) !== null) {
+                workingArray.push({
+                    label: item,
+                    kind: CompletionItemKind.Function,
+                    textEdit: {
+                        newText: item.replace(thisWord, ''),
+                        range: thisRange
+                    }
+                });
+            }
+        }
+
+        // Extensions
+        const extensionList = this.reference.extensionGetAllExtensionNames();
+        for (const item of extensionList) {
+            if (item && item.match(rx) !== null) {
+                workingArray.push({
+                    label: item,
+                    kind: CompletionItemKind.Function,
+                    textEdit: {
+                        newText: item.replace(thisWord, ''),
+                        range: thisRange
+                    }
+                });
             }
         }
 
@@ -233,7 +264,7 @@ export class GMLCompletionProvider {
         }
 
         // Variables
-        const variableList = this.reference.getAllObjectVariables(thisWord);
+        const variableList = this.reference.instGetAllInsts(thisWord);
         for (const thisVar of variableList) {
             workingArray.push({
                 label: thisVar,
@@ -282,7 +313,7 @@ export class GMLCompletionProvider {
     }
 
     private resolveFunction(thisItem: CompletionItem) {
-        const scriptPack = this.reference.scriptGetScriptPackage(thisItem.label);
+        const scriptPack = this.reference.scriptGetPackage(thisItem.label);
         if (!scriptPack) return thisItem;
         const jsdoc = scriptPack.JSDOC;
         if (!jsdoc) return thisItem;

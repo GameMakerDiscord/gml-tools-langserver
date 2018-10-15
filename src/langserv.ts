@@ -322,11 +322,14 @@ export class LangServ {
     }
 
     public async semanticJSDOC(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, docInfo: DocumentFolder) {
+        // Type Safety and Match Results
         const matchResults = lintPackage.getMatchResults();
         if (!matchResults) return;
         const ourJSDOC = await thisDiagnostic.runSemanticJSDOC(matchResults, docInfo.name);
+        const ourScriptPack = this.reference.scriptGetPackage(docInfo.name);
+        if (!ourScriptPack) return;
 
-        this.reference.scriptAddJSDOC(docInfo.name, ourJSDOC);
+        this.reference.scriptAddJSDOC(ourScriptPack, ourJSDOC);
     }
     //#endregion
 

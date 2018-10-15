@@ -5,7 +5,6 @@ import {
     GMLDocs,
     LanguageService,
     IObjects,
-    IScriptsAndFunctions,
     IEnum,
     IMacro,
     IURIRecord,
@@ -14,7 +13,10 @@ import {
     IOriginVar,
     VariableRank,
     IEnumMembers,
-    IEachScript
+    IScript,
+    ICallables,
+    IFunction,
+    IExtension
 } from './declarations';
 import { FoldingRange } from 'vscode-languageserver-protocol/lib/protocol.foldingRange';
 import { LangServ } from './langserv';
@@ -44,32 +46,34 @@ export class Reference {
     private lsp: LangServ;
     private objects: IObjects;
     private objectList: string[];
-    private scriptsAndFunctions: IScriptsAndFunctions;
-    private scriptsAndFunctionsList: string[];
+    private callables: ICallables;
     private gmlDocs: GMLDocs.DocFile | undefined;
+    private functionList: string[];
     private enums: { [uri: string]: IEnum };
     private macros: { [name: string]: IMacro };
     private projectResources: GenericResourceDescription[];
     private URIRecord: { [thisUri: string]: IURIRecord };
-    private gmlDocOverrides: GMLDocOverrides[];
 
     constructor(lsp: LangServ) {
         this.objects = {};
         this.objectList = [];
-        this.scriptsAndFunctions = {};
-        this.scriptsAndFunctionsList = [];
+        this.callables = {
+            scripts: {},
+            functions: {},
+            extensions: {}
+        };
+        this.functionList = [];
         this.enums = {};
         this.macros = {};
         this.projectResources = [];
         this.URIRecord = {};
-        this.gmlDocOverrides = [];
         this.lsp = lsp;
 
         // Add our "global" object to the objects:
         this.objects['global'] = {};
     }
 
-    //#region Initi
+    //#region Init
     public initDocs(gmlDocs: GMLDocs.DocFile) {
         this.gmlDocs = gmlDocs;
         // Add our docs into our scriptsAndFunctions.
@@ -85,56 +89,55 @@ export class Reference {
                 link: thisFunction.link
             };
             // Add to the Reference Chart
-            this.scriptAddScript(thisFunction.name, undefined, jsdoc, thisFunction.doNotAutoComplete);
+            this.functionAddFunction(thisFunction.name, jsdoc, thisFunction.doNotAutoComplete);
+
+            // Add to our list
+            if (thisFunction.doNotAutoComplete === false) {
+                this.functionList.push(thisFunction.name);
+            }
         }
     }
 
     public initDocsAddSecondaryDocs(gmlDocs: GMLDocs.DocFile) {
-        for (const thisFunction of gmlDocs.functions) {
-            // Add to Overrides List:
-            if (this.scriptExists(thisFunction.name)) {
-                this.gmlDocOverrides.push({
-                    name: thisFunction.name,
-                    originalEntry: this.scriptGetScriptPackage(thisFunction.name)
-                });
+        for (const thisCallable of gmlDocs.functions) {
+            const ourJSDOC: JSDOC = {
+                signature: thisCallable.signature,
+                returns: thisCallable.return,
+                maxParameters: thisCallable.maxParameters,
+                minParameters: thisCallable.minParameters,
+                parameters: thisCallable.parameters,
+                description: thisCallable.documentation,
+                isScript: false,
+                link: thisCallable.link
+            };
 
-                // Remove its listing from ScriptsAndFunctions:
-                const ourIndex = this.scriptsAndFunctionsList.indexOf(thisFunction.name);
-                if (ourIndex) {
-                    this.scriptsAndFunctionsList.splice(ourIndex, 1);
-                }
-            } else {
-                this.gmlDocOverrides.push({
-                    name: thisFunction.name
-                });
+            // Scripts
+            const thisScript = this.scriptGetPackage(thisCallable.name);
+            if (thisScript) {
+                this.scriptAddJSDOC(thisScript, ourJSDOC);
             }
 
-            // Add to Normal Script/Function:
-            const jsdoc: JSDOC = {
-                signature: thisFunction.signature,
-                returns: thisFunction.return,
-                maxParameters: thisFunction.maxParameters,
-                minParameters: thisFunction.minParameters,
-                parameters: thisFunction.parameters,
-                description: thisFunction.documentation,
-                isScript: false,
-                link: thisFunction.link
-            };
-            this.scriptAddScript(thisFunction.name, undefined, jsdoc, thisFunction.doNotAutoComplete);
+            // Functions
+            const thisFunction = this.functionGetPackage(thisCallable.name);
+            if (thisFunction) {
+                this.functionOverwriteJSON(thisFunction, ourJSDOC);
+            }
+
+            // Extensions
+            // TODO add extension support here
         }
     }
 
     public docsClearSecondaryDocs() {
-        for (const thisFunctionName of this.gmlDocOverrides) {
-            if (thisFunctionName.originalEntry) {
-                this.scriptsAndFunctions[thisFunctionName.name] = thisFunctionName.originalEntry;
-            } else {
-                this.scriptDelete(thisFunctionName.name);
-            }
-        }
-
-        // clear our list:
-        this.gmlDocOverrides = [];
+        // for (const thisFunctionName of this.gmlDocOverrides) {
+        //     if (thisFunctionName.originalEntry) {
+        //         this.scriptsAndFunctions[thisFunctionName.name] = thisFunctionName.originalEntry;
+        //     } else {
+        //         this.scriptDelete(thisFunctionName.name);
+        //     }
+        // }
+        // // clear our list:
+        // this.gmlDocOverrides = [];
     }
 
     public initDumpCachedData(cache: ProjectCache.CachedReferences) {
@@ -148,11 +151,10 @@ export class Reference {
         }
 
         // Dump Scripts and Functions
-        for (const thisScriptName in cache.scriptsAndFunctions) {
-            if (cache.scriptsAndFunctions.hasOwnProperty(thisScriptName)) {
-                const thisScript = cache.scriptsAndFunctions[thisScriptName];
-                this.scriptsAndFunctions[thisScriptName] = thisScript;
-                this.scriptsAndFunctionsList.push(thisScriptName);
+        for (const thisScriptName in cache.callables) {
+            if (cache.callables.scripts.hasOwnProperty(thisScriptName)) {
+                const thisScript = cache.callables.scripts[thisScriptName];
+                this.callables.scripts[thisScriptName] = thisScript;
             }
         }
 
@@ -186,7 +188,7 @@ export class Reference {
         for (const thisEnumName in this.enums) {
             if (this.enums.hasOwnProperty(thisEnumName)) {
                 const thisEnum = this.enums[thisEnumName];
-                thisEnum.referenceLocations.map((thisLocation: Location|null, i) => {
+                thisEnum.referenceLocations.map((thisLocation: Location | null, i) => {
                     // Cleave our URI Records
                     if (thisLocation && this.URIRecord[thisLocation.uri] === undefined) {
                         // Are we about to kill off the Origin?
@@ -215,7 +217,7 @@ export class Reference {
                 for (const thisEnumMemberName in thisEnum.origin.enumMembers) {
                     if (thisEnum.origin.enumMembers.hasOwnProperty(thisEnumMemberName)) {
                         const thisEnumMember = thisEnum.origin.enumMembers[thisEnumMemberName];
-                        thisEnumMember.referenceLocations.map((thisLocation: Location|null, i) => {
+                        thisEnumMember.referenceLocations.map((thisLocation: Location | null, i) => {
                             // Cleave our URI Records
                             if (thisLocation && this.URIRecord[thisLocation.uri] === undefined) {
                                 // Are we about to kill off the Origin?
@@ -245,7 +247,7 @@ export class Reference {
         for (const thisMacroName in this.macros) {
             if (this.macros.hasOwnProperty(thisMacroName)) {
                 const thisMacro = this.macros[thisMacroName];
-                thisMacro.referenceLocations.map((thisLocation: Location|null, i) => {
+                thisMacro.referenceLocations.map((thisLocation: Location | null, i) => {
                     if (thisLocation && this.URIRecord[thisLocation.uri] === undefined) {
                         // Are we about to kill off the Origin?
                         if (i === thisMacro.origin.indexOfOrigin) {
@@ -269,17 +271,12 @@ export class Reference {
         }
 
         // Scripts
-        for (const thisScriptName in this.scriptsAndFunctions) {
-            if (this.scriptsAndFunctions.hasOwnProperty(thisScriptName)) {
-                const thisScript = this.scriptsAndFunctions[thisScriptName];
+        for (const thisScriptName in this.callables.scripts) {
+            if (this.callables.scripts.hasOwnProperty(thisScriptName)) {
+                const thisScript = this.callables.scripts[thisScriptName];
                 if (thisScript.uri && this.URIRecord[thisScript.uri] === undefined) {
                     // Delete the script and clear it from the list
-                    delete this.scriptsAndFunctions[thisScriptName];
-
-                    const thisIndex = this.scriptsAndFunctionsList.indexOf(thisScriptName);
-                    if (thisIndex !== -1) {
-                        delete this.scriptsAndFunctionsList[thisIndex];
-                    }
+                    delete this.callables.scripts[thisScriptName];
                 }
             }
         }
@@ -293,13 +290,16 @@ export class Reference {
                 for (const thisVarName in thisObject) {
                     if (thisObject.hasOwnProperty(thisVarName)) {
                         const thisVar = thisObject[thisVarName];
-                        thisVar.referenceLocations.map(async (thisLocation: Location|null, i) => {
+                        thisVar.referenceLocations.map(async (thisLocation: Location | null, i) => {
                             if (thisLocation && this.URIRecord[thisLocation.uri] === undefined) {
                                 // Splice out the Record from this Var:
                                 delete this.objects[thisObjectName][thisVarName].referenceLocations[i];
 
                                 if (i === thisVar.origin.indexOfOrigin) {
-                                    const newOrigin = await this.instAssignNewOrigin(thisVar.referenceLocations, thisObjectName);
+                                    const newOrigin = await this.instAssignNewOrigin(
+                                        thisVar.referenceLocations,
+                                        thisObjectName
+                                    );
                                     if (newOrigin === null) {
                                         // Delete the variable entirely -- we've lost all reference to it.
                                         delete this.objects[thisObjectName][thisVarName];
@@ -328,7 +328,15 @@ export class Reference {
         }
 
         if (resourceType == 'GMScript') {
-            this.scriptAddScript(resourceName);
+            this.scriptAddScript(resourceName, '', {
+                description: '',
+                isScript: true,
+                minParameters: 0,
+                maxParameters: 9999,
+                parameters: [],
+                returns: '',
+                signature: ''
+            });
         }
     }
 
@@ -378,7 +386,9 @@ export class Reference {
             foldingRanges: [],
             macros: [],
             instanceVariables: [],
-            scriptsAndFunctions: [],
+            scripts: [],
+            extensions: [],
+            functions: [],
             enums: [],
             enumMembers: [],
             implicitThisAtPosition: [],
@@ -533,93 +543,98 @@ export class Reference {
 
     //#endregion
 
-    //#region Scripts
-    public scriptAddScript(thisName: string, thisURI?: string, jsdoc?: JSDOC, doNotAutocomplete?: boolean) {
-        if (this.scriptExists(thisName)) return;
+    //#region Callables
 
-        this.scriptsAndFunctions[thisName] = {
-            JSDOC: jsdoc || {
-                description: '',
-                isScript: true,
-                minParameters: 0,
-                maxParameters: 9999,
-                parameters: [],
-                returns: '',
-                signature: ''
-            },
+    //#region Scripts
+    public scriptAddScript(thisName: string, thisURI: string, jsdoc: JSDOC) {
+        // TODO Remove this check if it never procs.
+        if (this.scriptExists(thisName)) {
+            console.log(`Attempting to add ${thisName}, which is already a script.`);
+            return;
+        }
+
+        this.callables.scripts[thisName] = {
+            JSDOC: jsdoc,
             uri: thisURI,
-            callBackLocation:
-                doNotAutocomplete === undefined
-                    ? this.scriptsAndFunctionsList.push(thisName)
-                    : doNotAutocomplete === true
-                        ? this.scriptsAndFunctionsList.push(thisName)
-                        : -1,
-            isBritish: doNotAutocomplete,
             referenceLocations: []
         };
     }
 
     public scriptAddURI(thisName: string, thisURI: string) {
-        const thisScript = this.scriptGetScriptPackage(thisName);
+        const thisScript = this.scriptGetPackage(thisName);
         if (thisScript) thisScript.uri = thisURI;
     }
 
-    public scriptAddJSDOC(name: string, jsdoc: JSDOC) {
-        this.scriptsAndFunctions[name].JSDOC = jsdoc;
+    public scriptAddJSDOC(scriptPack: IScript, jsdoc: JSDOC) {
+        scriptPack.JSDOC = jsdoc;
     }
 
-    public scriptGetScriptList() {
-        return this.scriptsAndFunctionsList;
+    public scriptGetAllScriptNames() {
+        return Object.getOwnPropertyNames(this.callables.scripts);
     }
 
     /**
      * Checks if a script or function exists. Note we don't check
      * the script list here because that list is for autocomplete.
-     * @param name The name of the Script or Function to check.
+     * @param thisName The name of the Script or Function to check.
      */
-    public scriptExists(name: string): Boolean {
-        return this.scriptsAndFunctions.hasOwnProperty(name);
+    public scriptExists(thisName: string): Boolean {
+        return this.callables.scripts.hasOwnProperty(thisName);
     }
 
     /**
      * Returns the JSDOC of a script or function. Note: it
      * does not check if the script or function exists first.
      * Always call `scriptExists` first.
-     * @param name The name of the Script or Function to check.
+     * @param thisName The name of the Script or Function to check.
      */
-    public scriptGetScriptPackage(name: string): IEachScript | undefined {
-        return this.scriptsAndFunctions[name];
+    public scriptGetPackage(thisName: string): IScript | undefined {
+        return this.callables.scripts[thisName];
     }
 
     /**
      * Deletes a script entirely from the internal model, including
      * any references to it. It is **not safe** to use without checking
      * that the script exists first.
-     * @param name This is the script to the delete.
+     * @param thisName This is the script to the delete.
      */
-    public scriptDelete(name: string) {
-        if (this.scriptsAndFunctions[name].callBackLocation && this.scriptsAndFunctions[name].callBackLocation !== -1) {
-            const ourIndex = this.scriptsAndFunctionsList.indexOf(name);
-            this.scriptsAndFunctionsList.splice(ourIndex, 1);
-        }
+    public scriptDelete(thisName: string) {
+        delete this.callables.scripts[thisName];
 
-        delete this.scriptsAndFunctions[name];
+        // Iterate on the URIRecords. Deleting a script is rare, so this
+        // can be a big operation.
+        for (const thisRecordName in this.URIRecord) {
+            if (this.URIRecord.hasOwnProperty(thisRecordName)) {
+                const thisRecord = this.URIRecord[thisRecordName];
+
+                for (let i = 0; i < thisRecord.scripts.length; i++) {
+                    const thisScriptRecord = thisRecord.scripts[i];
+
+                    if (thisScriptRecord.name === thisName) {
+                        delete thisRecord.scripts[i];
+                    }
+                }
+
+                // Clean the Array and Return it
+                thisRecord.scripts = cleanArray(thisRecord.scripts);
+            }
+        }
     }
 
     /**
      * Adds a script reference unsafely (must run scriptExists first) and
      * adds to the URI record for the script.
      */
-    public scriptAddReference(name: string, uri: string, range: Range) {
+    public scriptAddReference(thisName: string, thisURI: string, thisRange: Range) {
         // Add to the script object
-        const i = this.scriptsAndFunctions[name].referenceLocations.push(Location.create(uri, range)) - 1;
+        const i = this.callables.scripts[thisName].referenceLocations.push(Location.create(thisURI, thisRange)) - 1;
 
         // Create the Record Object if it doesn't exist
-        if (!this.URIRecord[uri]) this.URIcreateURIDictEntry(uri);
+        if (!this.URIRecord[thisURI]) this.URIcreateURIDictEntry(thisURI);
 
-        this.URIRecord[uri].scriptsAndFunctions.push({
+        this.URIRecord[thisURI].scripts.push({
             index: i,
-            name: name
+            name: thisName
         });
     }
 
@@ -627,12 +642,12 @@ export class Reference {
      * Removes all references to a script unsafely (run scriptExists first) at
      * a given URI.
      */
-    public scriptRemoveAllReferencesAtURI(uri: string) {
-        if (!this.URIRecord[uri]) this.URIcreateURIDictEntry(uri);
+    public scriptRemoveAllReferencesAtURI(thisURI: string) {
+        if (!this.URIRecord[thisURI]) this.URIcreateURIDictEntry(thisURI);
 
-        for (const thisScriptIndex of this.URIRecord[uri].scriptsAndFunctions) {
+        for (const thisScriptIndex of this.URIRecord[thisURI].scripts) {
             // Get our Script Pack
-            const scriptPack = this.scriptGetScriptPackage(thisScriptIndex.name);
+            const scriptPack = this.scriptGetPackage(thisScriptIndex.name);
             if (!scriptPack) return;
 
             // Splice out the old location:
@@ -640,18 +655,127 @@ export class Reference {
         }
 
         // Clear our Record of Indexes since those indexes have been removed:
-        this.URIRecord[uri].scriptsAndFunctions = [];
+        this.URIRecord[thisURI].scripts = [];
     }
     /**
      * Retrieves all references for a given script.
-     * @param scriptName The name of the script to get all reference to.
+     * @param thisScriptName The name of the script to get all reference to.
      */
-    public scriptGetAllReferences(scriptName: string): Location[] | null {
-        const scriptPack = this.scriptGetScriptPackage(scriptName);
+    public scriptGetAllReferences(thisScriptName: string): Location[] | null {
+        const scriptPack = this.scriptGetPackage(thisScriptName);
         if (!scriptPack) return null;
 
         return cleanArray(scriptPack.referenceLocations);
     }
+    //#endregion
+
+    //#region GM Functions
+    public functionAddFunction(thisName: string, thisJSDOC: JSDOC, doNotAutoComplete: boolean) {
+        this.callables.functions[thisName] = {
+            JSDOC: thisJSDOC,
+            doNotAutoComplete: doNotAutoComplete,
+            referenceLocations: []
+        };
+    }
+
+    public functionGetPackage(thisName: string): IFunction | undefined {
+        return this.callables.functions[thisName];
+    }
+
+    public functionOverwriteJSON(thisPack: IFunction, thisJSDOC: JSDOC) {
+        thisPack.JSDOC = thisJSDOC;
+    }
+
+    public functionGetAllFunctionNames() {
+        return this.functionList;
+    }
+
+    public functionAddReference(thisName: string, thisURI: string, thisRange: Range) {
+        const ourFunction = this.functionGetPackage(thisName);
+        if (!ourFunction) return;
+
+        ourFunction.referenceLocations.push(Location.create(thisURI, thisRange));
+    }
+
+    public functionRemoveAllReferencesAtURI(thisURI: string) {
+        const thisURIRecord = this.URIgetURIRecord(thisURI);
+
+        for (const thisFunctionRecord of thisURIRecord.functions) {
+            // Get our Script Pack
+            const ourFunctionPack = this.functionGetPackage(thisFunctionRecord.name);
+            if (!ourFunctionPack) return;
+
+            // Splice out the old location:
+            delete ourFunctionPack.referenceLocations[thisFunctionRecord.index];
+        }
+
+        // Clear our Record of Indexes since those indexes have been removed:
+        this.URIRecord[thisURI].functions = [];
+    }
+
+    public functionGetAllReferences(thisName: string): Location[] | null {
+        const ourFunctionPack = this.functionGetPackage(thisName);
+        if (!ourFunctionPack) return null;
+
+        return cleanArray(ourFunctionPack.referenceLocations);
+    }
+
+    //#region Extensions
+    public extensionAddExtension(thisName: string, thisJSDOC: JSDOC, doNotAutoComplete: boolean, thisLocation: Location) {
+        this.callables.extensions[thisName] = {
+            doNotAutoComplete: doNotAutoComplete,
+            JSDOC: thisJSDOC,
+            referenceLocations: [],
+            originLocation: thisLocation
+        };
+    }
+
+    public extensionGetPackage(thisName: string): IExtension | undefined {
+        return this.callables.extensions[thisName];
+    }
+
+    public extensionOverwriteJSON(thisPack: IExtension, thisJSDOC: JSDOC) {
+        thisPack.JSDOC = thisJSDOC;
+    }
+
+    public extensionGetAllExtensionNames() {
+        return Object.getOwnPropertyNames(this.callables.extensions);
+    }
+
+    public extensionAddReference(thisName: string, thisURI: string, thisRange: Range) {
+        const ourExtension = this.extensionGetPackage(thisName);
+        if (!ourExtension) return;
+
+        ourExtension.referenceLocations.push(Location.create(thisURI, thisRange));
+    }
+
+    public extensionRemoveAllReferencesAtURI(thisURI: string) {
+        const thisURIRecord = this.URIgetURIRecord(thisURI);
+
+        for (const thisExtensionRecord of thisURIRecord.extensions) {
+            // Get our Script Pack
+            const ourExtensionPack = this.extensionGetPackage(thisExtensionRecord.name);
+            if (!ourExtensionPack) return;
+
+            // Splice out the old location:
+            delete ourExtensionPack.referenceLocations[thisExtensionRecord.index];
+        }
+
+        // Clear our Record of Indexes since those indexes have been removed:
+        this.URIRecord[thisURI].extensions = [];
+    }
+
+    public extensionGetAllReferences(thisName: string): Location[] | null {
+        const ourExtensionPack = this.extensionGetPackage(thisName);
+        if (!ourExtensionPack) return null;
+
+        return cleanArray(ourExtensionPack.referenceLocations);
+    }
+
+    //#endregion
+
+    //#endregion
+
     //#endregion
 
     //#region ImplicitThis
@@ -832,7 +956,10 @@ export class Reference {
                 delete this.objects[thisOldVar.object][thisOldVar.name].referenceLocations[thisOldVar.index];
 
                 if (thisOldVar.isOrigin) {
-                    const newOrigin = await this.instAssignNewOrigin(thisVarEntry.referenceLocations, thisOldVar.object);
+                    const newOrigin = await this.instAssignNewOrigin(
+                        thisVarEntry.referenceLocations,
+                        thisOldVar.object
+                    );
                     if (newOrigin === null) {
                         // Delete the variable entirely -- we've lost all reference to it.
                         delete this.objects[thisOldVar.object][thisOldVar.name];
@@ -923,21 +1050,21 @@ export class Reference {
         return this.URIRecord[uri].instanceVariables;
     }
 
-    public objectGetAllVariableReferences(objName: string, varName: string) {
-        const varPackage = this.objectGetVariablePackage(objName, varName);
+    public instGetAllVariableReferences(objName: string, varName: string) {
+        const varPackage = this.instGetVariablePackage(objName, varName);
         if (!varPackage) return null;
 
         return cleanArray(varPackage.referenceLocations);
     }
 
     public instGetOriginLocation(objName: string, varName: string) {
-        const varPackage = this.objectGetVariablePackage(objName, varName);
+        const varPackage = this.instGetVariablePackage(objName, varName);
         if (varPackage === null) return null;
 
         return varPackage.referenceLocations[varPackage.origin.indexOfOrigin];
     }
 
-    private objectGetVariablePackage(objName: string, variableName: string) {
+    private instGetVariablePackage(objName: string, variableName: string) {
         const thisObjVariables = this.objects[objName];
 
         if (thisObjVariables && thisObjVariables[variableName]) {
@@ -951,7 +1078,7 @@ export class Reference {
         return !(this.objects[objName] == undefined);
     }
 
-    public getAllObjectVariables(objName: string): string[] {
+    public instGetAllInsts(objName: string): string[] {
         if (this.objects.hasOwnProperty(objName) == false) {
             return [];
         }
@@ -1439,7 +1566,7 @@ export class Reference {
                 macros: this.macros,
                 object: this.objects,
                 resources: this.projectResources,
-                scriptsAndFunctions: this.scriptsAndFunctions
+                callables: this.callables
             },
             URIRecords: this.URIRecord
         };

@@ -1,16 +1,16 @@
 import { Reference, GenericResourceDescription, BasicResourceType } from './reference';
-import { WorkspaceFolder } from 'vscode-languageserver';
+import { WorkspaceFolder, Location, Range } from 'vscode-languageserver';
 import URI from 'vscode-uri';
 import * as fse from 'fs-extra';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { YYP, Resource, EventType } from 'yyp-typings';
-import { IURIRecord, IObjects, IScriptsAndFunctions, IEnum, IMacro, SemanticsOption } from './declarations';
+import { IURIRecord, IObjects, IEnum, IMacro, SemanticsOption, IScript, IExtension } from './declarations';
 import { DocumentFolders, EventInfo, DocumentFolder, GMLFolder, JSDOC, JSDOCParameter } from './fileSystem';
 import { DiagnosticHandler } from './diagnostic';
 import { Grammar } from 'ohm-js';
 import { LangServ } from './langserv';
-import { timeUtil } from './utils';
+import { timeUtil, getPositionFromIndex } from './utils';
 
 export namespace ProjectCache {
     export interface Cache {
@@ -24,10 +24,15 @@ export namespace ProjectCache {
 
     export interface CachedReferences {
         object: IObjects;
-        scriptsAndFunctions: IScriptsAndFunctions;
+        callables: CachedCallables;
         enums: { [uri: string]: IEnum };
         macros: { [uri: string]: IMacro };
         resources: GenericResourceDescription[];
+    }
+
+    export interface CachedCallables {
+        scripts: { [key: string]: IScript };
+        extensions: { [key: string]: IExtension };
     }
 }
 
@@ -79,7 +84,10 @@ export class InitialAndShutdown {
                 enums: {},
                 macros: {},
                 object: {},
-                scriptsAndFunctions: {},
+                callables: {
+                    scripts: {},
+                    extensions: {}
+                },
                 resources: []
             }
         };
@@ -433,7 +441,7 @@ export class InitialAndShutdown {
                             isScript: true,
                             minParameters: minArg,
                             maxParameters: maxArg,
-                            signature: thisFunc.name + '()',
+                            signature: thisFunc.name,
                             parameters: ourParams,
                             returns: ourReturn
                         };
@@ -441,30 +449,44 @@ export class InitialAndShutdown {
                         // Do autocomplete?
                         const autoComplete = thisFunc.hidden || thisFunc.name.charAt(0) === '_';
 
-                        this.reference.scriptAddScript(thisFunc.name, undefined, ourJSDOC, autoComplete);
+                        // Get our YYFile Path
+                        const ourPath = path.join(
+                            this.projectDirectory,
+                            'extensions',
+                            yyFile.name,
+                            yyFile.name + '.yy'
+                        );
+
+                        // TODO Create Extension manager
+                        // this.reference.scriptAddScript(thisFunc.name, URI.file(ourPath).toString(), ourJSDOC, autoComplete);
                     }
                 } else {
                     // Get our GML File:
                     const fpath = path.join(this.projectDirectory, 'extensions', yyFile.name, thisFile.filename);
+                    const thisURI = URI.file(fpath);
                     const extensionFile = await fse.readFile(fpath, 'utf8');
 
                     // Split up our GML File, because this thing is fucked:
-                    const ourGMLFiles = extensionFile.split(/#define.*/);
+                    const ourGMLFiles = extensionFile.split(/#define/);
 
                     // Create a document handler. Boy this is gonna be slow.
-                    const thisDocHandler = new DiagnosticHandler(
-                        this.grammar,
-                        URI.file(fpath).toString(),
-                        this.reference
-                    );
+                    const thisDocHandler = new DiagnosticHandler(this.grammar, thisURI.toString(), this.reference);
 
+                    let caretPos = 0;
                     for (const thisFunc of ourGMLFiles) {
+                        const findFirstIndex = thisFunc.indexOf('\n');
+                        if (findFirstIndex === -1) continue;
+
+                        // Get our FuncName:
+                        const funcName = thisFunc.substring(0, findFirstIndex);
+                        const ourInput = thisFunc.substring(findFirstIndex + 1);
+
                         // Set our Match
-                        thisDocHandler.setInput(thisFunc);
+                        thisDocHandler.setInput(ourInput);
 
                         // Match
                         if (thisDocHandler.match() == false) {
-                            console.log('Failed to parse: ' + thisFunc.slice(0, 20) + '...');
+                            console.log('Failed to parse: ' + funcName + '...');
                             continue;
                         }
 
@@ -472,6 +494,22 @@ export class InitialAndShutdown {
                         const ourJSDOC = await thisDocHandler.runSemanticExtensionJSDOC(
                             thisDocHandler.getMatchResult()
                         );
+                        ourJSDOC.signature = funcName;
+
+                        // Figure out if we're hidden.
+                        const this
+
+                        // Get our Location
+                        const ourLocation = Location.create(
+                            thisURI.toString(),
+                            Range.create(
+                                getPositionFromIndex(extensionFile, caretPos),
+                                getPositionFromIndex(extensionFile, caretPos + findFirstIndex)
+                            )
+                        );
+
+                        // Create our new Extension
+                        this.reference.extensionAddExtension(funcName, ourJSDOC, )
                     }
                 }
             }

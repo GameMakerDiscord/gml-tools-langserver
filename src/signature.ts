@@ -1,7 +1,7 @@
 import { Reference } from './reference';
 import { TextDocumentPositionParams, SignatureHelp, ParameterInformation } from 'vscode-languageserver/lib/main';
 import { getIndexFromPosition, getWordAtIndex, normalizeEoLSequences } from './utils';
-import { FileSystem } from './fileSystem';
+import { FileSystem, JSDOC } from './fileSystem';
 import { Token, SignatureWalkState, TokenNames } from './declarations';
 
 export class GMLSignatureProvider {
@@ -95,47 +95,60 @@ export class GMLSignatureProvider {
             }
         }
 
-        if (ourFunc) {
-            // Find our word
-            const textDocument = normalizeEoLSequences(thisDoc);
-            const thisWord = await getWordAtIndex(textDocument, ourFunc.startIdx);
-            if (!thisWord) return null;
+        // If we found no function, exit
+        if (!ourFunc) return null;
 
-            // Get our Script
-            const scriptPack = this.reference.scriptGetScriptPackage(thisWord);
-            if (!scriptPack) {
-                return {
-                    signatures: [],
-                    activeParameter: null,
-                    activeSignature: null
-                };
-            }
-            const referencePackage = scriptPack.JSDOC;
-            let paras: ParameterInformation[] = [];
-            referencePackage.parameters.forEach((param) => {
-                paras.push(
-                    ParameterInformation.create(
-                        param.label,
-                        param.documentation.slice(0, param.documentation.indexOf('.'))
-                    )
-                );
-            });
+        // Find our word
+        const textDocument = normalizeEoLSequences(thisDoc);
+        const thisWord = await getWordAtIndex(textDocument, ourFunc.startIdx);
+        if (!thisWord) return null;
 
-            const docs = referencePackage.description.indexOf('.')
-                ? referencePackage.description.slice(0, referencePackage.description.indexOf('.') + 1)
-                : referencePackage.description.slice(0, 30) + '...';
-            return {
-                signatures: [
-                    {
-                        label: referencePackage.signature,
-                        documentation: docs,
-                        parameters: paras
-                    }
-                ],
-                activeParameter: ourCommas,
-                activeSignature: 0
-            };
+        // Scripts
+        const scriptPack = this.reference.scriptGetPackage(thisWord);
+        if (scriptPack) {
+            return this.signaturePrepareJSDOC(scriptPack.JSDOC, ourCommas);
         }
-        return null;
+
+        // Functions
+        const funcPack = this.reference.functionGetPackage(thisWord);
+        if (funcPack) {
+            return this.signaturePrepareJSDOC(funcPack.JSDOC, ourCommas);
+        }
+        
+        // TODO Extension support here
+
+        return {
+            signatures: [],
+            activeParameter: null,
+            activeSignature: null
+        };
+    }
+
+    private signaturePrepareJSDOC(thisJSDOC: JSDOC, activteParameter: number): SignatureHelp {
+        let paras: ParameterInformation[] = [];
+        thisJSDOC.parameters.forEach((param) => {
+            paras.push(
+                ParameterInformation.create(
+                    param.label,
+                    param.documentation.slice(0, param.documentation.indexOf('.'))
+                )
+            );
+        });
+
+        const docs = thisJSDOC.description.indexOf('.')
+            ? thisJSDOC.description.slice(0, thisJSDOC.description.indexOf('.') + 1)
+            : thisJSDOC.description.slice(0, 30) + '...';
+
+        return {
+            signatures: [
+                {
+                    label: thisJSDOC.signature,
+                    documentation: docs,
+                    parameters: paras
+                }
+            ],
+            activeParameter: activteParameter,
+            activeSignature: 0
+        };
     }
 }

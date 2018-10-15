@@ -191,7 +191,7 @@ export class DiagnosticHandler {
                     // Check if the function exists:
                     const funcName = funcId.sourceString;
 
-                    const scriptPack = this.reference.scriptGetScriptPackage(funcName);
+                    const scriptPack = this.reference.scriptGetPackage(funcName);
                     if (scriptPack) {
                         // Add it to the Script's References:
                         this.reference.scriptAddReference(
@@ -1154,10 +1154,7 @@ export class DiagnosticHandler {
             signature: ''
         };
 
-        await this.semantics(matchResult).extJSDOC();
-
-        this.jsdocGenerated.signature = name;
-
+        await this.semantics(matchResult).jsdoc();
         return this.jsdocGenerated;
     }
 

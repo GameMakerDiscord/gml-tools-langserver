@@ -47,9 +47,15 @@ export class GMLHoverProvider {
                 }
             }
 
-            // Check if it's a Function or Script:
-            const scriptPack = this.reference.scriptGetScriptPackage(thisHoveredText);
+            // Script
+            const scriptPack = this.reference.scriptGetPackage(thisHoveredText);
             if (scriptPack) return this.onHoverFunction(scriptPack.JSDOC);
+
+            // Functions
+            const funcPack = this.reference.functionGetPackage(thisHoveredText);
+            if (funcPack) return this.onHoverFunction(funcPack.JSDOC);
+
+            // TODO Extensions
 
             // Check if it's an Enum:
             if (this.reference.enumExists(thisHoveredText)) {
