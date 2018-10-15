@@ -239,7 +239,9 @@ export class DiagnosticHandler {
                 Arguments: (_: Node, list: Node, __: Node) => {
                     // If providedArgNumber != 0, then we have a NonEmptyList,
                     // otherwise, we have a list.
-                    let iterArray = list.children[0].children;
+
+                    // List -> TrailingCommaList -> NonemptyList -> Elements of List
+                    let iterArray = list.children[0].children[0].children;
                     let providedNodeNumber = iterArray.length;
                     let providedArguments: string[] = [];
 
@@ -388,17 +390,19 @@ export class DiagnosticHandler {
                     // Right now, we don't walk this
                     // Next update, we'll add types to try to walk this:
                     if (objName.includes('.') == false) {
-
                         // The Ariak check
                         const macroVal = this.reference.macroGetMacroValue(objName);
                         if (macroVal) {
-                            this.reference.macroAddReference(objName, this.uri, 
-                                this.getRangeAtNode(this.currentFullTextDocument, thisObject));
+                            this.reference.macroAddReference(
+                                objName,
+                                this.uri,
+                                this.getRangeAtNode(this.currentFullTextDocument, thisObject)
+                            );
                             objName = macroVal;
                         }
 
                         // The other check
-                        if (objName == "other") {
+                        if (objName == 'other') {
                             objName = this.reference.implicitGetLastImplicit(this.uri);
                         }
 
@@ -430,8 +434,11 @@ export class DiagnosticHandler {
                         // The Ariak check
                         const macroVal = this.reference.macroGetMacroValue(objName);
                         if (macroVal) {
-                            this.reference.macroAddReference(objName, this.uri, 
-                                this.getRangeAtNode(this.currentFullTextDocument, thisObject));
+                            this.reference.macroAddReference(
+                                objName,
+                                this.uri,
+                                this.getRangeAtNode(this.currentFullTextDocument, thisObject)
+                            );
                             objName = macroVal;
                         }
 
@@ -466,8 +473,11 @@ export class DiagnosticHandler {
                     // The Ariak check
                     const macroVal = this.reference.macroGetMacroValue(objName);
                     if (macroVal) {
-                        this.reference.macroAddReference(objName, this.uri, 
-                            this.getRangeAtNode(this.currentFullTextDocument, thisObject));
+                        this.reference.macroAddReference(
+                            objName,
+                            this.uri,
+                            this.getRangeAtNode(this.currentFullTextDocument, thisObject)
+                        );
                         objName = macroVal;
                     }
 
