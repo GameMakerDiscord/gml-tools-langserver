@@ -237,7 +237,9 @@ export class DiagnosticHandler {
                 Arguments: (_: Node, list: Node, __: Node) => {
                     // If providedArgNumber != 0, then we have a NonEmptyList,
                     // otherwise, we have a list.
-                    let iterArray = list.children[0].children;
+
+                    // List -> TrailingCommaList -> NonemptyList -> Elements of List
+                    let iterArray = list.children[0].children[0].children;
                     let providedNodeNumber = iterArray.length;
                     let providedArguments: string[] = [];
 

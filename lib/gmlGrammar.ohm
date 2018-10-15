@@ -24,6 +24,12 @@ gml {
     OptionalParentheses<elem>
         =   elem
         |   oParens elem cParens -- parenthetical
+    
+    TrailingCommaList<elem, sep>
+        = ListOf<elem, sep> sep?
+
+    NonEmptyTrailingCommaList<elem, sep>
+        = NonemptyListOf<elem, sep> sep?
 
     // #region Parsing Expressions
     Statement<endSemiColon>
@@ -50,6 +56,7 @@ gml {
         |   RegionStatement
         |   DefineStatement
         |   PureMacro<#endSemiColon>
+        |   GlobalVariableStatement
     StatementList
         =   Statement<#sc>*
 
@@ -65,7 +72,7 @@ gml {
         |   LocalDeclarationType<canReDec> #endSemiColon
     EmptyStatement = ";"
     IfStatement
-        =   if OptionalParentheses<ConditionalExpression> Statement<empty> (else Statement<#sc>)?
+        =   if OptionalParentheses<ConditionalExpression> Statement<empty> #sc? (else Statement<#sc>)?
     ForStatement
         =   for oParens VariableStatement<noReDec,empty> #sc ConditionalExpression #sc Statement<empty> #sc? cParens Statement<#sc>
     RepeatStatement
@@ -107,7 +114,7 @@ gml {
         =   macroWord identifier #(~lineTerminator sourceCharacter)*
     macroWord = "#macro"
     EnumDeclaration
-        =   enumDeclararer enumName oCurly ListOf<EnumEntry,comma> cCurly
+        =   enumDeclararer enumName oCurly TrailingCommaList<EnumEntry,comma> cCurly
     EnumEntry
         =   identifier EnumEnumerated?
     EnumPlain
@@ -131,6 +138,12 @@ gml {
     PureMacro<endSemiColon>
         =   macroIdentifier #endSemiColon
 
+    GlobalVariableStatement
+        =   "globalvar" globalVariable
+        |   "globalvar" TrailingCommaList<globalVariable, comma>
+        |   "globalvar" TrailingCommaList<GlobalVariableStatement, comma>
+
+
     // #region VariableStatement
     DeclarationAndDefinition
         =   ObjectDeclaration Initialiser
@@ -143,14 +156,14 @@ gml {
         |   ObjectDeclaration ArrayEntryLiteral
     ObjDotVar   
         = ObjectDeclaration dot variable
-        | global dot globalVariable   
+        | global dot variable
     LocalDeclarationType<canReDec>     
         =   LocalDeclarationList<canReDec>
         |   LocalDeclarationSimple
     LocalDeclarationSimple
         =   varDec localVariable Initialiser?
     LocalDeclarationList<canReDec>
-        =   varDec ~varDec ListOf<LocalDeclarationEntry<canReDec>,comma>
+        =   varDec ~varDec TrailingCommaList<LocalDeclarationEntry<canReDec>,comma>
     LocalDeclarationEntry<canReDec>
         =   canReDec localVariable Initialiser?
     Initialiser (an assignment operator)
@@ -274,7 +287,7 @@ gml {
                     | ~literal ~ParentExpression global "." MemberExpression
     
     Arguments
-        =   oParens ListOf<ArgumentOrEmpty,comma> cParens
+        =   oParens TrailingCommaList<ArgumentOrEmpty,comma> cParens
     
     ArgumentOrEmpty
         = ConditionalExpression | empty
@@ -293,11 +306,11 @@ gml {
         |   gridAccessor NonemptyListOf<ConditionalExpression, comma> "]"
 
     ArrayEntryLiteral
-        =   "[" NonemptyListOf<ConditionalExpression,comma> "]"
+        =   "[" NonEmptyTrailingCommaList<ConditionalExpression,comma> "]"
 
 
     ArrayLiteral
-        =   "[" ListOf<ConditionalExpression,comma> "]"
+        =   "[" TrailingCommaList<ConditionalExpression,comma> "]"
         |   "[" empty "]"
     
 
@@ -472,12 +485,13 @@ gml {
     
 
     // variable tokens
+
     macroIdentifier     = identifier
     possibleVariable    = identifier
+    globalVariable      = identifier
     enumName            = identifier
     variable            = identifier
     localVariable       = identifier
-    globalVariable      = identifierName  
     funcIdentifier      = identifier
 
 
