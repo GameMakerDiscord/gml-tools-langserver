@@ -749,19 +749,25 @@ export class DiagnosticHandler {
                     if (/\bargument[0-9]+\b/.test(ourID)) {
                         const theseDigits = ourID.match(/\d+/g);
                         if (theseDigits) {
-                            this.jsdocGenerated.minParameters = parseInt(theseDigits[0]) + 1;
-                            this.jsdocGenerated.maxParameters = this.jsdocGenerated.minParameters;
+                            const ints = parseInt(theseDigits[0]) + 1;
+                            if (ints > this.jsdocGenerated.minParameters) {
+                                this.jsdocGenerated.minParameters = ints;
+                                this.jsdocGenerated.maxParameters = this.jsdocGenerated.minParameters;
+                            }
                         }
                     }
 
-                    // TODO It would be very nice to add branching analysis to the LS. 
+                    // TODO It would be very nice to add branching analysis to the LS.
                     // Here, we could figure out what optional arguments are necessary and solve
                     // GMS2's "all optional" or "no optional" argument issue.
                     if (/\bargument\[[0-9]+\]/.test(ourID)) {
                         const theseDigits = ourID.match(/\d+/g);
                         if (theseDigits) {
-                            this.jsdocGenerated.minParameters = 0;
-                            this.jsdocGenerated.maxParameters = parseInt(theseDigits[0]) + 1;
+                            const ints = parseInt(theseDigits[0]) + 1;
+                            if (ints > this.jsdocGenerated.maxParameters) {
+                                this.jsdocGenerated.minParameters = 0;
+                                this.jsdocGenerated.maxParameters = ints;
+                            }
                         }
                     }
                 },

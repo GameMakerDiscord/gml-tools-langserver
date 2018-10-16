@@ -28,11 +28,23 @@ export namespace ProjectCache {
         enums: { [uri: string]: IEnum };
         macros: { [uri: string]: IMacro };
         resources: GenericResourceDescription[];
+        extensionRecord: IExtensionRecord;
     }
 
     export interface CachedCallables {
         scripts: { [key: string]: IScript };
         extensions: { [key: string]: IExtension };
+    }
+
+    export interface IExtensionRecord {
+        [extensionName: string]: IExtensionFileNames;
+    }
+
+    export interface IExtensionFileNames {
+        [extensionFileName: string]: {
+            contributedFunctions: string[];
+            hash: string;
+        };
     }
 }
 
@@ -85,9 +97,10 @@ export class InitialAndShutdown {
                 macros: {},
                 object: {},
                 callables: {
-                    scripts: {},
-                    extensions: {}
+                    extensions: {},
+                    scripts: {}
                 },
+                extensionRecord: {},
                 resources: []
             }
         };
@@ -412,9 +425,38 @@ export class InitialAndShutdown {
 
         // * Extensions
         if (yyFile.modelName === 'GMExtension') {
+            const thisExtensionCache = this.projectCache.CachedReference.extensionRecord[yyFile.name];
             for (const thisFile of yyFile.files) {
-                // For non-GML extensions, we parse the YY
+                // For non-GML extensions, we parse and hash their YY entry:
                 if (thisFile.kind !== 2 || thisFile.filename.includes('.gml') === false) {
+                    // Check our Hash
+                    const ourHasher = crypto.createHash('sha1');
+                    const thisHash = ourHasher.update(JSON.stringify(thisFile)).digest('hex');
+
+                    if (thisExtensionCache && thisExtensionCache[thisFile.filename]) {
+                        const cachedHash = thisExtensionCache[thisFile.filename].hash;
+                        if (cachedHash === thisHash) {
+                            for (const thisExtName in this.projectCache.CachedReference.callables.extensions) {
+                                if (
+                                    this.projectCache.CachedReference.callables.extensions.hasOwnProperty(thisExtName)
+                                ) {
+                                    const thisExt = this.projectCache.CachedReference.callables.extensions[thisExtName];
+                                    this.reference.extensionAddExtension(
+                                        thisExtName,
+                                        thisExt.JSDOC,
+                                        thisExt.doNotAutoComplete,
+                                        thisExt.originLocation,
+                                        yyFile.name,
+                                        thisFile.filename,
+                                        thisExt.referenceLocations
+                                    );
+                                }
+                            }
+                            this.reference.extensionRecordSetHash(yyFile.name, thisFile.filename, thisHash);
+                            continue;
+                        }
+                    }
+
                     // Iterate on each function
                     for (const thisFunc of thisFile.functions) {
                         // Number of Params
@@ -461,14 +503,45 @@ export class InitialAndShutdown {
                             thisFunc.name,
                             ourJSDOC,
                             doNotAutoComplete,
-                            Location.create(URI.file(ourPath).toString(), Range.create(0, 0, 0, 0))
+                            Location.create(URI.file(ourPath).toString(), Range.create(0, 0, 0, 0)),
+                            yyFile.name,
+                            thisFile.filename
                         );
                     }
+                    this.reference.extensionRecordSetHash(yyFile.name, thisFile.filename, thisHash);
                 } else {
                     // Get our GML File:
                     const fpath = path.join(this.projectDirectory, 'extensions', yyFile.name, thisFile.filename);
                     const thisURI = URI.file(fpath);
                     const extensionFile = await fse.readFile(fpath, 'utf8');
+
+                    // Check our Hash
+                    const ourHasher = crypto.createHash('sha1');
+                    const thisHash = ourHasher.update(extensionFile).digest('hex');
+
+                    if (thisExtensionCache && thisExtensionCache[thisFile.filename]) {
+                        const cachedHash = thisExtensionCache[thisFile.filename].hash;
+                        if (cachedHash === thisHash) {
+                            for (const thisExtName in this.projectCache.CachedReference.callables.extensions) {
+                                if (
+                                    this.projectCache.CachedReference.callables.extensions.hasOwnProperty(thisExtName)
+                                ) {
+                                    const thisExt = this.projectCache.CachedReference.callables.extensions[thisExtName];
+                                    this.reference.extensionAddExtension(
+                                        thisExtName,
+                                        thisExt.JSDOC,
+                                        thisExt.doNotAutoComplete,
+                                        thisExt.originLocation,
+                                        yyFile.name,
+                                        thisFile.filename,
+                                        thisExt.referenceLocations
+                                    );
+                                }
+                            }
+                            this.reference.extensionRecordSetHash(yyFile.name, thisFile.filename, thisHash);
+                            continue;
+                        }
+                    }
 
                     // Split up our GML File, because this thing is fucked:
                     const ourGMLFiles = extensionFile.split(/(^|\n)#define /);
@@ -521,7 +594,15 @@ export class InitialAndShutdown {
                         );
 
                         // Create our new Extension
-                        this.reference.extensionAddExtension(funcName, ourJSDOC, doAutoComplete, ourLocation);
+                        this.reference.extensionAddExtension(
+                            funcName,
+                            ourJSDOC,
+                            doAutoComplete,
+                            ourLocation,
+                            yyFile.name,
+                            thisFile.filename
+                        );
+                        this.reference.extensionRecordSetHash(yyFile.name, thisFile.filename, thisHash);
 
                         // Update the Caret
                         caretPos += thisFunc.length;

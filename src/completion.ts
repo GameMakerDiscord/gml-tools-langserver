@@ -128,9 +128,7 @@ export class GMLCompletionProvider {
                     }
                 });
 
-                if (total > 16) {
-                    break;
-                }
+                if (total > 10) break;
             }
         }
 
@@ -153,7 +151,7 @@ export class GMLCompletionProvider {
         const extensionList = this.reference.extensionGetAllExtensionNames();
         for (const item of extensionList) {
             if (item && item.match(rx) !== null) {
-                workingArray.push({
+                const total = workingArray.push({
                     label: item,
                     kind: CompletionItemKind.Function,
                     textEdit: {
@@ -161,6 +159,8 @@ export class GMLCompletionProvider {
                         range: thisRange
                     }
                 });
+
+                if (total > 10) break;
             }
         }
 

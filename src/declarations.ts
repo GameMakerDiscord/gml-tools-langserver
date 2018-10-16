@@ -185,9 +185,9 @@ export declare type ResourceNames =
 
 // Reference
 export interface ICallables {
-    scripts: {[key: string]: IScript};
-    functions: {[key: string]: IFunction};
-    extensions: {[key: string]: IExtension}
+    scripts: { [key: string]: IScript };
+    functions: { [key: string]: IFunction };
+    extensions: { [key: string]: IExtension };
 }
 
 export interface ICallable {

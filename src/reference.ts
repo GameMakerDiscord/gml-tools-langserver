@@ -52,6 +52,7 @@ export class Reference {
     private macros: { [name: string]: IMacro };
     private projectResources: GenericResourceDescription[];
     private URIRecord: { [thisUri: string]: IURIRecord };
+    private extensionRecord: ProjectCache.IExtensionRecord;
 
     constructor(lsp: LangServ) {
         this.objects = {};
@@ -66,6 +67,7 @@ export class Reference {
         this.macros = {};
         this.projectResources = [];
         this.URIRecord = {};
+        this.extensionRecord = {};
         this.lsp = lsp;
 
         // Add our "global" object to the objects:
@@ -147,7 +149,7 @@ export class Reference {
         }
 
         // Dump Scripts and Functions
-        for (const thisScriptName in cache.callables) {
+        for (const thisScriptName in cache.callables.scripts) {
             if (cache.callables.scripts.hasOwnProperty(thisScriptName)) {
                 const thisScript = cache.callables.scripts[thisScriptName];
                 this.callables.scripts[thisScriptName] = thisScript;
@@ -406,6 +408,7 @@ export class Reference {
     }
 
     public async URIRecordClearAtURI(thisURI: string) {
+        // TODO Fix this
         await this.macroClearMacrosAtURI(thisURI);
         await this.enumClearAllEnumsAtURI(thisURI);
         await this.enumMemberClearAllEnumMembersAtURI(thisURI);
@@ -721,14 +724,47 @@ export class Reference {
         thisName: string,
         thisJSDOC: JSDOC,
         doNotAutoComplete: boolean,
-        thisLocation: Location
+        originLoc: Location,
+        extensionName: string,
+        extensionFileName: string,
+        referenceLocations?: Location[]
     ) {
+        if (referenceLocations === undefined) {
+            referenceLocations = [];
+        }
+
         this.callables.extensions[thisName] = {
             doNotAutoComplete: doNotAutoComplete,
             JSDOC: thisJSDOC,
-            referenceLocations: [],
-            originLocation: thisLocation
+            referenceLocations: referenceLocations,
+            originLocation: originLoc
         };
+
+        // Add to our Record
+        if (!this.extensionRecord[extensionName]) {
+            this.extensionRecord[extensionName] = {};
+        }
+        if (!this.extensionRecord[extensionName][extensionFileName]) {
+            this.extensionRecord[extensionName][extensionFileName] = {
+                hash: '',
+                contributedFunctions: []
+            };
+        }
+        this.extensionRecord[extensionName][extensionFileName].contributedFunctions.push(thisName);
+    }
+
+    public extensionRecordSetHash(extensionName: string, extensionFileName: string, hash: string) {
+        // Add to our Record
+        if (!this.extensionRecord[extensionName]) {
+            this.extensionRecord[extensionName] = {};
+        }
+        if (!this.extensionRecord[extensionName][extensionFileName]) {
+            this.extensionRecord[extensionName][extensionFileName] = {
+                hash: '',
+                contributedFunctions: []
+            };
+        }
+        this.extensionRecord[extensionName][extensionFileName].hash = hash;
     }
 
     public extensionGetPackage(thisName: string): IExtension | undefined {
@@ -1570,7 +1606,8 @@ export class Reference {
                 callables: {
                     extensions: this.callables.extensions,
                     scripts: this.callables.scripts
-                }
+                },
+                extensionRecord: this.extensionRecord
             },
             URIRecords: this.URIRecord
         };
