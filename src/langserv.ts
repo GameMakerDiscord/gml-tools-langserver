@@ -244,7 +244,6 @@ export class LangServ {
             // get our Signature token list (we do this in Primary Syntax on success...)
             await thisDiagnostic.createSignatureTokenListGoodMatch();
 
-            // This is a blank diagnostic. TODO: make the MatchResultsPackage creation less absurd.
             lintPackage.setMatchResultsPackage([
                 {
                     indexRange: { startIndex: 0 },

@@ -131,6 +131,14 @@ export class GMLDefinitionProvider {
         const theseScriptReferences = this.reference.scriptGetAllReferences(thisWord);
         if (theseScriptReferences) return theseScriptReferences;
 
+        // Functions
+        const theseFuncRefs = this.reference.functionGetAllReferences(thisWord);
+        if (theseFuncRefs) return theseFuncRefs;
+
+        // Extensions
+        const theseExts = this.reference.extensionGetAllReferences(thisWord);
+        if (theseExts) return theseExts;
+
         // Enums
         const enumReferences = this.reference.enumGetAllReferences(thisWord);
         if (enumReferences) return enumReferences;

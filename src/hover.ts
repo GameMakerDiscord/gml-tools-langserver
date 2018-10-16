@@ -18,7 +18,6 @@ export class GMLHoverProvider {
         this.numberOfSentences = 1;
     }
     public async provideHover(params: TextDocumentPositionParams): Promise<Hover> {
-        // Retrieve our textDocument (TODO make our TextDocument Manager (guuuh));
         const thisHoveredText = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
 
         if (thisHoveredText) {
@@ -55,7 +54,8 @@ export class GMLHoverProvider {
             const funcPack = this.reference.functionGetPackage(thisHoveredText);
             if (funcPack) return this.onHoverFunction(funcPack.JSDOC);
 
-            // TODO Extensions
+            const extPack = this.reference.extensionGetPackage(thisHoveredText);
+            if (extPack) return this.onHoverFunction(extPack.JSDOC);
 
             // Check if it's an Enum:
             if (this.reference.enumExists(thisHoveredText)) {

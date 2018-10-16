@@ -112,18 +112,15 @@ export class Reference {
 
             // Scripts
             const thisScript = this.scriptGetPackage(thisCallable.name);
-            if (thisScript) {
-                this.scriptAddJSDOC(thisScript, ourJSDOC);
-            }
+            if (thisScript) this.scriptAddJSDOC(thisScript, ourJSDOC);
 
             // Functions
             const thisFunction = this.functionGetPackage(thisCallable.name);
-            if (thisFunction) {
-                this.functionOverwriteJSON(thisFunction, ourJSDOC);
-            }
+            if (thisFunction) this.functionOverwriteJSON(thisFunction, ourJSDOC);
 
             // Extensions
-            // TODO add extension support here
+            const thisExtension = this.extensionGetPackage(thisCallable.name);
+            if (thisExtension) this.extensionOverwriteJSON(thisExtension, ourJSDOC);
         }
     }
 

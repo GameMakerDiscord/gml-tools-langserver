@@ -471,7 +471,7 @@ export class InitialAndShutdown {
                     const extensionFile = await fse.readFile(fpath, 'utf8');
 
                     // Split up our GML File, because this thing is fucked:
-                    const ourGMLFiles = extensionFile.split(/#define/);
+                    const ourGMLFiles = extensionFile.split(/(^|\n)#define /);
 
                     // Create a document handler. Boy this is gonna be slow.
                     const thisDocHandler = new DiagnosticHandler(this.grammar, thisURI.toString(), this.reference);

@@ -10,7 +10,7 @@ import {
 } from './utils';
 import { Reference } from './reference';
 import { JSDOC, JSDOCParameter, DocumentFolder } from './fileSystem';
-import { Token, VariableRank } from './declarations';
+import { Token, VariableRank, IScript, IFunction, IExtension } from './declarations';
 import { EventType, EventNumber } from 'yyp-typings';
 
 export enum EIterArray {
@@ -44,7 +44,7 @@ export interface GMLFunctionStack {
     readonly name: string;
     readonly interval: Interval;
     readonly isScript: boolean;
-    readonly exists?: boolean;
+    readonly exists: boolean;
     readonly minParams?: number;
     readonly maxParams?: number;
 }
@@ -191,38 +191,36 @@ export class DiagnosticHandler {
                     // Check if the function exists:
                     const funcName = funcId.sourceString;
 
-                    const scriptPack = this.reference.scriptGetPackage(funcName);
-                    if (scriptPack) {
-                        // Add it to the Script's References:
-                        this.reference.scriptAddReference(
-                            funcName,
-                            this.uri,
-                            Range.create(
-                                getPositionFromIndex(
-                                    this.currentFullTextDocument,
-                                    this.semanticIndex + funcId.source.startIdx
-                                ),
-                                getPositionFromIndex(
-                                    this.currentFullTextDocument,
-                                    this.semanticIndex + funcId.source.endIdx
-                                )
-                            )
-                        );
+                    // Go through all our Function categories
+                    let thisPack: undefined | IScript | IFunction | IExtension;
+                    const ourRange = Range.create(
+                        getPositionFromIndex(this.currentFullTextDocument, this.semanticIndex + funcId.source.startIdx),
+                        getPositionFromIndex(this.currentFullTextDocument, this.semanticIndex + funcId.source.endIdx)
+                    );
 
-                        // Get our JSDOC
-                        const jsdoc = scriptPack.JSDOC;
+                    // Are we a script?
+                    thisPack = this.reference.scriptGetPackage(funcName);
+                    if (thisPack) this.reference.scriptAddReference(funcName, this.uri, ourRange);
 
-                        const thisFunction: GMLFunctionStack = {
+                    if (thisPack === undefined) {
+                        thisPack = this.reference.functionGetPackage(funcName);
+                        if (thisPack) this.reference.functionAddReference(funcName, this.uri, ourRange);
+                    }
+                    if (thisPack === undefined) {
+                        thisPack = this.reference.extensionGetPackage(funcName);
+                        if (thisPack) this.reference.extensionAddReference(funcName, this.uri, ourRange);
+                    }
+
+                    // We found something!
+                    if (thisPack !== undefined) {
+                        this.functionStack.push({
                             name: funcName,
+                            exists: true,
                             interval: funcId.source,
-                            minParams: jsdoc.minParameters,
-                            maxParams: jsdoc.maxParameters,
-                            isScript: jsdoc.isScript,
-                            exists: true
-                        };
-
-                        // Push a real function stack:
-                        this.functionStack.push(thisFunction);
+                            isScript: thisPack.JSDOC.isScript,
+                            maxParams: thisPack.JSDOC.maxParameters,
+                            minParams: thisPack.JSDOC.minParameters
+                        });
                     } else {
                         this.functionStack.push({
                             name: funcName,
@@ -266,7 +264,7 @@ export class DiagnosticHandler {
                     // If our function doesn't exist, we call an error on the whole function...
                     if (currentFunc) {
                         if (currentFunc.exists == false) {
-                            let eMessage = 'Unknown function/script "' + currentFunc.name + '".';
+                            let eMessage = 'Unknown function "' + currentFunc.name + '".';
                             this.semanticDiagnostics.push(
                                 this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
                             );
@@ -749,18 +747,20 @@ export class DiagnosticHandler {
                     const ourID = id.sourceString;
 
                     if (/\bargument[0-9]+\b/.test(ourID)) {
-                        this.jsdocGenerated.minParameters++;
-                        this.jsdocGenerated.maxParameters = this.jsdocGenerated.minParameters;
+                        const theseDigits = ourID.match(/\d+/g);
+                        if (theseDigits) {
+                            this.jsdocGenerated.minParameters = parseInt(theseDigits[0]);
+                            this.jsdocGenerated.maxParameters = this.jsdocGenerated.minParameters;
+                        }
                     }
 
                     if (/\bargument\[[0-9]+\]/.test(ourID)) {
-                        this.jsdocGenerated.minParameters = -9999;
-                        this.jsdocGenerated.maxParameters = 9999;
+                        const theseDigits = ourID.match(/\d+/g);
+                        if (theseDigits) {
+                            this.jsdocGenerated.minParameters = 0;
+                            this.jsdocGenerated.maxParameters = parseInt(theseDigits[0]);
+                        }
                     }
-                },
-
-                DefineStatement: (defineWord: Node, funcName: Node) => {
-                    this.jsdocGenerated.signature = funcName.sourceString;
                 },
 
                 // Generic for all non-terminal nodes
@@ -1021,7 +1021,6 @@ export class DiagnosticHandler {
             mess = 'Error: unexpected symbol';
         }
 
-        // Initial result TODO: make this a little recursive
         return {
             severity: DiagnosticSeverity.Error,
             message: mess,

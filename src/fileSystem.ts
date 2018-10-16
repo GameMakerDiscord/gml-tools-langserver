@@ -271,7 +271,7 @@ export class FileSystem {
 
     public async shutdownCache(fileHandOff: ProjectCache.Cache) {
         // Encode the text
-        const buff = Buffer.from(JSON.stringify(fileHandOff));
+        const buff = Buffer.from(JSON.stringify(fileHandOff, null, 4));
 
         // Save the text
         fse.writeFileSync(path.join(this.projectDirectory, '.gml-tools', 'project-cache.json'), buff);

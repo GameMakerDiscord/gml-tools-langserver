@@ -105,17 +105,15 @@ export class GMLSignatureProvider {
 
         // Scripts
         const scriptPack = this.reference.scriptGetPackage(thisWord);
-        if (scriptPack) {
-            return this.signaturePrepareJSDOC(scriptPack.JSDOC, ourCommas);
-        }
+        if (scriptPack) return this.signaturePrepareJSDOC(scriptPack.JSDOC, ourCommas);
 
         // Functions
         const funcPack = this.reference.functionGetPackage(thisWord);
-        if (funcPack) {
-            return this.signaturePrepareJSDOC(funcPack.JSDOC, ourCommas);
-        }
-        
-        // TODO Extension support here
+        if (funcPack) return this.signaturePrepareJSDOC(funcPack.JSDOC, ourCommas);
+
+        // Extensions
+        const extPack = this.reference.extensionGetPackage(thisWord);
+        if (extPack) return this.signaturePrepareJSDOC(extPack.JSDOC, ourCommas);
 
         return {
             signatures: [],
@@ -126,12 +124,9 @@ export class GMLSignatureProvider {
 
     private signaturePrepareJSDOC(thisJSDOC: JSDOC, activteParameter: number): SignatureHelp {
         let paras: ParameterInformation[] = [];
-        thisJSDOC.parameters.forEach((param) => {
+        thisJSDOC.parameters.forEach(param => {
             paras.push(
-                ParameterInformation.create(
-                    param.label,
-                    param.documentation.slice(0, param.documentation.indexOf('.'))
-                )
+                ParameterInformation.create(param.label, param.documentation.slice(0, param.documentation.indexOf('.')))
             );
         });
 
