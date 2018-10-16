@@ -522,6 +522,9 @@ export class InitialAndShutdown {
 
                         // Create our new Extension
                         this.reference.extensionAddExtension(funcName, ourJSDOC, doAutoComplete, ourLocation);
+
+                        // Update the Caret
+                        caretPos += thisFunc.length;
                     }
                 }
             }
