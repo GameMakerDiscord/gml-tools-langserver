@@ -120,7 +120,7 @@ gml {
     EnumPlain
         =   identifier
     EnumEnumerated
-        =   "=" EnumElement (expressionSign EnumElement)*
+        =   "=" ConditionalExpression
     EnumElement
         =   integerNumber | EnumCall
     EnumCall
@@ -303,7 +303,14 @@ gml {
     
     DSLiteral
         =   (mapAccessor | listAccessor | arrayAccessor) ConditionalExpression "]"
-        |   gridAccessor NonemptyListOf<ConditionalExpression, comma> "]"
+        |   gridAccessor GridLiteral "]"
+        |   arrayAccessor TwoDArrayLiteral "]"
+    
+    GridLiteral
+        =   ConditionalExpression comma ConditionalExpression
+
+    TwoDArrayLiteral
+        =   ConditionalExpression comma ConditionalExpression
 
     ArrayEntryLiteral
         =   "[" NonEmptyTrailingCommaList<ConditionalExpression,comma> "]"

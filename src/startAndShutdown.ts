@@ -118,7 +118,7 @@ export class InitialAndShutdown {
         this.topLevelDirectories = await fse.readdir(this.projectDirectory);
 
         // Get our YYPs
-        const possibleYYPs: string[] = this.topLevelDirectories.filter((thisFile) => path.extname(thisFile) === '.yyp');
+        const possibleYYPs: string[] = this.topLevelDirectories.filter(thisFile => path.extname(thisFile) === '.yyp');
 
         // Sort our Dinguses
         if (possibleYYPs.length !== 1) return null;
@@ -129,7 +129,7 @@ export class InitialAndShutdown {
         // Load our Project Cache if it's there:
         this.cachedFileNames = await this.initialCheckCache();
 
-        const projectCache = this.cachedFileNames.filter((thisFile) => {
+        const projectCache = this.cachedFileNames.filter(thisFile => {
             return thisFile == 'project-cache.json';
         });
 
@@ -247,10 +247,10 @@ export class InitialAndShutdown {
             if (thisFile.passedHash) {
                 // ! This check is always empty. We don't need it yet -- it's for super rare cases.
                 if (
-                    enumsAdded.some((thisEnumStatement) => {
+                    enumsAdded.some(thisEnumStatement => {
                         return thisFile.fullText.includes(thisEnumStatement);
                     }) ||
-                    macrosAdded.some((thisMacro) => {
+                    macrosAdded.some(thisMacro => {
                         return thisFile.fullText.includes(thisMacro);
                     })
                 ) {
@@ -447,7 +447,7 @@ export class InitialAndShutdown {
                         };
 
                         // Do autocomplete?
-                        const autoComplete = thisFunc.hidden || thisFunc.name.charAt(0) === '_';
+                        const doNotAutoComplete = thisFunc.hidden || thisFunc.name.charAt(0) === '_';
 
                         // Get our YYFile Path
                         const ourPath = path.join(
@@ -457,8 +457,12 @@ export class InitialAndShutdown {
                             yyFile.name + '.yy'
                         );
 
-                        // TODO Create Extension manager
-                        // this.reference.scriptAddScript(thisFunc.name, URI.file(ourPath).toString(), ourJSDOC, autoComplete);
+                        this.reference.extensionAddExtension(
+                            thisFunc.name,
+                            ourJSDOC,
+                            doNotAutoComplete,
+                            Location.create(URI.file(ourPath).toString(), Range.create(0, 0, 0, 0))
+                        );
                     }
                 } else {
                     // Get our GML File:
@@ -478,8 +482,13 @@ export class InitialAndShutdown {
                         if (findFirstIndex === -1) continue;
 
                         // Get our FuncName:
-                        const funcName = thisFunc.substring(0, findFirstIndex);
+                        const funcName = thisFunc.substring(0, findFirstIndex).trim();
                         const ourInput = thisFunc.substring(findFirstIndex + 1);
+
+                        // Find our Corresponding Function Entry
+                        const ourFunctionEntry = thisFile.functions.find(thisEntry => {
+                            return thisEntry.name === funcName;
+                        });
 
                         // Set our Match
                         thisDocHandler.setInput(ourInput);
@@ -497,7 +506,10 @@ export class InitialAndShutdown {
                         ourJSDOC.signature = funcName;
 
                         // Figure out if we're hidden.
-                        const this
+                        const doAutoComplete =
+                            ourFunctionEntry !== undefined
+                                ? ourFunctionEntry.hidden || funcName.charAt(0) === '_'
+                                : funcName.charAt(0) === '_';
 
                         // Get our Location
                         const ourLocation = Location.create(
@@ -509,7 +521,7 @@ export class InitialAndShutdown {
                         );
 
                         // Create our new Extension
-                        this.reference.extensionAddExtension(funcName, ourJSDOC, )
+                        this.reference.extensionAddExtension(funcName, ourJSDOC, doAutoComplete, ourLocation);
                     }
                 }
             }
