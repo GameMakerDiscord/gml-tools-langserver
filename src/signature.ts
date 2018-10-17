@@ -123,23 +123,40 @@ export class GMLSignatureProvider {
     }
 
     private signaturePrepareJSDOC(thisJSDOC: JSDOC, activteParameter: number): SignatureHelp {
-        let paras: ParameterInformation[] = [];
-        thisJSDOC.parameters.forEach(param => {
-            paras.push(
-                ParameterInformation.create(param.label, param.documentation.slice(0, param.documentation.indexOf('.')))
-            );
-        });
+        const ourParameters: ParameterInformation[] = [];
 
-        const docs = thisJSDOC.description.indexOf('.')
-            ? thisJSDOC.description.slice(0, thisJSDOC.description.indexOf('.') + 1)
-            : thisJSDOC.description.slice(0, 30) + '...';
+        for (const thisParameter of thisJSDOC.parameters) {
+            const thisPeriod = thisParameter.documentation.indexOf('.');
+            let thisDoc =
+                thisPeriod === -1 ? thisParameter.documentation : thisParameter.documentation.slice(0, thisPeriod + 1);
+            ourParameters.push(ParameterInformation.create(thisParameter.label, thisDoc));
+        }
+
+        const thisPeriod = thisJSDOC.description.indexOf(".");
+        const ourDoc = thisPeriod === -1 ? thisJSDOC.description : thisJSDOC.description.slice(0, thisPeriod);
+
+        // Create a signature if we don't have one (non-functions):
+        let ourSignature = thisJSDOC.signature;
+
+        if (ourSignature.includes('(') == false) {
+            ourSignature += '(';
+            for (let i = 0; i < ourParameters.length; i++) {
+                const thisParam = ourParameters[i];
+                if (i == 0) {
+                    ourSignature += thisParam.label;
+                } else {
+                    ourSignature += ', ' + thisParam.label;
+                }
+            }
+            ourSignature += ')';
+        }
 
         return {
             signatures: [
                 {
-                    label: thisJSDOC.signature,
-                    documentation: docs,
-                    parameters: paras
+                    label: ourSignature,
+                    documentation: ourDoc,
+                    parameters: ourParameters
                 }
             ],
             activeParameter: activteParameter,
