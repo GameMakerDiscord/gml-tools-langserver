@@ -55,7 +55,7 @@ export class GMLCompletionProvider {
         const thisWord = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
         if (!thisWord) return;
         // Backtrack for period in word, when user backspaces after typing a period.
-        if (thisWord.includes(".")) {
+        if (thisWord.includes('.')) {
             return this.periodCompletion(params);
         }
 
@@ -75,19 +75,19 @@ export class GMLCompletionProvider {
             const variableList = this.reference.instGetAllInsts(thisImplicitName);
 
             // Send our Insts out:
-            for (const thisVar of variableList) {
-                if (thisVar.match(rx) !== null) {
-                    const orig = this.reference.instGetOriginLocation(thisImplicitName, thisVar);
+            for (const thisItem of variableList) {
+                if (rx.test(thisItem) === true) {
+                    const orig = this.reference.instGetOriginLocation(thisImplicitName, thisItem);
                     if (
                         orig &&
                         (orig.range.start.line !== thisRange.start.line &&
                             orig.range.start.character !== thisRange.start.character)
                     ) {
                         workingArray.push({
-                            label: thisVar,
+                            label: thisItem,
                             kind: CompletionItemKind.Variable,
                             textEdit: {
-                                newText: thisVar.replace(thisWord, ''),
+                                newText: thisItem.replace(thisWord, ''),
                                 range: thisRange
                             }
                         });
@@ -99,19 +99,19 @@ export class GMLCompletionProvider {
         // Iterate on the Local Variables:
         const locals = this.reference.localGetAllLocalsAtURI(params.textDocument.uri);
         if (locals) {
-            for (const thisVar of locals) {
-                if (thisVar.match(rx) !== null) {
-                    const orig = this.reference.localGetOrigin(params.textDocument.uri, thisVar);
+            for (const thisItem of locals) {
+                if (rx.test(thisItem) === true) {
+                    const orig = this.reference.localGetOrigin(params.textDocument.uri, thisItem);
                     if (
                         orig &&
                         (orig.range.start.line !== thisRange.start.line &&
                             orig.range.start.character !== thisRange.start.character)
                     ) {
                         workingArray.push({
-                            label: thisVar,
+                            label: thisItem,
                             kind: CompletionItemKind.Field,
                             textEdit: {
-                                newText: thisVar.replace(thisWord, ''),
+                                newText: thisItem.replace(thisWord, ''),
                                 range: thisRange
                             }
                         });
@@ -123,7 +123,7 @@ export class GMLCompletionProvider {
         // Functions
         const functionList = this.reference.functionGetAllFunctionNames();
         for (const item of functionList) {
-            if (item && item.match(rx) !== null) {
+            if (item && rx.test(item) === true) {
                 const total = workingArray.push({
                     label: item,
                     kind: CompletionItemKind.Function,
@@ -139,13 +139,13 @@ export class GMLCompletionProvider {
 
         // Scripts
         const scriptList = this.reference.scriptGetAllScriptNames();
-        for (const item of scriptList) {
-            if (item && item.match(rx) !== null) {
+        for (const thisItem of scriptList) {
+            if (thisItem && rx.test(thisItem) === true) {
                 workingArray.push({
-                    label: item,
+                    label: thisItem,
                     kind: CompletionItemKind.Function,
                     textEdit: {
-                        newText: item.replace(thisWord, ''),
+                        newText: thisItem.replace(thisWord, ''),
                         range: thisRange
                     }
                 });
@@ -154,13 +154,13 @@ export class GMLCompletionProvider {
 
         // Extensions
         const extensionList = this.reference.extensionGetAllExtensionNames();
-        for (const item of extensionList) {
-            if (item && item.match(rx) !== null) {
+        for (const thisItem of extensionList) {
+            if (thisItem && rx.test(thisItem) === true) {
                 const total = workingArray.push({
-                    label: item,
+                    label: thisItem,
                     kind: CompletionItemKind.Function,
                     textEdit: {
-                        newText: item.replace(thisWord, ''),
+                        newText: thisItem.replace(thisWord, ''),
                         range: thisRange
                     }
                 });
@@ -171,40 +171,28 @@ export class GMLCompletionProvider {
 
         // Objects
         const objectList = this.reference.objectGetList();
-        for (const obj of objectList) {
-            if (obj.match(rx) !== null) {
+        for (const thisItem of objectList) {
+            if (rx.test(thisItem) === true) {
                 workingArray.push({
-                    label: obj,
+                    label: thisItem,
                     kind: CompletionItemKind.Class,
                     textEdit: {
-                        newText: obj.replace(thisWord, ''),
+                        newText: thisItem.replace(thisWord, ''),
                         range: thisRange
                     }
                 });
             }
         }
 
-        // The Global Object
-        if ('global'.match(rx) !== null) {
-            workingArray.push({
-                label: 'global',
-                kind: CompletionItemKind.Class,
-                textEdit: {
-                    newText: 'global'.replace(thisWord, ''),
-                    range: thisRange
-                }
-            });
-        }
-
         // Enums:
         const enumList = this.reference.enumGetEnumList();
-        for (const thisEnum of enumList) {
-            if (thisEnum.match(rx) !== null) {
+        for (const thisItem of enumList) {
+            if (rx.test(thisItem) === true) {
                 workingArray.push({
-                    label: thisEnum,
+                    label: thisItem,
                     kind: CompletionItemKind.Enum,
                     textEdit: {
-                        newText: thisEnum.replace(thisWord, ''),
+                        newText: thisItem.replace(thisWord, ''),
                         range: thisRange
                     }
                 });
@@ -213,13 +201,13 @@ export class GMLCompletionProvider {
 
         // Macros
         const macroList = this.reference.getMacroList();
-        for (const item of macroList) {
-            if (item.match(rx) !== null) {
+        for (const thisItem of macroList) {
+            if (rx.test(thisItem) === true) {
                 workingArray.push({
-                    label: item,
+                    label: thisItem,
                     kind: CompletionItemKind.Constant,
                     textEdit: {
-                        newText: item.replace(thisWord, ''),
+                        newText: thisItem.replace(thisWord, ''),
                         range: thisRange
                     }
                 });
@@ -240,13 +228,13 @@ export class GMLCompletionProvider {
 
         // Other Resource Double Loop
         for (const thisResourceType of otherResources) {
-            for (const thisResource of thisResourceType[0]) {
-                if (thisResource.match(rx) !== null) {
+            for (const thisItem of thisResourceType[0]) {
+                if (rx.test(thisItem) === true) {
                     workingArray.push({
-                        label: thisResource,
+                        label: thisItem,
                         kind: thisResourceType[1],
                         textEdit: {
-                            newText: thisResource.replace(thisWord, ''),
+                            newText: thisItem.replace(thisWord, ''),
                             range: thisRange
                         }
                     });
@@ -259,44 +247,49 @@ export class GMLCompletionProvider {
 
     private async periodCompletion(params: CompletionParams) {
         let thisWord = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
-
-        // TODO MAKE THIS WORK WITH BACKSPACES AFTER HITTING A PERIOD. SEPERATE OUT BEFOREPERIOD WORD
-        // TODO AND AFTER PERIOD WORD
         if (!thisWord) return;
         let workingArray: CompletionItem[] = [];
 
+        const ourWords = thisWord.split('.');
+        const getAll = ourWords[1] == undefined;
+        const rx = new RegExp('^' + ourWords[1]);
+
+
         // Idiotic Macros
-        if (this.reference.macroExists(thisWord)) {
-            const macroVal = this.reference.macroGetMacroValue(thisWord);
-            if (macroVal) thisWord = macroVal;
+        if (this.reference.macroExists(ourWords[0])) {
+            const macroVal = this.reference.macroGetMacroValue(ourWords[0]);
+            if (macroVal) ourWords[0] = macroVal;
         }
 
         // Variables
-        const variableList = this.reference.instGetAllInsts(thisWord);
+        const variableList = this.reference.instGetAllInsts(ourWords[0]);
         for (const thisVar of variableList) {
-            workingArray.push({
-                label: thisVar,
-                kind: CompletionItemKind.Variable,
-                textEdit: {
-                    newText: thisVar,
-                    range: Range.create(params.position, params.position)
-                }
-            });
-        }
-
-        // Enums
-        const enumMembers = this.reference.enumGetMemberNames(thisWord);
-        if (enumMembers) {
-            // Iterate on the Enums
-            for (const enumMember of enumMembers) {
+            if (rx.test(thisVar) || getAll) {
                 workingArray.push({
-                    label: enumMember,
-                    kind: CompletionItemKind.EnumMember,
+                    label: thisVar,
+                    kind: CompletionItemKind.Variable,
                     textEdit: {
-                        newText: enumMember,
+                        newText: thisVar,
                         range: Range.create(params.position, params.position)
                     }
                 });
+            }
+        }
+
+        // Enums
+        const enumMembers = this.reference.enumGetMemberNames(ourWords[0]);
+        if (enumMembers) {
+            for (const enumMember of enumMembers) {
+                    if (rx.test(enumMember) || getAll) {
+                        workingArray.push({
+                            label: enumMember,
+                            kind: CompletionItemKind.EnumMember,
+                            textEdit: {
+                                newText: enumMember,
+                                range: Range.create(params.position, params.position)
+                            }
+                        });
+                }
             }
         }
 
