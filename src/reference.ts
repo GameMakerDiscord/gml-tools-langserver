@@ -1,4 +1,4 @@
-import { Range, Location, FoldingRangeKind, Position } from 'vscode-languageserver/lib/main';
+import { Range, Location, Position } from 'vscode-languageserver/lib/main';
 import { JSDOC, FileSystem } from './fileSystem';
 import { GMLVarParse } from './diagnostic';
 import {
@@ -17,7 +17,6 @@ import {
     IFunction,
     IExtension
 } from './declarations';
-import { FoldingRange } from 'vscode-languageserver-protocol/lib/protocol.foldingRange';
 import { LangServ } from './langserv';
 import { EventType, EventNumber } from 'yyp-typings';
 import { cleanArray, cleanArrayLength } from './utils';
@@ -408,7 +407,6 @@ export class Reference {
     }
 
     public async URIRecordClearAtURI(thisURI: string) {
-        // TODO Fix this
         await this.macroClearMacrosAtURI(thisURI);
         await this.enumClearAllEnumsAtURI(thisURI);
         await this.enumMemberClearAllEnumMembersAtURI(thisURI);
@@ -416,35 +414,6 @@ export class Reference {
         await this.localClearAtllLocsAtURI(thisURI);
         await this.implicitClearImplicitAtURI(thisURI);
     }
-    //#endregion
-
-    //#region Folding Ranges
-    public foldingAddFoldingRange(uri: string, thisRange: Range, kind: FoldingRangeKind) {
-        if (!this.URIRecord[uri]) {
-            this.URIcreateURIDictEntry(uri);
-        }
-
-        this.URIRecord[uri].foldingRanges.push({
-            startLine: thisRange.start.line,
-            endLine: thisRange.end.line,
-            kind: kind
-        });
-    }
-
-    public foldingClearAllFoldingRange(uri: string) {
-        if (this.URIRecord[uri]) {
-            this.URIRecord[uri].foldingRanges = [];
-        }
-    }
-
-    public foldingGetFoldingRange(uri: string): FoldingRange[] | null {
-        if (!this.URIRecord[uri]) {
-            return null;
-        } else {
-            return this.URIRecord[uri].foldingRanges;
-        }
-    }
-
     //#endregion
 
     //#region Local Variables
@@ -890,14 +859,13 @@ export class Reference {
      * @param vars The variable array to add. If none, pass empty array.
      */
     public instAddInstToObject(thisVar: GMLVarParse, uri: string) {
-        // Create object if necessary
+        // Exit if we don't have an object!
         if (this.objects.hasOwnProperty(thisVar.object) == false) {
-            const res = this.objectAddObject(thisVar.object);
-            if (res == false) return;
+            return;
         }
 
         // Create Variable location if necessary
-        if (this.objects[thisVar.object].hasOwnProperty(thisVar.name) == false) {
+        if (this.objects[thisVar.object].hasOwnProperty(thisVar.name) === false) {
             // Extend/Update our internal model
             this.objects[thisVar.object][thisVar.name] = {
                 origin: {
@@ -920,11 +888,12 @@ export class Reference {
             let overrideOrigin = false;
             const previousOrigin = this.instGetOriginInst(thisVar.object, thisVar.name);
             if (previousOrigin) {
-                if (previousOrigin.isSelf == false && thisVar.isSelf == true) {
+                if (previousOrigin.isSelf === false && thisVar.isSelf === true) {
                     overrideOrigin = true;
-                } else if (previousOrigin.isSelf == thisVar.isSelf) {
+                } else if (previousOrigin.isSelf === thisVar.isSelf) {
                     // Compare their respective events, essentially.
-                    // Remember, smaller is better!
+                    // Remember, smaller is better! We done care about equality,
+                    // since equality means the former (higher up) stays.
                     if (previousOrigin.varRank > thisVar.supremacy) {
                         overrideOrigin = true;
                     }
@@ -992,7 +961,7 @@ export class Reference {
                 // Splice out the Record from this Var:
                 delete this.objects[thisOldVar.object][thisOldVar.name].referenceLocations[thisOldVar.index];
 
-                if (thisOldVar.isOrigin) {
+                if (thisOldVar.index === thisVarEntry.origin.indexOfOrigin) {
                     const newOrigin = await this.instAssignNewOrigin(
                         thisVarEntry.referenceLocations,
                         thisOldVar.object
@@ -1027,12 +996,12 @@ export class Reference {
 
             const thisURIInfo = await fsManager.getDocumentFolder(thisVar.uri);
             if (!thisURIInfo || !thisURIInfo.eventInfo || thisURIInfo.type !== 'GMObject') continue;
-            const isSelf = thisURIInfo.name == objName;
+            const isSelf = thisURIInfo.name === objName;
             if (bestCandidate.isSelf == true && isSelf == false) continue;
 
             // Get our Supremacy; (HOLY SHIT THIS IS A RATS NEST. I guess there is such a thing as too many enums)
             let thisRank = VariableRank.Num;
-            if (thisURIInfo.eventInfo.eventType == EventType.Create) {
+            if (thisURIInfo.eventInfo.eventType === EventType.Create) {
                 thisRank = VariableRank.Create;
             } else {
                 if (bestCandidate.varRank < VariableRank.BegStep) continue;
@@ -1054,11 +1023,11 @@ export class Reference {
 
             // If we've just found a better URI/Var, then we make our leading Candidate
             if (dummyURI === thisVar.uri) {
-                // Okay we've got the same URI. We go with the higher line number:
-                if (bestCandidate.location.range.start.line > thisVar.range.start.line) continue;
+                // Okay we've got the same URI. We go with the LOWER line number:
+                if (bestCandidate.location.range.start.line < thisVar.range.start.line) continue;
                 // If we're equal, literally fuck this dude but I shall support him.
                 if (bestCandidate.location.range.start.line == thisVar.range.start.line) {
-                    if (bestCandidate.location.range.start.character <= thisVar.range.start.line) continue;
+                    if (bestCandidate.location.range.start.character <= thisVar.range.start.character) continue;
                 }
             }
             // ReAsign Best Candidate:
@@ -1068,6 +1037,7 @@ export class Reference {
                 varRank: thisRank,
                 location: thisVar
             };
+            dummyURI = thisVar.uri;
         }
 
         if (bestCandidate.varRank < VariableRank.Num) {

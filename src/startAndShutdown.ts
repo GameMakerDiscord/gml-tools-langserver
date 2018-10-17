@@ -166,24 +166,31 @@ export class InitialAndShutdown {
 
         /**
          * * General overview of how we parse the YYP:
-         *
+         *  
+         * * 0. Dump the cached resources into Reference.
          * * 1. We do a first pass on each YY and GML file referenced by the YYP,
-         *  *   filling in resource names and parentage.
+         * *    filling in resource names and parentage. If it's a view, take it out
+         * *    and add it to the view queue. 
          *
          * * 2. We also check the GML files of anything that has a GML file and we
-         * *    put them in a queue.
+         * *    put them in a queue unless its an extesnion, in which case we parse it.
          *
          * * 3. We do a preliminary pass on each file in the queue. If they match the
-         * *    hash before, we skip it. If the hash doesn't match, or we don't have a hash,
-         * *    we check if there's a macro or enum declaration. If so, we index that file.
+         * *    hash from the cache, we skip it. If the hash doesn't match, or we don't have a hash,
+         * *    we check if there's a macro or enum declaration. If so, we parse it.
          *
-         * * 4. We check our hash again, then we dump our saved contents and continue on our
-         * *    merry way if it passed. If it includes a new Enum or Macro, we throw our save away.
-         * *    If the hash didn't match, we reparse again as well!
+         * * 4. Now, we go through everything from the queue again. If it passed the hash,
+         * *    we now check if it uses any of the macros/enums we just parsed from the new files.
+         * *    If so, we throw the save away and reparse -- otherwise, we dump the saved data
+         * *    of that file into Reference.
          *
          * * 5. Do our initial view sort.
+         * 
+         * * 6. Validate Reference. We go through every single thing in Reference and validate
+         * *    that each actually exists. Empty enums, unreferenced macros, variables, etc. get 
+         * *    cleared. Objects with no files get cleared as well.
          *
-         * * 6. We pass off tons and tons of info.
+         * * 6. We pass off the handoff of all our documents to the Filesystem and tell the LS to kill us.
          */
 
         // ! Step Zero: Dump the Reference from the Cache

@@ -14,7 +14,6 @@ import {
     DidOpenTextDocumentParams,
     CompletionParams,
     CompletionItem,
-    FoldingRangeRequestParam,
     ReferenceParams
 } from 'vscode-languageserver/lib/main';
 import { DiagnosticHandler, DiagnosticsPackage, LintPackage } from './diagnostic';
@@ -24,7 +23,6 @@ import { GMLSignatureProvider } from './signature';
 import { GMLCompletionProvider } from './completion';
 import { SemanticsOption, LanguageService, GMLDocs, GMLToolsSettings } from './declarations';
 import { DocumentationImporter } from './documentationImporter';
-import { FoldingRange } from 'vscode-languageserver-protocol/lib/protocol.foldingRange';
 import { InitialAndShutdown } from './startAndShutdown';
 
 export class LangServ {
@@ -297,6 +295,8 @@ export class LangServ {
     ) {
         // Clear our Script References
         this.reference.scriptRemoveAllReferencesAtURI(thisDiagnostic.getURI);
+        this.reference.functionRemoveAllReferencesAtURI(thisDiagnostic.getURI);
+        this.reference.extensionRemoveAllReferencesAtURI(thisDiagnostic.getURI);
 
         // Run Semantics on Existing MatchResults.
         const theseMatchResults = lintPackage.getMatchResults();
@@ -356,24 +356,6 @@ export class LangServ {
     public async onCompletionResolveRequest(params: CompletionItem) {
         if (this.isServerReady() == false) return params;
         return await this.gmlCompletionProvider.onCompletionResolveRequest(params);
-    }
-    /**
-     * How Folding Works in this LSP: GML only provides dynamic folding with
-     * #region and #endregion syntax. Our grammar uses these as if they were
-     * part of the language (which can, if one tries hard, produce strange
-     * false positives), and, as such, we parse them with a visitor during the
-     * "Lint" operation.
-     * In that operation, the DiagnosticHandler sends the parsed ranges to the
-     * Reference, who keeps them. Here, all we do is retrieve them from the
-     * reference.
-     * @param params Essentially, the URI of the document.
-     */
-    public async onFoldingRanges(params: FoldingRangeRequestParam): Promise<FoldingRange[] | null> {
-        const ranges = this.reference.foldingGetFoldingRange(params.textDocument.uri);
-        if (ranges) {
-            return ranges;
-        }
-        return null;
     }
 
     public async onShowAllReferences(params: ReferenceParams) {

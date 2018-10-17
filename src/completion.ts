@@ -54,6 +54,11 @@ export class GMLCompletionProvider {
     private async nonPeriodCompletion(params: CompletionParams) {
         const thisWord = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
         if (!thisWord) return;
+        // Backtrack for period in word, when user backspaces after typing a period.
+        if (thisWord.includes(".")) {
+            return this.periodCompletion(params);
+        }
+
         const thisRange = Range.create(params.position, params.position);
 
         let workingArray: CompletionItem[] = [];
@@ -254,6 +259,9 @@ export class GMLCompletionProvider {
 
     private async periodCompletion(params: CompletionParams) {
         let thisWord = await getWordAtPositionFS(params.textDocument.uri, params.position, this.fs);
+
+        // TODO MAKE THIS WORK WITH BACKSPACES AFTER HITTING A PERIOD. SEPERATE OUT BEFOREPERIOD WORD
+        // TODO AND AFTER PERIOD WORD
         if (!thisWord) return;
         let workingArray: CompletionItem[] = [];
 
