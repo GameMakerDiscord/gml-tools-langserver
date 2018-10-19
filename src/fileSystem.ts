@@ -448,10 +448,10 @@ export class FileSystem {
     public async viewsDeleteViewAtNode(childUUID: string) {
         // Splice out the View from the Parent
         const parentNode = await this.viewsGetParentView(childUUID, this.views[this.defaultView]);
-        if (!parentNode || parentNode.modelName !== 'GMLFolder') return;
+        if (!parentNode || parentNode.modelName !== 'GMLFolder') return false;
 
         const childNode = this.searchViewsForUUID(childUUID);
-        if (!childNode || childNode.modelName === 'GMLFolder') return;
+        if (!childNode || childNode.modelName === 'GMLFolder') return false;
 
         // Splice!
         const thisIndex = parentNode.children.findIndex(thisChild => {
@@ -460,6 +460,7 @@ export class FileSystem {
         if (thisIndex === -1) return false;
 
         parentNode.children.splice(thisIndex, 1);
+        return true;
     }
 
     /**
