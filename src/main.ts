@@ -11,7 +11,7 @@ import {
     RequestType0
 } from 'vscode-languageserver/lib/main';
 import { LangServ } from './langserv';
-import { ClientViewNode } from './sharedTypes';
+import { ClientViewNode, ScriptPackage } from './sharedTypes';
 import { CreateObjPackage } from './declarations';
 
 // Create a connection for the server. The connection uses Node's IPC as a transport
@@ -20,7 +20,7 @@ let connection: IConnection = createConnection(new IPCMessageReader(process), ne
 const ls = new LangServ(connection);
 
 // Initalize the Server
-connection.onInitialize((params) => {
+connection.onInitialize(params => {
     // Tell the FS to begin indexing
     // We've got no backup plan if the client doesn't support Workspaces!
     if (params.workspaceFolders) {
@@ -71,7 +71,7 @@ const CREATE_OBJECT = new RequestType<{ sprites: string[] }, CreateObjPackage | 
 const CREATE_SCRIPT = new RequestType0<string | null, void, void>('createScript');
 // const ADD_EVENTS = new RequestType0<EventsPackage | null, void, void>('addEvents');
 
-connection.onExecuteCommand(async (params) => {
+connection.onExecuteCommand(async params => {
     switch (params.command) {
         case 'GMLTools.createObject':
             const ourSprites = ls.reference.getAllResourceOfType('GMSprite');
@@ -121,7 +121,7 @@ connection.onExecuteCommand(async (params) => {
     }
 });
 
-connection.onRequest(new RequestType<string, ClientViewNode[], void, void>('getViewsAtUUID'), (uuid) => {
+connection.onRequest(new RequestType<string, ClientViewNode[], void, void>('getViewsAtUUID'), uuid => {
     if (ls.isServerReady() == false) {
         console.log('ERROR: Client requested views before views were indexed. Empty array provided.');
         return [];
@@ -144,6 +144,22 @@ connection.onRequest(new RequestType<string, ClientViewNode[], void, void>('getV
     return [];
 });
 
+connection.onRequest(
+    new RequestType<ScriptPackage, ClientViewNode | null, void, void>('createScriptAtUUID'),
+    async (scriptPack: ScriptPackage) => {
+        if (ls.isServerReady() == false) {
+            console.log('ERROR: Attempting to create Script before server was ready.');
+            return null;
+        }
+
+        return await ls.createScript(scriptPack);
+    }
+);
+
+connection.onRequest(new RequestType<ScriptPackage, boolean, void, void>('deleteScriptAtUUID'), async scriptPack => {
+    return await ls.deleteScript(scriptPack);
+});
+
 //#endregion
 
 //#region Type Services:
@@ -157,39 +173,39 @@ connection.onCompletionResolve(
         return await ls.onCompletionResolveRequest(params);
     }
 );
-connection.onSignatureHelp(async (params) => {
+connection.onSignatureHelp(async params => {
     return await ls.onSignatureRequest(params);
 });
 
-connection.onHover(async (params) => {
+connection.onHover(async params => {
     return await ls.hoverOnHover(params);
 });
 
-connection.onDefinition((params) => {
+connection.onDefinition(params => {
     return ls.onDefinitionRequest(params);
 });
 
-connection.onReferences(async (params) => {
+connection.onReferences(async params => {
     return await ls.onShowAllReferences(params);
 });
 //#endregion
 
 //#region Text Events
-connection.onDidChangeConfiguration(async (params) => {
+connection.onDidChangeConfiguration(async params => {
     const changedImplementation = await ls.findNewSettings();
 
     ls.updateSettings(changedImplementation);
 });
 
-connection.onDidOpenTextDocument(async (params) => {
+connection.onDidOpenTextDocument(async params => {
     await ls.openTextDocument(params);
 });
 
-connection.onDidChangeTextDocument(async (params) => {
+connection.onDidChangeTextDocument(async params => {
     ls.changedTextDocument(params.textDocument.uri, params.contentChanges);
 });
 
-connection.onDidCloseTextDocument((params) => {
+connection.onDidCloseTextDocument(params => {
     connection.console.log(`${params.textDocument.uri} closed.`);
     ls.fsManager.closeOpenDocument(params.textDocument.uri);
 });

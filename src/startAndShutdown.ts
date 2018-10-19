@@ -1,4 +1,4 @@
-import { Reference, GenericResourceDescription, BasicResourceType } from './reference';
+import { Reference, BasicResourceType } from './reference';
 import { WorkspaceFolder, Location, Range } from 'vscode-languageserver';
 import URI from 'vscode-uri';
 import * as fse from 'fs-extra';
@@ -27,7 +27,6 @@ export namespace ProjectCache {
         callables: CachedCallables;
         enums: { [uri: string]: IEnum };
         macros: { [uri: string]: IMacro };
-        resources: GenericResourceDescription[];
         extensionRecord: IExtensionRecord;
     }
 
@@ -100,8 +99,7 @@ export class InitialAndShutdown {
                     extensions: {},
                     scripts: {}
                 },
-                extensionRecord: {},
-                resources: []
+                extensionRecord: {}
             }
         };
         this.projectResourceList = {};
@@ -166,11 +164,11 @@ export class InitialAndShutdown {
 
         /**
          * * General overview of how we parse the YYP:
-         *  
+         *
          * * 0. Dump the cached resources into Reference.
          * * 1. We do a first pass on each YY and GML file referenced by the YYP,
          * *    filling in resource names and parentage. If it's a view, take it out
-         * *    and add it to the view queue. 
+         * *    and add it to the view queue.
          *
          * * 2. We also check the GML files of anything that has a GML file and we
          * *    put them in a queue unless its an extesnion, in which case we parse it.
@@ -185,9 +183,9 @@ export class InitialAndShutdown {
          * *    of that file into Reference.
          *
          * * 5. Do our initial view sort.
-         * 
+         *
          * * 6. Validate Reference. We go through every single thing in Reference and validate
-         * *    that each actually exists. Empty enums, unreferenced macros, variables, etc. get 
+         * *    that each actually exists. Empty enums, unreferenced macros, variables, etc. get
          * *    cleared. Objects with no files get cleared as well.
          *
          * * 6. We pass off the handoff of all our documents to the Filesystem and tell the LS to kill us.
@@ -425,7 +423,7 @@ export class InitialAndShutdown {
             // Add to our Documents
             const ourPath = path.join(this.projectDirectory, 'scripts', yyFile.name, yyFile.name + '.gml');
             this.documentCreateDocumentFolder(ourPath, yyFile.name, 'GMScript');
-            this.reference.scriptAddURI(yyFile.name, URI.file(ourPath).toString());
+            this.reference.scriptSetURI(yyFile.name, URI.file(ourPath).toString());
 
             return [ourPath];
         }

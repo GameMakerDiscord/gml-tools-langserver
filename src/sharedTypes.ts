@@ -10,9 +10,15 @@ export interface ClientViewNode {
 
     /** This is the absolute filepath to the .YY file which describes the Resource. */
     fpath: string;
+
+    /** This is the fiterType.*/
+    filterType: string;
 }
 
-export interface EventsPackage {
-    uri: string;
-    events: string;
+export interface ScriptPackage {
+    /** This is the name of the script to create. */
+    scriptName: string;
+
+    /** This is the UUID of the GMFolder to create the Script under. */
+    viewUUID: string;
 }

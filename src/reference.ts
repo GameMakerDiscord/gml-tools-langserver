@@ -170,9 +170,6 @@ export class Reference {
                 this.macros[thisMacroName] = thisMacro;
             }
         }
-
-        // Concat the Project Resources
-        this.projectResources = this.projectResources.concat(cache.resources);
     }
 
     public initDumpCachedURIRecord(cachedRecord: IURIRecord, thisURI: string, thisHash: string) {
@@ -528,7 +525,7 @@ export class Reference {
         };
     }
 
-    public scriptAddURI(thisName: string, thisURI: string) {
+    public scriptSetURI(thisName: string, thisURI: string) {
         const thisScript = this.scriptGetPackage(thisName);
         if (thisScript) thisScript.uri = thisURI;
     }
@@ -1572,7 +1569,6 @@ export class Reference {
                 enums: this.enums,
                 macros: this.macros,
                 object: this.objects,
-                resources: this.projectResources,
                 callables: {
                     extensions: this.callables.extensions,
                     scripts: this.callables.scripts

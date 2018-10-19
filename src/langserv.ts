@@ -24,6 +24,7 @@ import { GMLCompletionProvider } from './completion';
 import { SemanticsOption, LanguageService, GMLDocs, GMLToolsSettings } from './declarations';
 import { DocumentationImporter } from './documentationImporter';
 import { InitialAndShutdown } from './startAndShutdown';
+import { ScriptPackage, ClientViewNode } from './sharedTypes';
 
 export class LangServ {
     readonly gmlGrammar: Grammar;
@@ -396,26 +397,41 @@ export class LangServ {
     //     }
     // }
 
-    // public async createScript(scriptName: string) {
-    //     // Basic Check
-    //     if (this.isValidResourceName(scriptName) == false) {
-    //         this.connection.window.showErrorMessage(
-    //             'Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9.'
-    //         );
-    //         return;
-    //     }
+    public async createScript(scriptPack: ScriptPackage): Promise<null | ClientViewNode> {
+        // Basic Check
+        if (this.isValidResourceName(scriptPack.scriptName) == false) {
+            this.connection.window.showErrorMessage(
+                'Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9.'
+            );
+            return null;
+        }
 
-    //     // Check for duplicate resources:
-    //     if (this.resourceExistsAlready(scriptName)) {
-    //         this.connection.window.showErrorMessage('Invalid script name given. Resource already exists.');
-    //         return;
-    //     }
+        // Check for duplicate resources:
+        if (this.resourceExistsAlready(scriptPack.scriptName)) {
+            this.connection.window.showErrorMessage('Invalid script name given. Resource already exists.');
+            return null;
+        }
 
-    //     const ourGMLFilePath = await this.fsManager.createScript(scriptName);
-    //     if (ourGMLFilePath) {
-    //         this.connection.sendNotification('goToURI', ourGMLFilePath);
-    //     }
-    // }
+        return await this.fsManager.resourceScriptCreate(scriptPack.scriptName, scriptPack.viewUUID);
+    }
+
+    public async deleteScript(clientScriptPack: ScriptPackage): Promise<boolean> {
+        // Get the package
+        const scriptPack = this.reference.scriptGetPackage(clientScriptPack.scriptName);
+        if (!scriptPack) return false;
+
+        // Delete it from the FS and change the YYP
+        const success = await this.fsManager.resourceScriptDelete(scriptPack, clientScriptPack.viewUUID);
+        if (!success) return false;
+
+        // Delete the Reference library
+        this.reference.scriptDelete(clientScriptPack.scriptName);
+
+        // Clear the View
+        await this.fsManager.viewsDeleteViewAtNode(clientScriptPack.viewUUID);
+
+        return true;
+    }
 
     // public async addEvents(events: EventsPackage) {
     //     let eventsArray = events.events.toLowerCase().split(',');
@@ -469,13 +485,13 @@ export class LangServ {
         }
     }
 
-    // private isValidResourceName(name: string) {
-    //     return /^[a-z_]+[a-z0-9_]*$/i.test(name);
-    // }
+    private isValidResourceName(name: string) {
+        return /^[a-z_]+[a-z0-9_]*$/i.test(name);
+    }
 
-    // private resourceExistsAlready(name: string) {
-    //     return this.reference.resourceExists(name);
-    // }
+    private resourceExistsAlready(name: string) {
+        return this.reference.resourceExists(name);
+    }
 
     //#endregion
 }

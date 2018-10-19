@@ -5,6 +5,7 @@ import { ws } from './hover';
 import { LangServ } from './langserv';
 import { FileSystem } from './fileSystem';
 import { LanguageService } from './declarations';
+import URI from 'vscode-uri';
 
 export class GMLDefinitionProvider {
     private reference: Reference;
@@ -23,7 +24,7 @@ export class GMLDefinitionProvider {
         if (!thisWord) {
             return null;
         }
-
+        
         // All "." Words
         if (thisWord.includes('.')) {
             const ourWord = thisWord.split('.');
@@ -59,7 +60,7 @@ export class GMLDefinitionProvider {
         // Functions?
         const funcPack = this.reference.functionGetPackage(thisWord);
         if (funcPack && funcPack.JSDOC.link) {
-            return Location.create(funcPack.JSDOC.link, Range.create(0, 0, 0, 0));
+            return Location.create(URI.parse(funcPack.JSDOC.link).toString(), Range.create(0, 0, 0, 0));
         }
 
         // Extensions
