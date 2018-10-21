@@ -3716,6 +3716,6 @@ yauzl@2.4.1:
     fd-slicer "~1.0.1"
 
 yyp-typings@^2.2.1:
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/yyp-typings/-/yyp-typings-2.2.1.tgz#44ff3348accf8c484db5913769b56f9ecb1631b3"
-  integrity sha512-igLCTjv7ITd16r9PxR+elrZdiaM9WxzFTVs4T3xZ5APwnTUWGvMM0xqafRuFAkujB/2GBzEe9MGDgXpL7sf43Q==
+  version "2.3.1"
+  resolved "https://registry.yarnpkg.com/yyp-typings/-/yyp-typings-2.3.1.tgz#f6a470a4a0370497c3b44b6b5b9007e9f3864f78"
+  integrity sha512-dWX3JRML08ORB2ep8QgyZVMWzDibhMJEequL7KVSmreNCeUqxGUq5vl7jMl+gLenwtfl42UzsXbdiDDB5f77ag==

@@ -143,12 +143,38 @@ export class InitialAndShutdown {
         const projectCache = this.cachedFileNames.filter(thisFile => {
             return thisFile == 'project-cache.json';
         });
-
         if (projectCache.length === 1) {
             // Get our Project Cache
             this.projectCache = JSON.parse(
                 await fse.readFile(path.join(this.projectDirectory, '.gml-tools', 'project-cache.json'), 'utf8')
             );
+        }
+
+        // Create our Default Folders, even if they're just blanks
+        const ourResources = [
+            "datafiles",
+            "datafiles_yy",
+            "extensions",
+            "fonts",
+            "notes",
+            "objects",
+            "options",
+            "paths",
+            "rooms",
+            "scripts",
+            "shaders",
+            "sounds",
+            "sprites",
+            "tilesets",
+            "timelines",
+            "views"
+        ];
+        for (const thisFolderName of ourResources) {
+            try {
+                await fse.ensureDir(path.join(this.projectDirectory, thisFolderName));
+            } catch(e) {
+                console.log("Error in creating folder names. Please report an error on the Github page.")
+            }
         }
 
         return await this.initialIndexProject();

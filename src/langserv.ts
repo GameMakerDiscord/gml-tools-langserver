@@ -398,21 +398,9 @@ export class LangServ {
     // }
 
     public async createScript(scriptPack: ScriptPackage): Promise<null | ClientViewNode> {
-        // Basic Check
-        if (this.isValidResourceName(scriptPack.scriptName) == false) {
-            this.connection.window.showErrorMessage(
-                'Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9.'
-            );
-            return null;
-        }
-
-        // Check for duplicate resources:
-        if (this.resourceExistsAlready(scriptPack.scriptName)) {
-            this.connection.window.showErrorMessage('Invalid script name given. Resource already exists.');
-            return null;
-        }
-
-        return await this.fsManager.resourceScriptCreate(scriptPack.scriptName, scriptPack.viewUUID);
+        if (this.genericResourcePreCheck(scriptPack.scriptName)) {
+            return await this.fsManager.resourceScriptCreate(scriptPack.scriptName, scriptPack.viewUUID);
+        } else return null;
     }
 
     public async deleteScript(clientScriptPack: ScriptPackage): Promise<boolean> {
@@ -423,6 +411,13 @@ export class LangServ {
         // Delete it from the FS and change the YYP
         const success = await this.fsManager.resourceScriptDelete(scriptPack, clientScriptPack.viewUUID);
         if (!success) return false;
+
+        // Make sure our YYP is accurate still
+        if ((await this.fsManager.validateYYP()) === false) {
+            this.connection.window.showErrorMessage(
+                'Internal YYP is no longer valid. If issue persists, log an issue on the Github page.'
+            );
+        }
 
         // Delete the Reference library
         this.reference.scriptDelete(clientScriptPack.scriptName);
@@ -491,6 +486,31 @@ export class LangServ {
 
     private resourceExistsAlready(name: string) {
         return this.reference.resourceExists(name);
+    }
+
+    private async genericResourcePreCheck(newResourceName: string): Promise<boolean> {
+        // Basic Check
+        if (this.isValidResourceName(newResourceName) === false) {
+            this.connection.window.showErrorMessage(
+                'Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9.'
+            );
+            return false;
+        }
+
+        // Check for duplicate resources:
+        if (this.resourceExistsAlready(newResourceName)) {
+            this.connection.window.showErrorMessage('Invalid script name given. Resource already exists.');
+            return false;
+        }
+
+        // Make sure our YYP is accurate still
+        if ((await this.fsManager.validateYYP()) === false) {
+            this.connection.window.showErrorMessage(
+                'Internal YYP is no longer valid. If issue persists, log an issue on the Github page.'
+            );
+            return false;
+        }
+        return true;
     }
 
     //#endregion

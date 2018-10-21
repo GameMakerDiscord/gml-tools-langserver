@@ -267,6 +267,9 @@ export class FileSystem {
         // Documents
         this.documents = handOff.Documents;
 
+        // Install handler on the YYP
+        await this.installProjectYYPWatcher();
+
         // Index Complete
         this.indexComplete = true;
     }
@@ -434,7 +437,7 @@ export class FileSystem {
         if (startingNode.id == targetNodeUUID) {
             return startingNode;
         } else if (startingNode.modelName == 'GMLFolder' && startingNode.children != null) {
-            let result: GMResourcePlus|null = null;
+            let result: GMResourcePlus | null = null;
 
             for (let i = 0, l = startingNode.children.length; result == null && i < l; i++) {
                 const thisChildNode = startingNode.children[i];
@@ -466,11 +469,15 @@ export class FileSystem {
     /**
      * Returns the parent of the UUID given.
      */
-    private viewsGetParentView(targetNodeUUID: string, defaultNode: GMResourcePlus, parentNode?: GMResourcePlus): GMResourcePlus|null {
+    private viewsGetParentView(
+        targetNodeUUID: string,
+        defaultNode: GMResourcePlus,
+        parentNode?: GMResourcePlus
+    ): GMResourcePlus | null {
         if (defaultNode.id === targetNodeUUID && parentNode) {
             return parentNode;
         } else if (defaultNode.modelName == 'GMLFolder' && defaultNode.children != null) {
-            let result: GMResourcePlus|null = null;
+            let result: GMResourcePlus | null = null;
 
             for (let i = 0, l = defaultNode.children.length; result == null && i < l; i++) {
                 const thisChildNode = defaultNode.children[i];
@@ -1004,6 +1011,11 @@ export class FileSystem {
         await fse.writeFile(this.projectYYPPath, JSON.stringify(this.projectYYP), 'utf8');
     }
 
+    public async validateYYP(): Promise<boolean> {
+        const currentYYPString = JSON.stringify(JSON.parse(await fse.readFile(this.projectYYPPath, 'utf8')));
+        return currentYYPString === JSON.stringify(this.projectYYP);
+    }
+
     /**
      * Creates and return a YYPResource.
      * @param resourceID The UUID of the resource to create.
@@ -1312,48 +1324,68 @@ export class FileSystem {
     // #endregion
 
     //#region Watcher
-    // TODO: Add this back in -- we're just commenting it for the error.
-    // private async watchYYP(eventKind: string, ourPath: string, stats: any) {
-    //     if (!this.projectYYP) return;
-    //     switch (eventKind) {
-    //         case 'change':
-    //             let newYYP: YYP = JSON.parse(await fse.readFile(ourPath, 'utf8'));
-    //             let newResources: Array<YYPResource> = [];
-    //             let deletedResources: Array<YYPResource> = [];
-    //             let keysExisting: Array<string> = [];
+    private async installProjectYYPWatcher() {
+        // Objects are gonne be SO FUN
+        const objectWatcher = chokidar.watch('script/**/*.yy');
 
-    //             const timeout = (ms: number) => new Promise((res) => setTimeout(res, ms));
+        // YYP Stuff
+        const yypWatch = chokidar.watch(this.projectYYPPath);
+        yypWatch.on('change', async (fname: string) => {
+            const newYYP: YYP = JSON.parse(await fse.readFile(this.projectYYPPath, 'utf8'));
+            if (!this.projectYYP) {
+                this.projectYYP = newYYP;
+                return;
+            }
 
-    //             // Check for New Resources:
-    //             for (const thisResource of newYYP.resources) {
-    //                 keysExisting.push(thisResource.Key);
-    //                 if (this.resourceKeys.includes(thisResource.Key) == false) {
-    //                     newResources.push(thisResource);
-    //                 }
-    //             }
-    //             newYYP.resources = newResources;
+            const currentResources = this.projectYYP.resources;
+            const subtractedResources: YYPResource[] = [];
+            const addedResources: YYPResource[] = [];
 
-    //             // We have to have a timer here, because we're faster than GMS2.
-    //             await timeout(100);
-    //             // this.indexYYP(newYYP);
+            /**
+             * *    The PLAN:
+             * *
+             * * 1. We cycle through all our old resources, checking if they exist
+             * *    on the new resources coming in. If they don't we add them to
+             * *    the "subtracted" array. Otherwise, we do nothing.
+             *
+             * * 2. We cycle through all our new resources, checking if they exist
+             * *    on the new resources coming in. If they don't, we add them to
+             * *    the "addition" array. Otherwise, we do nothing.
+             *
+             * * 3. Go through our subtracted resources and deal with them.
+             */
 
-    //             // Check for Deleted Resources
-    //             for (const thisResource of this.projectYYP.resources) {
-    //                 if (keysExisting.includes(thisResource.Key) == false) {
-    //                     deletedResources.push(thisResource);
-    //                 }
-    //             }
-    //             // Apply the function to everyone:
-    //             for (const thisResource of deletedResources) {
-    //                 this.deleteResources(thisResource);
-    //             }
+            // ! Step 1
+            for (const thisOldResource of currentResources) {
+                const possibleFound = newYYP.resources.find(thisResource => {
+                    return thisResource.Key === thisOldResource.Key;
+                });
+                if (possibleFound === undefined) subtractedResources.push(thisOldResource);
+            }
 
-    //             break;
+            // ! Step 2
+            for (const thisNewResource of newYYP.resources) {
+                const possibleFound = currentResources.find(thisResource => {
+                    return thisResource.Key === thisNewResource.Key;
+                });
+                if (possibleFound === undefined) addedResources.push(thisNewResource);
+            }
 
-    //         default:
-    //             break;
-    //     }
-    // }
+            // ! Step 3
+            for (const thisSubtractedResource of subtractedResources) {
+                switch (thisSubtractedResource.Value.modelName) {
+                    case 'hello':
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+
+            for (const thisAddedResource of addedResources) {
+            }
+        });
+    }
 
     public async deleteResources(resourceToDelete: YYPResource) {
         // Clear the basic resource
