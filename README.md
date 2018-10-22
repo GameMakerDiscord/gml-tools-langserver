@@ -1,6 +1,4 @@
-# README
-
-## Basics of the Language Server
+# Basics of the Language Server
 
 GML-Tools is a language server, compliant with Microsoft's Language Server Protocol. This language server **only works with GameMaker Studio 2 files explicitly**. In the interest of simplicity, we have chosen to not support GMS1.4 in any capacity. Using the server in a GMS1.4 project (or earlier) is not expected, and will likely fail.
 
