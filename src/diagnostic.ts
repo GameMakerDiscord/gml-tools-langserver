@@ -9,8 +9,7 @@ import {
     regexLastIndexOf
 } from './utils';
 import { Reference } from './reference';
-import { JSDOC, JSDOCParameter, DocumentFolder } from './fileSystem';
-import { Token, VariableRank, IScript, IFunction, IExtension } from './declarations';
+import { Token, VariableRank, IScript, IFunction, IExtension, JSDOC, JSDOCParameter, DocumentFolder } from './declarations';
 import { EventType, EventNumber } from 'yyp-typings';
 
 export enum EIterArray {

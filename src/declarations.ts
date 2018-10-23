@@ -1,5 +1,7 @@
 import { CompletionItemKind, FoldingRange, Location, Position } from 'vscode-languageserver';
-import { JSDOC } from './fileSystem';
+import { Resource, EventType, EventNumber } from 'yyp-typings';
+import { BasicResourceType } from './reference';
+import { DiagnosticHandler } from './diagnostic';
 
 export const enum SpecialDocTypes {
     Constant = '#',
@@ -309,3 +311,157 @@ export interface GMLDocOverrides {
     name: string;
     originalEntry?: IScript;
 }
+
+
+//#region FS
+
+export interface GMLScriptContainer {
+    [propName: string]: GMLScript;
+}
+
+export interface GMLScript {
+    directoryFilepath: string;
+    gmlFile: string;
+    yyFile: Resource.Script | string;
+}
+
+export interface JSDOC {
+    signature: string;
+    returns: string;
+    minParameters: number;
+    maxParameters: number;
+    parameters: Array<JSDOCParameter>;
+    description: string;
+    isScript: boolean;
+    link?: string;
+}
+
+export interface JSDOCParameter {
+    label: string;
+    documentation: string;
+}
+
+export interface GMLObjectContainer {
+    [propName: string]: GMLObject;
+}
+
+export interface GMLObject {
+    directoryFilepath: string;
+    events: Array<EventInfo>;
+    yyFile: Resource.Object;
+}
+
+export interface GMLSpriteContainer {
+    [spriteName: string]: GMLSprite;
+}
+
+export interface GMLSprite {
+    directoryFilepath: string;
+    yyFile: Resource.Sprite;
+}
+
+export interface EventInfo {
+    eventType: EventType;
+    eventNumb: EventNumber;
+}
+
+export interface DocumentFolders {
+    [uri: string]: DocumentFolder;
+}
+
+export interface DocumentFolder {
+    name: string;
+    type: BasicResourceType;
+    fileFullText: string;
+    diagnosticHandler: DiagnosticHandler | null;
+    eventInfo?: EventInfo;
+}
+
+export interface EventKinds {
+    evType: EventType;
+    evNumber: EventNumber;
+}
+
+export type GMResourcePlus = Resource.GMResource | GMLFolder;
+
+/**
+ * This is a copy of the normal Resource.GMFolder interface,
+ * except that it allows for children to be other GMLFolders.
+ */
+export interface GMLFolder {
+    /** Resource GUID */
+    id: string;
+
+    /** Internal resource type descriptor */
+    modelName: 'GMLFolder';
+
+    /** Version string, appears to be 1.0 or 1.1 */
+    mvc: string;
+
+    /** Resource name */
+    name: string;
+
+    /** An array of the views/resource GUIDs which this folder contains. */
+    children: GMResourcePlus[];
+
+    /** The FilterType of the View */
+    filterType: string;
+
+    /** The folder name itself */
+    folderName: string;
+
+    /** Indicates if the view is the Default Node. */
+    isDefaultView: boolean;
+
+    /** A code, likely used for adding localizations. */
+    localisedFolderName: Resource.localisedNames;
+}
+
+export interface TempFolder {
+    tempID: string;
+    tempPath: string;
+}
+
+export interface CompileProjInfo {
+    project_dir: string;
+    project_path: string;
+    project_name: string;
+
+    temp_id: string;
+    temp_path: string;
+}
+
+export interface Build {
+    assetCompiler: string;
+    debug: string;
+    compile_output_file_name: string;
+    useShaders: string;
+    steamOptions: string;
+    config: string;
+    outputFolder: string;
+    projectName: string;
+    projectDir: string;
+    preferences: string;
+    projectPath: string;
+    tempFolder: string;
+    userDir: string;
+    runtimeLocation: string;
+    applicationPath: string;
+    macros: string;
+    targetOptions: string;
+    targetMask: string;
+    verbose: string;
+    helpPort: string;
+    debuggerPort: string;
+}
+
+export interface CompileOptions {
+    yyc: boolean;
+    test: boolean;
+    debug: boolean;
+    verbose: boolean;
+    config: string;
+    zip: undefined;
+    installer: undefined;
+}
+//#endregion

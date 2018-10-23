@@ -1,7 +1,6 @@
 import { grammar, Grammar } from 'ohm-js';
 import * as fse from 'fs-extra';
 import * as path from 'path';
-import { FileSystem, DocumentFolder } from './fileSystem';
 import { GMLHoverProvider } from './hover';
 import { timeUtil } from './utils';
 import {
@@ -21,10 +20,11 @@ import { Reference } from './reference';
 import { GMLDefinitionProvider } from './definition';
 import { GMLSignatureProvider } from './signature';
 import { GMLCompletionProvider } from './completion';
-import { SemanticsOption, LanguageService, GMLDocs, GMLToolsSettings } from './declarations';
+import { SemanticsOption, LanguageService, GMLDocs, GMLToolsSettings, DocumentFolder } from './declarations';
 import { DocumentationImporter } from './documentationImporter';
 import { InitialAndShutdown } from './startAndShutdown';
 import { ScriptPackage, ClientViewNode } from './sharedTypes';
+import { FileSystem } from './fileSystem';
 
 export class LangServ {
     readonly gmlGrammar: Grammar;
@@ -365,6 +365,10 @@ export class LangServ {
     //#endregion
 
     //#region Commands
+    public async updateViews() {
+        this.connection.sendNotification('refresh');
+    }
+
     // public async createObject(objectPackage: CreateObjPackage) {
     //     // Basic Conversions straight here:
     //     if (typeof objectPackage.objectEvents == 'string') {
@@ -408,16 +412,16 @@ export class LangServ {
         const scriptPack = this.reference.scriptGetPackage(clientScriptPack.scriptName);
         if (!scriptPack) return false;
 
-        // Delete it from the FS and change the YYP
-        const success = await this.fsManager.resourceScriptDelete(scriptPack, clientScriptPack.viewUUID);
-        if (!success) return false;
-
         // Make sure our YYP is accurate still
         if ((await this.fsManager.validateYYP()) === false) {
             this.connection.window.showErrorMessage(
                 'Internal YYP is no longer valid. If issue persists, log an issue on the Github page.'
             );
         }
+
+        // Delete it from the FS and change the YYP
+        const success = await this.fsManager.resourceScriptDelete(scriptPack, clientScriptPack.viewUUID);
+        if (!success) return false;
 
         // Delete the Reference library
         this.reference.scriptDelete(clientScriptPack.scriptName);

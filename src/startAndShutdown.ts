@@ -5,8 +5,21 @@ import * as fse from 'fs-extra';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { YYP, Resource, EventType } from 'yyp-typings';
-import { IURIRecord, IObjects, IEnum, IMacro, SemanticsOption, IScript, IExtension } from './declarations';
-import { DocumentFolders, EventInfo, DocumentFolder, GMLFolder, JSDOC, JSDOCParameter } from './fileSystem';
+import {
+    IURIRecord,
+    IObjects,
+    IEnum,
+    IMacro,
+    SemanticsOption,
+    IScript,
+    IExtension,
+    GMLFolder,
+    DocumentFolders,
+    EventInfo,
+    DocumentFolder,
+    JSDOCParameter,
+    JSDOC
+} from './declarations';
 import { DiagnosticHandler } from './diagnostic';
 import { Grammar } from 'ohm-js';
 import { LangServ } from './langserv';
@@ -49,19 +62,20 @@ export namespace ProjectCache {
 
 export interface InitialStartupHandOffPackage {
     Views: {
-        Folders: GMLFolder[];
-        Default: number;
+        folder: GMLFolder[];
+        default: number;
+        rootViews: Resource.GMFolder[];
     };
     Documents: DocumentFolders;
     YYPInformation: {
-        ProjectDirectory: string;
-        TopLevelDirectories: string[];
-        ProjectYYPPath: string;
-        ProjectYYP: YYP;
-        projectResourceList: { [UUID: string]: Resource.GMResource };
+        projectDirectory: string;
+        topLevelDirectories: string[];
+        projectYYPPath: string;
+        projectYYP: YYP;
+        projectResources: { [UUID: string]: Resource.GMResource };
     };
     CachedInformation: {
-        CachedFileNames: string[];
+        cachedFileNames: string[];
     };
 }
 
@@ -75,7 +89,7 @@ export class InitialAndShutdown {
     private documents: DocumentFolders;
     private grammar: Grammar;
     private lsp: LangServ;
-    private projectResourceList: { [UUID: string]: Resource.GMResource };
+    private projectResources: { [UUID: string]: Resource.GMResource };
     private rootViews: Resource.GMFolder[];
     private views: GMLFolder[];
     private defaultView: number;
@@ -102,7 +116,7 @@ export class InitialAndShutdown {
                 extensionRecord: {}
             }
         };
-        this.projectResourceList = {};
+        this.projectResources = {};
         this.cachedFileNames = [];
 
         // Views crap
@@ -152,28 +166,28 @@ export class InitialAndShutdown {
 
         // Create our Default Folders, even if they're just blanks
         const ourResources = [
-            "datafiles",
-            "datafiles_yy",
-            "extensions",
-            "fonts",
-            "notes",
-            "objects",
-            "options",
-            "paths",
-            "rooms",
-            "scripts",
-            "shaders",
-            "sounds",
-            "sprites",
-            "tilesets",
-            "timelines",
-            "views"
+            'datafiles',
+            'datafiles_yy',
+            'extensions',
+            'fonts',
+            'notes',
+            'objects',
+            'options',
+            'paths',
+            'rooms',
+            'scripts',
+            'shaders',
+            'sounds',
+            'sprites',
+            'tilesets',
+            'timelines',
+            'views'
         ];
         for (const thisFolderName of ourResources) {
             try {
                 await fse.ensureDir(path.join(this.projectDirectory, thisFolderName));
-            } catch(e) {
-                console.log("Error in creating folder names. Please report an error on the Github page.")
+            } catch (e) {
+                console.log('Error in creating folder names. Please report an error on the Github page.');
             }
         }
 
@@ -182,7 +196,6 @@ export class InitialAndShutdown {
 
     private async initialIndexProject(): Promise<InitialStartupHandOffPackage | null> {
         const timer = new timeUtil();
-        timer.setTimeFast();
         // Get our YYP
         const rawYYP = await fse.readFile(this.projectYYPPath, 'utf8');
         this.projectYYP = JSON.parse(rawYYP);
@@ -310,6 +323,7 @@ export class InitialAndShutdown {
 
         // ! Step Five: Figure out our Silly View Situation
         // Iterate on our Roots:
+        timer.setTimeFast();
         for (const thisRoot of this.rootViews) {
             // Walk the Tree.
             const finalView = await this.walkViewTree(thisRoot);
@@ -321,28 +335,29 @@ export class InitialAndShutdown {
             }
         }
 
+        console.log(timer.timeDifferenceNowNice());
+
         // ! Step Six: Validate our Reference Cache for ghosts
         // Tell the reference to validate
         await this.reference.initValidateCache();
-
-        console.log(timer.timeDifferenceNowNice());
 
         // ! Step Six: Return our Returnable:
         return {
             Documents: this.documents,
             Views: {
-                Default: this.defaultView,
-                Folders: this.views
+                default: this.defaultView,
+                folder: this.views,
+                rootViews: this.rootViews
             },
             YYPInformation: {
-                ProjectDirectory: this.projectDirectory,
-                projectResourceList: this.projectResourceList,
-                ProjectYYPPath: this.projectYYPPath,
-                TopLevelDirectories: this.topLevelDirectories,
-                ProjectYYP: this.projectYYP
+                projectDirectory: this.projectDirectory,
+                projectResources: this.projectResources,
+                projectYYPPath: this.projectYYPPath,
+                topLevelDirectories: this.topLevelDirectories,
+                projectYYP: this.projectYYP
             },
             CachedInformation: {
-                CachedFileNames: this.cachedFileNames
+                cachedFileNames: this.cachedFileNames
             }
         };
     }
@@ -413,14 +428,14 @@ export class InitialAndShutdown {
                 this.rootViews.push(yyFile);
             } else {
                 // Add to Project Resources
-                this.projectResourceList[yyFile.id] = yyFile;
+                this.projectResources[yyFile.id] = yyFile;
             }
             return;
         }
 
         // Add the resource (creates objects/scripts here too!)
         this.reference.addResource(yyFile.name, yyFile.modelName);
-        this.projectResourceList[yyFile.id] = yyFile;
+        this.projectResources[yyFile.id] = yyFile;
     }
 
     private async initialGetGMLFiles(yyFile: Resource.GMResource): Promise<string[]> {
@@ -699,7 +714,7 @@ export class InitialAndShutdown {
             // Find the resource of this UUID by scanning through
             // all our UUIDs in `this.projectResourceList`. We
             // add every resource to it in the .YYP.
-            const thisChildYY = this.projectResourceList[thisChildNode];
+            const thisChildYY = this.projectResources[thisChildNode];
             if (thisChildYY === undefined) continue;
 
             // Walk down the UUID if it's a view, else store the YY file.

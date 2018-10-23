@@ -1,5 +1,4 @@
 import { Range, Location, Position } from 'vscode-languageserver/lib/main';
-import { JSDOC, FileSystem } from './fileSystem';
 import { GMLVarParse } from './diagnostic';
 import {
     GMLDocs,
@@ -15,12 +14,14 @@ import {
     IScript,
     ICallables,
     IFunction,
-    IExtension
+    IExtension,
+    JSDOC
 } from './declarations';
 import { LangServ } from './langserv';
 import { EventType, EventNumber } from 'yyp-typings';
 import { cleanArray, cleanArrayLength } from './utils';
 import { ProjectCache } from './startAndShutdown';
+import { FileSystem } from './fileSystem';
 
 export interface GenericResourceDescription {
     name: string;
@@ -564,6 +565,10 @@ export class Reference {
      * @param thisName This is the script to the delete.
      */
     public scriptDelete(thisName: string) {
+        // Clean the URI
+        this.URIRecordClearAtURI(this.callables.scripts[thisName].uri);
+
+        // Delete the Script itself
         delete this.callables.scripts[thisName];
 
         // Iterate on the URIRecords. Deleting a script is rare, so this

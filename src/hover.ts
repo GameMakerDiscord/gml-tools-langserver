@@ -1,7 +1,8 @@
 import { TextDocumentPositionParams, Hover, MarkedString } from 'vscode-languageserver/lib/main';
 import { getWordAtPositionFS } from './utils';
-import { JSDOC, FileSystem } from './fileSystem';
 import { Reference } from './reference';
+import { FileSystem } from './fileSystem';
+import { JSDOC } from './declarations';
 
 export enum ws {
     objName,

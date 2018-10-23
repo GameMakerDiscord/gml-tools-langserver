@@ -1,8 +1,8 @@
 import { Reference } from './reference';
 import { TextDocumentPositionParams, SignatureHelp, ParameterInformation } from 'vscode-languageserver/lib/main';
 import { getIndexFromPosition, getWordAtIndex, normalizeEoLSequences } from './utils';
-import { FileSystem, JSDOC } from './fileSystem';
-import { Token, SignatureWalkState, TokenNames } from './declarations';
+import { Token, SignatureWalkState, TokenNames, JSDOC } from './declarations';
+import { FileSystem } from './fileSystem';
 
 export class GMLSignatureProvider {
     private reference: Reference;

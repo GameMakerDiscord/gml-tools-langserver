@@ -7,163 +7,21 @@ import { Reference, BasicResourceType } from './reference';
 import * as uuidv4 from 'uuid/v4';
 import URI from 'vscode-uri/lib/umd';
 import * as chokidar from 'chokidar';
-import { ResourceNames, IScript } from './declarations';
+import {
+    ResourceNames,
+    IScript,
+    DocumentFolders,
+    GMLFolder,
+    DocumentFolder,
+    EventInfo,
+    GMResourcePlus
+} from './declarations';
 import * as rubber from 'gamemaker-rubber';
 import { Resource, EventType, EventNumber, YYP, YYPResource } from 'yyp-typings';
 import { ClientViewNode } from './sharedTypes';
 import * as Ajv from 'ajv';
 import { InitialStartupHandOffPackage, ProjectCache } from './startAndShutdown';
 import * as crypto from 'crypto';
-
-export interface GMLScriptContainer {
-    [propName: string]: GMLScript;
-}
-
-export interface GMLScript {
-    directoryFilepath: string;
-    gmlFile: string;
-    yyFile: Resource.Script | string;
-}
-
-export interface JSDOC {
-    signature: string;
-    returns: string;
-    minParameters: number;
-    maxParameters: number;
-    parameters: Array<JSDOCParameter>;
-    description: string;
-    isScript: boolean;
-    link?: string;
-}
-
-export interface JSDOCParameter {
-    label: string;
-    documentation: string;
-}
-
-export interface GMLObjectContainer {
-    [propName: string]: GMLObject;
-}
-
-export interface GMLObject {
-    directoryFilepath: string;
-    events: Array<EventInfo>;
-    yyFile: Resource.Object;
-}
-
-export interface GMLSpriteContainer {
-    [spriteName: string]: GMLSprite;
-}
-
-export interface GMLSprite {
-    directoryFilepath: string;
-    yyFile: Resource.Sprite;
-}
-
-export interface EventInfo {
-    eventType: EventType;
-    eventNumb: EventNumber;
-}
-
-export interface DocumentFolders {
-    [uri: string]: DocumentFolder;
-}
-
-export interface DocumentFolder {
-    name: string;
-    type: BasicResourceType;
-    fileFullText: string;
-    diagnosticHandler: DiagnosticHandler | null;
-    eventInfo?: EventInfo;
-}
-
-export interface EventKinds {
-    evType: EventType;
-    evNumber: EventNumber;
-}
-
-type GMResourcePlus = Resource.GMResource | GMLFolder;
-
-/**
- * This is a copy of the normal Resource.GMFolder interface,
- * except that it allows for children to be other GMLFolders.
- */
-export interface GMLFolder {
-    /** Resource GUID */
-    id: string;
-
-    /** Internal resource type descriptor */
-    modelName: 'GMLFolder';
-
-    /** Version string, appears to be 1.0 or 1.1 */
-    mvc: string;
-
-    /** Resource name */
-    name: string;
-
-    /** An array of the views/resource GUIDs which this folder contains. */
-    children: GMResourcePlus[];
-
-    /** The FilterType of the View */
-    filterType: string;
-
-    /** The folder name itself */
-    folderName: string;
-
-    /** Indicates if the view is the Default Node. */
-    isDefaultView: boolean;
-
-    /** A code, likely used for adding localizations. */
-    localisedFolderName: Resource.localisedNames;
-}
-
-export interface TempFolder {
-    tempID: string;
-    tempPath: string;
-}
-
-export interface CompileProjInfo {
-    project_dir: string;
-    project_path: string;
-    project_name: string;
-
-    temp_id: string;
-    temp_path: string;
-}
-
-export interface Build {
-    assetCompiler: string;
-    debug: string;
-    compile_output_file_name: string;
-    useShaders: string;
-    steamOptions: string;
-    config: string;
-    outputFolder: string;
-    projectName: string;
-    projectDir: string;
-    preferences: string;
-    projectPath: string;
-    tempFolder: string;
-    userDir: string;
-    runtimeLocation: string;
-    applicationPath: string;
-    macros: string;
-    targetOptions: string;
-    targetMask: string;
-    verbose: string;
-    helpPort: string;
-    debuggerPort: string;
-}
-
-export interface CompileOptions {
-    yyc: boolean;
-    test: boolean;
-    debug: boolean;
-    verbose: boolean;
-    config: string;
-    zip: undefined;
-    installer: undefined;
-}
 
 /**
  * The FileSystem class is our document manager. It handles
@@ -235,6 +93,8 @@ export class FileSystem {
     private cachedFileNames: string[];
     private defaultView: number;
     private emptySHA1Hash: string;
+    private projectResources: { [UUID: string]: Resource.GMResource | undefined };
+    private rootViews: Resource.GMFolder[];
 
     constructor(standardGrammar: Grammar, lsp: LangServ) {
         this.views = [];
@@ -248,21 +108,25 @@ export class FileSystem {
         this.topLevelDirectories = [];
         this.projectYYPPath = '';
         this.defaultView = 0;
+        this.rootViews = [];
         this.cachedFileNames = [];
         this.emptySHA1Hash = 'da39a3ee5e6b4b0d3255bfef95601890afd80709';
+        this.projectResources = {};
     }
 
     //#region Init & Shutdown
     public async initHandOff(handOff: InitialStartupHandOffPackage) {
         // YYP Nonsense
-        this.projectDirectory = handOff.YYPInformation.ProjectDirectory;
-        this.projectYYPPath = handOff.YYPInformation.ProjectYYPPath;
-        this.projectYYP = handOff.YYPInformation.ProjectYYP;
-        this.topLevelDirectories = handOff.YYPInformation.TopLevelDirectories;
+        this.projectDirectory = handOff.YYPInformation.projectDirectory;
+        this.projectYYPPath = handOff.YYPInformation.projectYYPPath;
+        this.projectYYP = handOff.YYPInformation.projectYYP;
+        this.topLevelDirectories = handOff.YYPInformation.topLevelDirectories;
+        this.projectResources = handOff.YYPInformation.projectResources;
 
         // Views
-        this.views = handOff.Views.Folders;
-        this.defaultView = handOff.Views.Default;
+        this.views = handOff.Views.folder;
+        this.defaultView = handOff.Views.default;
+        this.rootViews = handOff.Views.rootViews;
 
         // Documents
         this.documents = handOff.Documents;
@@ -284,6 +148,43 @@ export class FileSystem {
     //#endregion
 
     //#region Views
+    private async walkViewTree(initialView: Resource.GMFolder): Promise<GMLFolder> {
+        let newChildren: any = [];
+        let finalView = await this.constructGMLFolderFromGMFolder(initialView);
+
+        for (const thisChildNode of initialView.children) {
+            // Find the resource of this UUID by scanning through
+            // all our UUIDs in `this.projectResourceList`. We
+            // add every resource to it in the .YYP.
+            const thisChildYY = this.projectResources[thisChildNode];
+            if (thisChildYY === undefined) continue;
+
+            // Walk down the UUID if it's a view, else store the YY file.
+            if (thisChildYY.modelName && thisChildYY.modelName == 'GMFolder') {
+                newChildren.push(await this.walkViewTree(thisChildYY));
+            } else {
+                newChildren.push(thisChildYY);
+            }
+        }
+
+        finalView.children = newChildren;
+        return finalView;
+    }
+
+    private async constructGMLFolderFromGMFolder(init: Resource.GMFolder): Promise<GMLFolder> {
+        return {
+            name: init.name,
+            mvc: init.mvc,
+            modelName: 'GMLFolder',
+            localisedFolderName: init.localisedFolderName,
+            isDefaultView: init.isDefaultView,
+            id: init.id,
+            folderName: init.folderName,
+            filterType: init.filterType,
+            children: []
+        };
+    }
+
     public viewsGetInitialViews() {
         return this.viewsGetThisViewClient(this.views[this.defaultView].id);
     }
@@ -781,23 +682,16 @@ export class FileSystem {
             this.projectYYP.script_order.push(newScript.id);
         }
         const rPath = path.join('scripts', scriptName, scriptName + '.yy');
-
-        // Update Views:
-        await this.viewsInsertViewsAtNode(createAtNode, [newScript]);
-
         // Add as a YYP resource:
         this.projectYYP.resources.push(this.createYYPResourceEntry(newScript.id, rPath, 'GMScript'));
-
+        // Update Views:
+        await this.viewsInsertViewsAtNode(createAtNode, [newScript]);
         // Save the YYP
         await this.saveYYP();
 
-        // Update our Internal Model
-        this.reference.addResource(newScript.name, 'GMScript');
-        this.reference.scriptSetURI(newScript.name, URI.file(ourGMLPath).toString());
-        await this.documentCreateDocumentFolder(ourGMLPath, newScript.name, 'GMScript');
+        // Update internal model
+        await this.resourceScriptAddToInternalModel(newScript.name, ourGMLPath, newScript);
 
-        // Set an empty hash (we save this to just save our time)
-        this.reference.URISetHash(URI.file(ourGMLPath).toString(), this.emptySHA1Hash);
         const ourViewNode = this.searchViewsForUUID(newScript.id);
         if (!ourViewNode) return null;
 
@@ -808,6 +702,22 @@ export class FileSystem {
             fpath: ourGMLPath,
             filterType: ourViewNode.modelName
         };
+    }
+
+    private async resourceScriptAddToInternalModel(
+        scriptName: string,
+        gmlFilePath: string,
+        thisYYFile: Resource.Script
+    ) {
+        const URIstring = URI.file(gmlFilePath).toString();
+        this.reference.addResource(scriptName, 'GMScript');
+        this.reference.scriptSetURI(scriptName, URIstring);
+        await this.documentCreateDocumentFolder(gmlFilePath, scriptName, 'GMScript');
+
+        this.projectResources[thisYYFile.id] = thisYYFile;
+
+        // Set an empty hash (we save this to just save our time)
+        this.reference.URISetHash(URIstring, this.emptySHA1Hash);
     }
 
     public async resourceScriptDelete(scriptPack: IScript, viewUUID: string) {
@@ -1022,7 +932,7 @@ export class FileSystem {
      * @param resourcePath The filepath, relative to YYP, of the resource.
      * @param resourceType A string, such as "GMScript" or "GMObject".
      */
-    private createYYPResourceEntry(resourceID: string, rPath: string, rType: string): YYPResource {
+    private createYYPResourceEntry(resourceID: string, rPath: string, rType: Resource.ModelNames): YYPResource {
         return {
             Key: resourceID,
             Value: {
@@ -1326,11 +1236,16 @@ export class FileSystem {
     //#region Watcher
     private async installProjectYYPWatcher() {
         // Objects are gonne be SO FUN
-        const objectWatcher = chokidar.watch('script/**/*.yy');
+        // const objectWatcher = chokidar.watch('script/**/*.yy');
 
         // YYP Stuff
-        const yypWatch = chokidar.watch(this.projectYYPPath);
-        yypWatch.on('change', async (fname: string) => {
+        const yypWatch = chokidar.watch(this.projectYYPPath, {
+            awaitWriteFinish: true,
+            atomic: 1000,
+            ignoreInitial: true
+        });
+
+        yypWatch.on('change', async (event: string, fname: string) => {
             const newYYP: YYP = JSON.parse(await fse.readFile(this.projectYYPPath, 'utf8'));
             if (!this.projectYYP) {
                 this.projectYYP = newYYP;
@@ -1373,8 +1288,10 @@ export class FileSystem {
 
             // ! Step 3
             for (const thisSubtractedResource of subtractedResources) {
-                switch (thisSubtractedResource.Value.modelName) {
-                    case 'hello':
+                switch (thisSubtractedResource.Value.resourceType) {
+                    case 'GMScript':
+                        const name = path.basename(thisSubtractedResource.Value.resourcePath, '.yy');
+                        this.reference.scriptDelete(name);
                         break;
 
                     default:
@@ -1383,7 +1300,44 @@ export class FileSystem {
             }
 
             for (const thisAddedResource of addedResources) {
+                switch (thisAddedResource.Value.resourceType) {
+                    case 'GMScript':
+                        const name = path.basename(thisAddedResource.Value.resourcePath, '.yy');
+                        const gmlPath = path.join(this.projectDirectory, 'scripts', name, name + '.gml');
+                        const yyFile = JSON.parse(
+                            await fse.readFile(
+                                path.join(this.projectDirectory, thisAddedResource.Value.resourcePath),
+                                'utf8'
+                            )
+                        );
+                        await this.resourceScriptAddToInternalModel(name, gmlPath, yyFile);
+                        console.log('Script Added' + name);
+                        break;
+
+                    case 'GMObject':
+                        // We ignore objects since we handle them on their own since they're stupid.
+                        console.log('Object Added.');
+                        break;
+
+                    default:
+                        break;
+                }
             }
+
+            // Reparse our Views
+            this.views[this.defaultView] = await this.walkViewTree(this.rootViews[this.defaultView]);
+            this.lsp.updateViews();
+        });
+
+        const viewWatch = chokidar.watch(path.join(this.projectDirectory, 'views'), {
+            awaitWriteFinish: true,
+            atomic: 1000,
+            ignoreInitial: true
+        });
+
+        viewWatch.on('change', async (fname: string) => {
+            const thisView: Resource.GMFolder = JSON.parse(await fse.readFile(fname, 'utf8'));
+            this.projectResources[thisView.id] = thisView;
         });
     }
 
