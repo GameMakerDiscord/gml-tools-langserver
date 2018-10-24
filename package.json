@@ -41,7 +41,7 @@
     },
     "scripts": {
         "testBuild": "tsc && yarn link",
-        "testWatch": "tsc -w && yarn link",
+        "testWatch": "tsc && yarn link && tsc -w",
         "build": "tsc",
         "prepublish": "yarn unlink && tsc"
     },
