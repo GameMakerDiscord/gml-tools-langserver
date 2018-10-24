@@ -1294,24 +1294,47 @@ export class FileSystem {
                         this.reference.scriptDelete(name);
                         break;
 
+                    case 'GMObject':
+                        // We ignore objects since we handle them on their own since they're stupid.
+                        console.log('Object Added.');
+                        break;
+
+                    case 'GMFolder':
+                        // Worrisome!
+                        break;
+
                     default:
+                        // This is a type filter. In a better world, this wouldn't be here:
+                        const rType = thisSubtractedResource.Value.resourceType;
+                        if (
+                            rType === 'GMExtension' ||
+                            rType === 'GMExtensionFile' ||
+                            rType === 'GMExtensionFunction' ||
+                            rType === 'GMExtensionConstant' ||
+                            rType === 'GMOption'
+                        )
+                            continue;
+
+                        const resourceName = path.basename(thisSubtractedResource.Value.resourcePath, '.yy');
+
+                        this.reference.deleteResource(resourceName);
+                        delete this.projectResources[thisSubtractedResource.Key];
                         break;
                 }
             }
 
             for (const thisAddedResource of addedResources) {
+                const yyFile = JSON.parse(
+                    await fse.readFile(path.join(this.projectDirectory, thisAddedResource.Value.resourcePath), 'utf8')
+                );
+
                 switch (thisAddedResource.Value.resourceType) {
                     case 'GMScript':
-                        const name = path.basename(thisAddedResource.Value.resourcePath, '.yy');
-                        const gmlPath = path.join(this.projectDirectory, 'scripts', name, name + '.gml');
-                        const yyFile = JSON.parse(
-                            await fse.readFile(
-                                path.join(this.projectDirectory, thisAddedResource.Value.resourcePath),
-                                'utf8'
-                            )
-                        );
-                        await this.resourceScriptAddToInternalModel(name, gmlPath, yyFile);
-                        console.log('Script Added' + name);
+                        const scriptName = path.basename(thisAddedResource.Value.resourcePath, '.yy');
+                        const gmlPath = path.join(this.projectDirectory, 'scripts', scriptName, scriptName + '.gml');
+
+                        await this.resourceScriptAddToInternalModel(scriptName, gmlPath, yyFile);
+                        console.log('Script Added' + scriptName);
                         break;
 
                     case 'GMObject':
@@ -1319,7 +1342,25 @@ export class FileSystem {
                         console.log('Object Added.');
                         break;
 
+                    case 'GMFolder':
+                        break;
+
                     default:
+                        // This is a type filter. In a better world, this wouldn't be here:
+                        const rType = thisAddedResource.Value.resourceType;
+                        if (
+                            rType === 'GMExtension' ||
+                            rType === 'GMExtensionFile' ||
+                            rType === 'GMExtensionFunction' ||
+                            rType === 'GMExtensionConstant' ||
+                            rType === 'GMOption'
+                        )
+                            continue;
+
+                        const resourceName = path.basename(thisAddedResource.Value.resourcePath, '.yy');
+
+                        this.reference.addResource(resourceName, rType);
+                        this.projectResources[yyFile.id] = yyFile;
                         break;
                 }
             }

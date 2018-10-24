@@ -39,7 +39,8 @@ export declare type BasicResourceType =
     | 'GMSound'
     | 'GMTimeline'
     | 'GMPath'
-    | 'GMNote';
+    | 'GMNote'
+    | "GMIncludedFile";
 
 export class Reference {
     private lsp: LangServ;
