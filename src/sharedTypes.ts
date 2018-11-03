@@ -15,9 +15,9 @@ export interface ClientViewNode {
     filterType: string;
 }
 
-export interface ScriptPackage {
+export interface ResourcePackage {
     /** This is the name of the script to create. */
-    scriptName: string;
+    resourceName: string;
 
     /** This is the UUID of the GMFolder to create the Script under. */
     viewUUID: string;

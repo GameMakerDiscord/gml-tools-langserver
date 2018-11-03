@@ -23,7 +23,7 @@ import { GMLCompletionProvider } from './completion';
 import { SemanticsOption, LanguageService, GMLDocs, GMLToolsSettings, DocumentFolder } from './declarations';
 import { DocumentationImporter } from './documentationImporter';
 import { InitialAndShutdown } from './startAndShutdown';
-import { ScriptPackage, ClientViewNode } from './sharedTypes';
+import { ResourcePackage, ClientViewNode } from './sharedTypes';
 import { FileSystem } from './fileSystem';
 
 export class LangServ {
@@ -369,47 +369,22 @@ export class LangServ {
         this.connection.sendNotification('refresh');
     }
 
-    // public async createObject(objectPackage: CreateObjPackage) {
-    //     // Basic Conversions straight here:
-    //     if (typeof objectPackage.objectEvents == 'string') {
-    //         objectPackage.objectEvents = objectPackage.objectEvents.toLowerCase().split(',');
-    //         objectPackage.objectEvents = objectPackage.objectEvents.map(function(x) {
-    //             return x.trim();
-    //         });
-    //     }
-
-    //     objectPackage.objectName = objectPackage.objectName.trim();
-
-    //     // Valid name
-    //     if (this.isValidResourceName(objectPackage.objectName) == false) {
-    //         this.connection.window.showErrorMessage(
-    //             'Invalid object name given. Resource names should only contain 0-9, a-z, A-Z, or _, and they should not start with 0-9.'
-    //         );
-    //         return;
-    //     }
-
-    //     // Check for duplicate resources:
-    //     if (this.resourceExistsAlready(objectPackage.objectName)) {
-    //         this.connection.window.showErrorMessage('Invalid object name given. Resource already exists.');
-    //         return;
-    //     }
-
-    //     // If we made it here, send to the FS for the rest.
-    //     const ourGMLFilePath = await this.fsManager.createObject(objectPackage);
-    //     if (ourGMLFilePath) {
-    //         this.connection.sendNotification('goToURI', ourGMLFilePath);
-    //     }
-    // }
-
-    public async createScript(scriptPack: ScriptPackage): Promise<null | ClientViewNode> {
-        if (this.genericResourcePreCheck(scriptPack.scriptName)) {
-            return await this.fsManager.resourceScriptCreate(scriptPack.scriptName, scriptPack.viewUUID);
+    public async createObject(objectPackage: ResourcePackage) {
+        if (await this.genericResourcePreCheck(objectPackage.resourceName)) {
+            // If we made it here, send to the FS for the rest.
+            return await this.fsManager.resourceObjectCreate(objectPackage);
         } else return null;
     }
 
-    public async deleteScript(clientScriptPack: ScriptPackage): Promise<boolean> {
+    public async createScript(scriptPack: ResourcePackage): Promise<null | ClientViewNode> {
+        if (await this.genericResourcePreCheck(scriptPack.resourceName)) {
+            return await this.fsManager.resourceScriptCreate(scriptPack.resourceName, scriptPack.viewUUID);
+        } else return null;
+    }
+
+    public async deleteScript(clientScriptPack: ResourcePackage): Promise<boolean> {
         // Get the package
-        const scriptPack = this.reference.scriptGetPackage(clientScriptPack.scriptName);
+        const scriptPack = this.reference.scriptGetPackage(clientScriptPack.resourceName);
         if (!scriptPack) return false;
 
         // Make sure our YYP is accurate still
@@ -424,7 +399,7 @@ export class LangServ {
         if (!success) return false;
 
         // Delete the Reference library
-        this.reference.scriptDelete(clientScriptPack.scriptName);
+        this.reference.scriptDelete(clientScriptPack.resourceName);
 
         // Clear the View
         await this.fsManager.viewsDeleteViewAtNode(clientScriptPack.viewUUID);
