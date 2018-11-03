@@ -1158,7 +1158,7 @@ export class DiagnosticHandler {
             description: '',
             isScript: true,
             minParameters: 0,
-            maxParameters: 9999,
+            maxParameters: 0,
             parameters: [],
             returns: '',
             signature: ''
