@@ -1083,33 +1083,33 @@ export class FileSystem {
         }
     }
 
-    // // private convertStringToEventType(evName: string): EventKinds | null {
-    // //     switch (evName) {
-    // //         case 'create':
-    // //             return {
-    // //                 evType: EventType.Create,
-    // //                 evNumber: EventNumber.Create
-    // //             };
+    // private convertStringToEventType(evName: string): EventKinds | null {
+    //     switch (evName) {
+    //         case 'create':
+    //             return {
+    //                 evType: EventType.Create,
+    //                 evNumber: EventNumber.Create
+    //             };
 
-    // //         case 'step':
-    // //             return {
-    // //                 evType: EventType.Step,
-    // //                 evNumber: EventNumber.StepNormal
-    // //             };
+    //         case 'step':
+    //             return {
+    //                 evType: EventType.Step,
+    //                 evNumber: EventNumber.StepNormal
+    //             };
 
-    // //         case 'draw':
-    // //             return {
-    // //                 evType: EventType.Draw,
-    // //                 evNumber: EventNumber.DrawNormal
-    // //             };
+    //         case 'draw':
+    //             return {
+    //                 evType: EventType.Draw,
+    //                 evNumber: EventNumber.DrawNormal
+    //             };
 
-    // //         default:
-    // //             this.lsp.connection.window.showErrorMessage(
-    // //                 'Incorrect event name passed initial checks, but failed at event creation. Did not make an event. Please post an issue on the Github page.'
-    // //             );
-    // //             return null;
-    // //     }
-    // // }
+    //         default:
+    //             this.lsp.connection.window.showErrorMessage(
+    //                 'Incorrect event name passed initial checks, but failed at event creation. Did not make an event. Please post an issue on the Github page.'
+    //             );
+    //             return null;
+    //     }
+    // }
 
     private createFPFromBase(thisResource: GMResourcePlus): string {
         const resourcePath = this.modelNameToFileName(thisResource.modelName);
