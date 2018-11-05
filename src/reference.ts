@@ -15,7 +15,8 @@ import {
     ICallables,
     IFunction,
     IExtension,
-    JSDOC
+    JSDOC,
+    IVars
 } from './declarations';
 import { LangServ } from './langserv';
 import { EventType, EventNumber } from 'yyp-typings';
@@ -40,7 +41,7 @@ export declare type BasicResourceType =
     | 'GMTimeline'
     | 'GMPath'
     | 'GMNote'
-    | "GMIncludedFile";
+    | 'GMIncludedFile';
 
 export class Reference {
     private lsp: LangServ;
@@ -198,9 +199,7 @@ export class Reference {
 
                         // Kill the Enum if it's empty
                         if (cleanArrayLength(thisEnum.referenceLocations) === 0) {
-                            console.log(
-                                `Clearing enum from cache '${thisEnumName}'. All references have been removed.`
-                            );
+                            console.log(`Clearing enum from cache '${thisEnumName}'. All references have been removed.`);
                             delete this.enums[thisEnumName];
                         }
                     }
@@ -256,9 +255,7 @@ export class Reference {
 
                         // Kill the Enum if it's empty
                         if (cleanArrayLength(thisMacro.referenceLocations) === 0) {
-                            console.log(
-                                `Clearing enum from cache '${thisMacroName}'. All references have been removed.`
-                            );
+                            console.log(`Clearing enum from cache '${thisMacroName}'. All references have been removed.`);
                             delete this.macros[thisMacroName];
                         }
                     }
@@ -292,10 +289,7 @@ export class Reference {
                                 delete this.objects[thisObjectName][thisVarName].referenceLocations[i];
 
                                 if (i === thisVar.origin.indexOfOrigin) {
-                                    const newOrigin = await this.instAssignNewOrigin(
-                                        thisVar.referenceLocations,
-                                        thisObjectName
-                                    );
+                                    const newOrigin = await this.instAssignNewOrigin(thisVar.referenceLocations, thisObjectName);
                                     if (newOrigin === null) {
                                         // Delete the variable entirely -- we've lost all reference to it.
                                         delete this.objects[thisObjectName][thisVarName];
@@ -834,8 +828,7 @@ export class Reference {
         }
 
         // Okay, if we're here, then we're beyond the last entry, so we want the last entry.
-        return this.URIRecord[uri].implicitThisAtPosition[this.URIRecord[uri].implicitThisAtPosition.length - 1]
-            .objName;
+        return this.URIRecord[uri].implicitThisAtPosition[this.URIRecord[uri].implicitThisAtPosition.length - 1].objName;
     }
 
     //#endregion
@@ -903,17 +896,12 @@ export class Reference {
                 }
             } else {
                 // We the new origin in town boys:
-                console.log(
-                    'ERROR: Floating variable with no Origin set. Origin randomly reapplied. Please post an issue on the Github.'
-                );
+                console.log('ERROR: Floating variable with no Origin set. Origin randomly reapplied. Please post an issue on the Github.');
                 overrideOrigin = true;
             }
 
             // Push what we have to the stack no matter what:
-            const ourIndex =
-                this.objects[thisVar.object][thisVar.name].referenceLocations.push(
-                    Location.create(uri, thisVar.range)
-                ) - 1;
+            const ourIndex = this.objects[thisVar.object][thisVar.name].referenceLocations.push(Location.create(uri, thisVar.range)) - 1;
 
             // Override Origin
             if (overrideOrigin) {
@@ -965,10 +953,7 @@ export class Reference {
                 delete this.objects[thisOldVar.object][thisOldVar.name].referenceLocations[thisOldVar.index];
 
                 if (thisOldVar.index === thisVarEntry.origin.indexOfOrigin) {
-                    const newOrigin = await this.instAssignNewOrigin(
-                        thisVarEntry.referenceLocations,
-                        thisOldVar.object
-                    );
+                    const newOrigin = await this.instAssignNewOrigin(thisVarEntry.referenceLocations, thisOldVar.object);
                     if (newOrigin === null) {
                         // Delete the variable entirely -- we've lost all reference to it.
                         delete this.objects[thisOldVar.object][thisOldVar.name];
@@ -1085,7 +1070,11 @@ export class Reference {
     }
 
     public objectExists(objName: string) {
-        return !(this.objects[objName] == undefined);
+        return this.objectGetPackage(objName) !== undefined;
+    }
+
+    public objectGetPackage(objName: string): IVars | undefined {
+        return this.objects[objName];
     }
 
     public instGetAllInsts(objName: string): string[] {
@@ -1132,13 +1121,7 @@ export class Reference {
         });
     }
 
-    public enumCreateEnumMember(
-        enumName: string,
-        enumMemberName: string,
-        thisURI: string,
-        thisRange: Range,
-        thisEnumeration: string
-    ) {
+    public enumCreateEnumMember(enumName: string, enumMemberName: string, thisURI: string, thisRange: Range, thisEnumeration: string) {
         // Add the Enum Member to the Object:
         const enumInfo = this.enumGetEnumInformation(enumName);
         if (!enumInfo) {

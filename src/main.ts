@@ -178,8 +178,17 @@ connection.onRequest(new RequestType<ResourcePackage, ClientViewNode | null, voi
         console.log('ERROR: Attempting to create Script before server was ready.');
         return null;
     }
-    
+
     return await ls.addEvents(eventPack);
+});
+
+connection.onRequest(new RequestType<ResourcePackage, boolean, void, void>('deleteObjectAtUUID'), async objectPack => {
+    if (ls.isServerReady() == false) {
+        console.log('ERROR: Attempting to Delete before server was ready.');
+        return false;
+    }
+
+    return await ls.deleteObject(objectPack);
 });
 
 //#endregion

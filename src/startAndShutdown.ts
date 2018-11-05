@@ -23,7 +23,7 @@ import {
 import { DiagnosticHandler } from './diagnostic';
 import { Grammar } from 'ohm-js';
 import { LangServ } from './langserv';
-import { timeUtil, getPositionFromIndex } from './utils';
+import { getPositionFromIndex } from './utils';
 
 export namespace ProjectCache {
     export interface Cache {
@@ -195,7 +195,6 @@ export class InitialAndShutdown {
     }
 
     private async initialIndexProject(): Promise<InitialStartupHandOffPackage | null> {
-        const timer = new timeUtil();
         // Get our YYP
         const rawYYP = await fse.readFile(this.projectYYPPath, 'utf8');
         this.projectYYP = JSON.parse(rawYYP);
@@ -323,7 +322,6 @@ export class InitialAndShutdown {
 
         // ! Step Five: Figure out our Silly View Situation
         // Iterate on our Roots:
-        timer.setTimeFast();
         for (const thisRoot of this.rootViews) {
             // Walk the Tree.
             const finalView = await this.walkViewTree(thisRoot);
@@ -334,8 +332,6 @@ export class InitialAndShutdown {
                 this.defaultView = this.views.length - 1;
             }
         }
-
-        console.log(timer.timeDifferenceNowNice());
 
         // ! Step Six: Validate our Reference Cache for ghosts
         // Tell the reference to validate

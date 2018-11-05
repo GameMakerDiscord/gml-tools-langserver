@@ -355,6 +355,24 @@ export class LangServ {
         } else return null;
     }
 
+    public async deleteObject(objPackage: ResourcePackage) {
+        // Get the Package
+        const objectPackage = this.reference.objectGetPackage(objPackage.resourceName);
+        if (objectPackage === undefined) return false;
+
+        // Make Sure our YYP is accurate
+        if (await this.fsManager.validateYYP(this.connection) === false) return false;
+
+        // Delete it from the FS and change the YYP
+        const success = await this.fsManager.resourceObjectDelete(objectPackage, objPackage.viewUUID);
+        if (!success) return false;
+
+        // Delete the Reference Library:
+        this.reference.objectDelete(objPackage.viewUUID);
+
+        return true;
+    }
+
     public async createScript(scriptPack: ResourcePackage): Promise<null | ClientViewNode> {
         if (await this.genericResourcePreCheck(scriptPack.resourceName)) {
             return await this.fsManager.resourceScriptCreate(scriptPack.resourceName, scriptPack.viewUUID);
@@ -367,9 +385,7 @@ export class LangServ {
         if (!scriptPack) return false;
 
         // Make sure our YYP is accurate still
-        if ((await this.fsManager.validateYYP()) === false) {
-            this.connection.window.showErrorMessage('Internal YYP is no longer valid. If issue persists, log an issue on the Github page.');
-        }
+        if (await this.fsManager.validateYYP(this.connection) === false) return false;
 
         // Delete it from the FS and change the YYP
         const success = await this.fsManager.resourceScriptDelete(scriptPack, clientScriptPack.viewUUID);
@@ -448,10 +464,8 @@ export class LangServ {
         }
 
         // Make sure our YYP is accurate still
-        if ((await this.fsManager.validateYYP()) === false) {
-            this.connection.window.showErrorMessage('Internal YYP is no longer valid. If issue persists, log an issue on the Github page.');
-            return false;
-        }
+        if (await this.fsManager.validateYYP(this.connection) === false) return false;
+
         return true;
     }
 

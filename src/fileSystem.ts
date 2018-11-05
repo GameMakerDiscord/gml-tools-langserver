@@ -7,13 +7,14 @@ import { Reference, BasicResourceType } from './reference';
 import * as uuidv4 from 'uuid/v4';
 import URI from 'vscode-uri/lib/umd';
 import * as chokidar from 'chokidar';
-import { ResourceNames, IScript, DocumentFolders, GMLFolder, DocumentFolder, EventInfo, GMResourcePlus } from './declarations';
+import { ResourceNames, IScript, DocumentFolders, GMLFolder, DocumentFolder, EventInfo, GMResourcePlus, IVars } from './declarations';
 import * as rubber from 'gamemaker-rubber';
 import { Resource, EventType, EventNumber, YYP, YYPResource } from 'yyp-typings';
 import { ClientViewNode, ResourcePackage } from './sharedTypes';
 import * as Ajv from 'ajv';
 import { InitialStartupHandOffPackage, ProjectCache } from './startAndShutdown';
 import * as crypto from 'crypto';
+import { IConnection } from 'vscode-languageserver';
 
 /**
  * The FileSystem class is our document manager. It handles
@@ -804,6 +805,15 @@ export class FileSystem {
         };
     }
 
+    public async resourceObjectDelete(objPackage: IVars, viewUUID: string): Promise<boolean> {
+        // Kill without YYP
+        if (!this.projectYYP) return false;
+
+        // Find our Object
+
+        return false;
+    }
+
     public async resourceAddEvents(eventPackage: ResourcePackage): Promise<ClientViewNode | null> {
         const thisObj = this.projectResources[eventPackage.viewUUID];
         if (!thisObj || thisObj.modelName !== 'GMObject') return null;
@@ -865,9 +875,12 @@ export class FileSystem {
         await fse.writeFile(this.projectYYPPath, JSON.stringify(this.projectYYP), 'utf8');
     }
 
-    public async validateYYP(): Promise<boolean> {
+    public async validateYYP(connection: IConnection): Promise<boolean> {
         const currentYYPString = JSON.stringify(JSON.parse(await fse.readFile(this.projectYYPPath, 'utf8')));
-        return currentYYPString === JSON.stringify(this.projectYYP);
+        if (currentYYPString !== JSON.stringify(this.projectYYP)) {
+            connection.window.showErrorMessage('Internal YYP is no longer valid. If issue persists, log an issue on the Github page.');
+            return false;
+        } else return true;
     }
 
     /**
