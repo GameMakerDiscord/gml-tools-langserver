@@ -11,7 +11,7 @@ import {
     RequestType0
 } from 'vscode-languageserver/lib/main';
 import { LangServ } from './langserv';
-import { ClientViewNode, ScriptPackage } from './sharedTypes';
+import { ClientViewNode, ResourcePackage } from './sharedTypes';
 import { CreateObjPackage } from './declarations';
 
 // Create a connection for the server. The connection uses Node's IPC as a transport
@@ -108,11 +108,7 @@ connection.onExecuteCommand(async params => {
 
         case 'GMLTools.compileExport':
             const ourExports: any = await connection.sendRequest('compileExport');
-            ls.beginCompile(
-                ourExports.type === 'Zip' ? 'zip' : 'installer',
-                ourExports.yyc === 'YYC',
-                'project_name.zip'
-            );
+            ls.beginCompile(ourExports.type === 'Zip' ? 'zip' : 'installer', ourExports.yyc === 'YYC', 'project_name.zip');
             break;
 
         // case 'GMLTools.forceReindex':
@@ -145,8 +141,8 @@ connection.onRequest(new RequestType<string, ClientViewNode[], void, void>('getV
 });
 
 connection.onRequest(
-    new RequestType<ScriptPackage, ClientViewNode | null, void, void>('createScriptAtUUID'),
-    async (scriptPack: ScriptPackage) => {
+    new RequestType<ResourcePackage, ClientViewNode | null, void, void>('createScriptAtUUID'),
+    async (scriptPack: ResourcePackage) => {
         if (ls.isServerReady() == false) {
             console.log('ERROR: Attempting to create Script before server was ready.');
             return null;
@@ -156,8 +152,34 @@ connection.onRequest(
     }
 );
 
-connection.onRequest(new RequestType<ScriptPackage, boolean, void, void>('deleteScriptAtUUID'), async scriptPack => {
+connection.onRequest(
+    new RequestType<ResourcePackage, ClientViewNode | null, void, void>('createObjectAtUUID'),
+    async (objectPack: ResourcePackage) => {
+        if (ls.isServerReady() == false) {
+            console.log('ERROR: Attempting to create Script before server was ready.');
+            return null;
+        }
+
+        return await ls.createObject(objectPack);
+    }
+);
+
+connection.onRequest(new RequestType<ResourcePackage, boolean, void, void>('deleteScriptAtUUID'), async scriptPack => {
+    if (ls.isServerReady() == false) {
+        console.log('ERROR: Attempting to delete Script before server was ready.');
+        return null;
+    }
+
     return await ls.deleteScript(scriptPack);
+});
+
+connection.onRequest(new RequestType<ResourcePackage, ClientViewNode | null, void, void>('createEventAtUUID'), async eventPack => {
+    if (ls.isServerReady() == false) {
+        console.log('ERROR: Attempting to create Script before server was ready.');
+        return null;
+    }
+
+    return await ls.addEvents(eventPack);
 });
 
 //#endregion

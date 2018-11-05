@@ -377,11 +377,6 @@ export interface DocumentFolder {
     eventInfo?: EventInfo;
 }
 
-export interface EventKinds {
-    evType: EventType;
-    evNumber: EventNumber;
-}
-
 export type GMResourcePlus = Resource.GMResource | GMLFolder;
 
 /**
