@@ -74,6 +74,9 @@ export interface DocumentFolder {
     type: BasicResourceType;
     fileFullText: string;
     diagnosticHandler: DiagnosticHandler | null;
+    /**
+     * If this document is an object event, then it will have object event info saying what kind of object it is.
+     */
     eventInfo?: EventInfo;
 }
 
@@ -434,7 +437,7 @@ export class FileSystem {
         if (startingNode.id == targetNodeUUID) {
             return startingNode;
         } else if (startingNode.modelName == 'GMLFolder' && startingNode.children != null) {
-            let result: GMResourcePlus|null = null;
+            let result: GMResourcePlus | null = null;
 
             for (let i = 0, l = startingNode.children.length; result == null && i < l; i++) {
                 const thisChildNode = startingNode.children[i];
@@ -466,11 +469,15 @@ export class FileSystem {
     /**
      * Returns the parent of the UUID given.
      */
-    private viewsGetParentView(targetNodeUUID: string, defaultNode: GMResourcePlus, parentNode?: GMResourcePlus): GMResourcePlus|null {
+    private viewsGetParentView(
+        targetNodeUUID: string,
+        defaultNode: GMResourcePlus,
+        parentNode?: GMResourcePlus
+    ): GMResourcePlus | null {
         if (defaultNode.id === targetNodeUUID && parentNode) {
             return parentNode;
         } else if (defaultNode.modelName == 'GMLFolder' && defaultNode.children != null) {
-            let result: GMResourcePlus|null = null;
+            let result: GMResourcePlus | null = null;
 
             for (let i = 0, l = defaultNode.children.length; result == null && i < l; i++) {
                 const thisChildNode = defaultNode.children[i];
@@ -1010,7 +1017,7 @@ export class FileSystem {
      * @param resourcePath The filepath, relative to YYP, of the resource.
      * @param resourceType A string, such as "GMScript" or "GMObject".
      */
-    private createYYPResourceEntry(resourceID: string, rPath: string, rType: string): YYPResource {
+    private createYYPResourceEntry(resourceID: string, rPath: string, rType: Resource.ModelNames): YYPResource {
         return {
             Key: resourceID,
             Value: {
