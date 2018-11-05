@@ -407,21 +407,9 @@ export class LangServ {
         return true;
     }
 
-    // public async addEvents(events: EventsPackage) {
-    //     let eventsArray = events.events.toLowerCase().split(',');
-    //     eventsArray = eventsArray.map(function(x) {
-    //         return x.trim();
-    //     });
-
-    //     // Send it to fs_manager
-    //     const ourGMLFilePath = await this.fsManager.addEvents({
-    //         events: eventsArray,
-    //         uri: events.uri
-    //     });
-    //     if (ourGMLFilePath) {
-    //         this.connection.sendNotification('goToURI', ourGMLFilePath);
-    //     }
-    // }
+    public async addEvents(events: ResourcePackage) {
+        return await this.fsManager.
+    }
 
     public beginCompile(type: 'test' | 'zip' | 'installer', yyc: boolean, output?: string) {
         return this.fsManager.compile(type, yyc, output);

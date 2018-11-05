@@ -804,74 +804,63 @@ export class FileSystem {
         };
     }
 
-    // public async addEvents(pack: AddEventsPackage) {
-    //     // Grab our object's file:
-    //     const objInfo = await this.getDocumentFolder(pack.uri);
-    //     if (!objInfo || objInfo.type !== 'GMObject') {
-    //         return '';
-    //     }
-    //     const thisObj = this.objects[objInfo.name];
+    public async resourceAddEvents(eventsPackage: ResourcePackage) {
+        const thisObj = this.projectResources[eventsPackage.viewUUID];
+        if (!thisObj || thisObj.modelName !== 'GMObject') return null;
 
-    //     // This is how we get a return path to go to:
-    //     let returnPath: string = '';
+        // This is how we get a return path to go to:
+        let returnPath: string = '';
 
-    //     // Create the files and update our Internal YY files
-    //     for (const thisEvent of pack.events) {
-    //         const newEvent = await this.createEvent(thisEvent, thisObj.yyFile.id);
-    //         if (newEvent) {
-    //             const fpath = this.convertEventEnumToFPath(newEvent, thisObj.directoryFilepath);
-    //             if (returnPath === null) {
-    //                 returnPath = fpath;
-    //             }
+        // Create the files and update our Internal YY files
+        const newEvent = await this.createEvent(eventsPackage.resourceName, eventsPackage.viewUUID);
+        if (newEvent) {
+            const fpath = this.convertEventEnumToFPath(newEvent, path.join());
+            if (returnPath === null) {
+                returnPath = fpath;
+            }
 
-    //             // Make sure not a duplicate:
-    //             for (const pastEvent of thisObj.events) {
-    //                 if (pastEvent.eventNumb == newEvent.enumb && pastEvent.eventType == newEvent.eventtype) {
-    //                     this.lsp.connection.window.showWarningMessage(
-    //                         'Attempted to create event which already exists. Event not created.'
-    //                     );
-    //                     continue;
-    //                 }
-    //             }
+            // Make sure not a duplicate:
+            for (const pastEvent of thisObj.events) {
+                if (pastEvent.eventNumb == newEvent.enumb && pastEvent.eventType == newEvent.eventtype) {
+                    this.lsp.connection.window.showWarningMessage('Attempted to create event which already exists. Event not created.');
+                    continue;
+                }
+            }
 
-    //             // Push to Object Events
-    //             thisObj.events.push({
-    //                 eventNumb: newEvent.enumb,
-    //                 eventType: newEvent.eventtype
-    //             });
-    //             thisObj.yyFile.eventList.push(newEvent);
+            // Push to Object Events
+            thisObj.events.push({
+                eventNumb: newEvent.enumb,
+                eventType: newEvent.eventtype
+            });
+            thisObj.yyFile.eventList.push(newEvent);
 
-    //             await fse.writeFile(fpath, '');
+            await fse.writeFile(fpath, '');
 
-    //             await this.createDocumentFolder(fpath, thisObj.yyFile.name, 'GMObject');
-    //             await this.initialDiagnostics(fpath, SemanticsOption.Function | SemanticsOption.Variable);
-    //         }
-    //     }
+            await this.createDocumentFolder(fpath, thisObj.yyFile.name, 'GMObject');
+            await this.initialDiagnostics(fpath, SemanticsOption.Function | SemanticsOption.Variable);
+        }
 
-    //     // Rewrite our event.yy file:
-    //     await fse.writeFile(
-    //         path.join(thisObj.directoryFilepath, thisObj.yyFile.name + '.yy'),
-    //         JSON.stringify(thisObj.yyFile, null, 4)
-    //     );
+        // Rewrite our event.yy file:
+        await fse.writeFile(path.join(thisObj.directoryFilepath, thisObj.yyFile.name + '.yy'), JSON.stringify(thisObj.yyFile, null, 4));
 
-    //     return returnPath;
-    // }
+        return returnPath;
+    }
 
-    // private async createEvent(eventName: string, ownerUUID: string): Promise<Resource.ObjectEvent | null> {
-    //     const eventObj = await this.convertStringToEventType(eventName);
-    //     if (eventObj) {
-    //         return {
-    //             id: uuidv4(),
-    //             modelName: 'GMEvent',
-    //             mvc: '1.0',
-    //             IsDnD: false,
-    //             collisionObjectId: '00000000-0000-0000-0000-000000000000',
-    //             enumb: eventObj.evNumber,
-    //             eventtype: eventObj.evType,
-    //             m_owner: ownerUUID
-    //         };
-    //     } else return null;
-    // }
+    private async createEvent(eventName: string, ownerUUID: string): Promise<Resource.ObjectEvent | null> {
+        const eventObj = await this.convertStringToEventType(eventName);
+        if (eventObj) {
+            return {
+                id: uuidv4(),
+                modelName: 'GMEvent',
+                mvc: '1.0',
+                IsDnD: false,
+                collisionObjectId: '00000000-0000-0000-0000-000000000000',
+                enumb: eventObj.eventNumb,
+                eventtype: eventObj.eventType,
+                m_owner: ownerUUID
+            };
+        } else return null;
+    }
 
     public async saveYYP() {
         await fse.writeFile(this.projectYYPPath, JSON.stringify(this.projectYYP), 'utf8');
@@ -1045,6 +1034,7 @@ export class FileSystem {
                         return 'Async - Audio Recording';
                     case EventNumber.AsyncCloud:
                         return 'Async - Cloud';
+                    
                     case EventNumber.AsyncDialog:
                         return 'Async - Dialog';
                     case EventNumber.AsyncHTTP:
@@ -1083,33 +1073,197 @@ export class FileSystem {
         }
     }
 
-    // private convertStringToEventType(evName: string): EventKinds | null {
-    //     switch (evName) {
-    //         case 'create':
-    //             return {
-    //                 evType: EventType.Create,
-    //                 evNumber: EventNumber.Create
-    //             };
+    private convertStringToEventType(evName: string): EventInfo | null {
+        switch (evName) {
+            case 'Create':
+                return {
+                    eventType: EventType.Create,
+                    eventNumb: EventNumber.Create
+                };
 
-    //         case 'step':
-    //             return {
-    //                 evType: EventType.Step,
-    //                 evNumber: EventNumber.StepNormal
-    //             };
+            case 'Step':
+                return {
+                    eventType: EventType.Step,
+                    eventNumb: EventNumber.StepNormal
+                };
 
-    //         case 'draw':
-    //             return {
-    //                 evType: EventType.Draw,
-    //                 evNumber: EventNumber.DrawNormal
-    //             };
+            case 'Begin Step':
+                return {
+                    eventNumb: EventNumber.StepBegin,
+                    eventType: EventType.Step
+                };
 
-    //         default:
-    //             this.lsp.connection.window.showErrorMessage(
-    //                 'Incorrect event name passed initial checks, but failed at event creation. Did not make an event. Please post an issue on the Github page.'
-    //             );
-    //             return null;
-    //     }
-    // }
+            case 'End Step':
+                return {
+                    eventNumb: EventNumber.StepEnd,
+                    eventType: EventType.Step
+                };
+
+            case 'Draw':
+                return {
+                    eventNumb: EventNumber.DrawNormal,
+                    eventType: EventType.Draw
+                };
+
+            case 'Draw GUI':
+                return {
+                    eventNumb: EventNumber.Gui,
+                    eventType: EventType.Draw
+                };
+
+            case 'Draw Begin':
+                return {
+                    eventNumb: EventNumber.DrawBegin,
+                    eventType: EventType.Draw
+                };
+
+            case 'Draw End':
+                return {
+                    eventNumb: EventNumber.DrawEnd,
+                    eventType: EventType.Draw
+                };
+
+            case 'Draw GUI Begin':
+                return {
+                    eventNumb: EventNumber.GuiBegin,
+                    eventType: EventType.Draw
+                };
+
+            case 'Draw GUI End':
+                return {
+                    eventNumb: EventNumber.GuiEnd,
+                    eventType: EventType.Draw
+                };
+
+            case 'Pre-Draw':
+                return {
+                    eventNumb: EventNumber.DrawPre,
+                    eventType: EventType.Draw
+                };
+
+            case 'Post-Draw':
+                return {
+                    eventNumb: EventNumber.DrawPost,
+                    eventType: EventType.Draw
+                };
+
+            case 'Destroy':
+                return {
+                    eventNumb: EventNumber.Create,
+                    eventType: EventType.Destroy
+                };
+
+            case 'Cleanup':
+                return {
+                    eventNumb: EventNumber.Create,
+                    eventType: EventType.CleanUp
+                };
+
+            case 'Audio Playback':
+                return {
+                    eventNumb: EventNumber.AsyncAudioPlayBack,
+                    eventType: EventType.Other
+                };
+
+            case 'Audio Recording':
+                return {
+                    eventNumb: EventNumber.AsyncAudioRecording,
+                    eventType: EventType.Other
+                };
+
+            case 'Cloud':
+                return {
+                    eventNumb: EventNumber.AsyncCloud,
+                    eventType: EventType.Other
+                };
+
+            case 'Dialog':
+                return {
+                    eventNumb: EventNumber.AsyncDialog,
+                    eventType: EventType.Other
+                };
+
+            case 'HTTP':
+                return {
+                    eventNumb: EventNumber.AsyncHTTP,
+                    eventType: EventType.Other
+                };
+
+            case 'In-App Purchase':
+                return {
+                    eventNumb: EventNumber.AsyncInAppPurchase,
+                    eventType: EventType.Other
+                };
+
+            case 'Image Loaded':
+                return {
+                    eventNumb: EventNumber.AsyncImageLoaded,
+                    eventType: EventType.Other
+                };
+
+            case 'Networking':
+                return {
+                    eventNumb: EventNumber.AsyncNetworking,
+                    eventType: EventType.Other
+                };
+
+            case 'Push Notification':
+                return {
+                    eventNumb: EventNumber.AsyncPushNotification,
+                    eventType: EventType.Other
+                };
+
+            case 'Save/Load':
+                return {
+                    eventNumb: EventNumber.AsyncSaveLoad,
+                    eventType: EventType.Other
+                };
+
+            case 'Social':
+                return {
+                    eventNumb: EventNumber.AsyncSocial,
+                    eventType: EventType.Other
+                };
+
+            case 'Steam':
+                return {
+                    eventNumb: EventNumber.AsyncSteam,
+                    eventType: EventType.Other
+                };
+
+            case 'System':
+                return {
+                    eventNumb: EventNumber.AsyncSystem,
+                    eventType: EventType.Other
+                };
+
+            default:
+                // We do all enumerated events here:
+                if (evName.includes('Alarm - ')) {
+                    const thisRegexMatch = evName.match(/\d+/);
+                    if (!thisRegexMatch) return null;
+                    const alarmNumber = Number.parseInt(thisRegexMatch[0]);
+
+                    // @ts-ignore
+                    // TS wants alarmNumber to an EventNumber, but making the for loop would be ghastly. So we ignore this error and enjoy our lives.
+                    return { eventNumb: alarmNumber, eventType: EventType.Alarm };
+                }
+
+                if (evName.includes('User Event - ')) {
+                    const thisRegexMatch = evName.match(/\d+/);
+                    if (!thisRegexMatch) return null;
+                    const alarmNumber = Number.parseInt(thisRegexMatch[0]);
+
+                    // @ts-ignore Same as above -- this is easier.
+                    return {
+                        eventNumb: EventNumber.User0 + alarmNumber,
+                        eventType: EventType.Alarm
+                    };
+                }
+
+                return null;
+        }
+    }
 
     private createFPFromBase(thisResource: GMResourcePlus): string {
         const resourcePath = this.modelNameToFileName(thisResource.modelName);

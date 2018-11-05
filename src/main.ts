@@ -108,11 +108,7 @@ connection.onExecuteCommand(async params => {
 
         case 'GMLTools.compileExport':
             const ourExports: any = await connection.sendRequest('compileExport');
-            ls.beginCompile(
-                ourExports.type === 'Zip' ? 'zip' : 'installer',
-                ourExports.yyc === 'YYC',
-                'project_name.zip'
-            );
+            ls.beginCompile(ourExports.type === 'Zip' ? 'zip' : 'installer', ourExports.yyc === 'YYC', 'project_name.zip');
             break;
 
         // case 'GMLTools.forceReindex':
@@ -169,7 +165,21 @@ connection.onRequest(
 );
 
 connection.onRequest(new RequestType<ResourcePackage, boolean, void, void>('deleteScriptAtUUID'), async scriptPack => {
+    if (ls.isServerReady() == false) {
+        console.log('ERROR: Attempting to delete Script before server was ready.');
+        return null;
+    }
+
     return await ls.deleteScript(scriptPack);
+});
+
+connection.onRequest(new RequestType<ResourcePackage, ClientViewNode | null, void, void>('createEventAtUUID'), async eventPack => {
+    if (ls.isServerReady() == false) {
+        console.log('ERROR: Attempting to create Script before server was ready.');
+        return null;
+    }
+
+    return await ls.addEvents(eventPack);
 });
 
 //#endregion
