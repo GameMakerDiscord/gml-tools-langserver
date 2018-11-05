@@ -178,7 +178,7 @@ connection.onRequest(new RequestType<ResourcePackage, ClientViewNode | null, voi
         console.log('ERROR: Attempting to create Script before server was ready.');
         return null;
     }
-
+    
     return await ls.addEvents(eventPack);
 });
 

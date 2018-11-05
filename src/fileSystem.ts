@@ -212,7 +212,7 @@ export class FileSystem {
             let returnView: ClientViewNode[] = [];
             for (const thisEvent of ourNode.eventList) {
                 returnView.push({
-                    fpath: this.convertEventEnumToFPath(thisEvent, this.createFPFromBase(ourNode)),
+                    fpath: path.join(this.createFPFromBase(ourNode), this.convertEventEnumToFPath(thisEvent)),
                     id: ourNode.id + ':' + thisEvent.id,
                     modelName: 'GMEvent',
                     name: this.convertEventEnumToName(thisEvent),
@@ -804,46 +804,45 @@ export class FileSystem {
         };
     }
 
-    public async resourceAddEvents(eventsPackage: ResourcePackage) {
-        const thisObj = this.projectResources[eventsPackage.viewUUID];
+    public async resourceAddEvents(eventPackage: ResourcePackage): Promise<ClientViewNode | null> {
+        const thisObj = this.projectResources[eventPackage.viewUUID];
         if (!thisObj || thisObj.modelName !== 'GMObject') return null;
 
-        // This is how we get a return path to go to:
-        let returnPath: string = '';
-
         // Create the files and update our Internal YY files
-        const newEvent = await this.createEvent(eventsPackage.resourceName, eventsPackage.viewUUID);
+        const newEvent = await this.createEvent(eventPackage.resourceName, eventPackage.viewUUID);
         if (newEvent) {
-            const fpath = this.convertEventEnumToFPath(newEvent, path.join());
-            if (returnPath === null) {
-                returnPath = fpath;
-            }
+            const fpath = path.join(this.projectDirectory, 'objects', thisObj.name, this.convertEventEnumToFPath(newEvent));
 
             // Make sure not a duplicate:
-            for (const pastEvent of thisObj.events) {
-                if (pastEvent.eventNumb == newEvent.enumb && pastEvent.eventType == newEvent.eventtype) {
-                    this.lsp.connection.window.showWarningMessage('Attempted to create event which already exists. Event not created.');
-                    continue;
-                }
-            }
+            if (
+                thisObj.eventList.find((thisEvent: Resource.ObjectEvent) => {
+                    return thisEvent.eventtype == newEvent.eventtype && thisEvent.enumb == newEvent.enumb;
+                })
+            )
+                return null;
 
             // Push to Object Events
-            thisObj.events.push({
+            thisObj.eventList.push(newEvent);
+            await fse.writeFile(fpath, '');
+            await this.documentCreateDocumentFolder(fpath, thisObj.name, 'GMObject', {
                 eventNumb: newEvent.enumb,
                 eventType: newEvent.eventtype
             });
-            thisObj.yyFile.eventList.push(newEvent);
 
-            await fse.writeFile(fpath, '');
+            // Rewrite our event.yy file:
+            const yyFpath = path.join(this.projectDirectory, 'objects', thisObj.name, thisObj.name + '.yy');
+            await fse.writeFile(yyFpath, JSON.stringify(thisObj, null, 4));
 
-            await this.createDocumentFolder(fpath, thisObj.yyFile.name, 'GMObject');
-            await this.initialDiagnostics(fpath, SemanticsOption.Function | SemanticsOption.Variable);
+            return {
+                fpath: fpath,
+                id: eventPackage.resourceName + ':' + newEvent.id,
+                modelName: 'GMEvent',
+                name: this.convertEventEnumToName(newEvent),
+                filterType: 'GMObject'
+            };
         }
 
-        // Rewrite our event.yy file:
-        await fse.writeFile(path.join(thisObj.directoryFilepath, thisObj.yyFile.name + '.yy'), JSON.stringify(thisObj.yyFile, null, 4));
-
-        return returnPath;
+        return null;
     }
 
     private async createEvent(eventName: string, ownerUUID: string): Promise<Resource.ObjectEvent | null> {
@@ -930,48 +929,39 @@ export class FileSystem {
     //     return ourNewView;
     // }
 
-    private convertEventEnumToFPath(thisEvent: Resource.ObjectEvent, dirPath: string): string {
+    private convertEventEnumToFPath(thisEvent: Resource.ObjectEvent): string {
         switch (thisEvent.eventtype) {
             case EventType.Create:
-                return path.join(dirPath, 'Create_0.gml');
+                return 'Create_0.gml';
             case EventType.Alarm:
-                return path.join(dirPath, 'Alarm_' + thisEvent.enumb.toString() + '.gml');
+                return 'Alarm_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Destroy:
-                return path.join(dirPath, 'Destroy_0.gml');
+                return 'Destroy_0.gml';
             case EventType.Step:
-                return path.join(dirPath, 'Step_' + thisEvent.enumb.toString() + '.gml');
+                return 'Step_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Collision:
-                return path.join(dirPath, 'Collision_' + thisEvent.id + '.gml');
+                return 'Collision_' + thisEvent.id + '.gml';
             case EventType.Keyboard:
-                return path.join(dirPath, 'Keyboard_' + thisEvent.enumb.toString() + '.gml');
+                return 'Keyboard_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Mouse:
-                return path.join(dirPath, 'Mouse_' + thisEvent.enumb.toString() + '.gml');
+                return 'Mouse_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Other:
-                return path.join(dirPath, 'Other_' + thisEvent.enumb.toString() + '.gml');
+                return 'Other_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Draw:
-                return path.join(dirPath, 'Draw_' + thisEvent.enumb.toString() + '.gml');
+                return 'Draw_' + thisEvent.enumb.toString() + '.gml';
             case EventType.KeyPress:
-                return path.join(dirPath, 'KeyPress_' + thisEvent.enumb.toString() + '.gml');
+                return 'KeyPress_' + thisEvent.enumb.toString() + '.gml';
             case EventType.KeyRelease:
-                return path.join(dirPath, 'KeyRelease_' + thisEvent.enumb.toString() + '.gml');
+                return 'KeyRelease_' + thisEvent.enumb.toString() + '.gml';
             case EventType.Trigger:
                 console.log('We got a Trigger event here. Somehow this project is from GM8?');
-                return path.join(dirPath, 'Trigger_' + thisEvent.enumb.toString() + '.gml');
+                return 'Trigger_' + thisEvent.enumb.toString() + '.gml';
             case EventType.CleanUp:
-                return path.join(dirPath, 'CleanUp_0.gml');
+                return 'CleanUp_0.gml';
             case EventType.Gesture:
-                return path.join(dirPath, 'Gesture_' + thisEvent.enumb.toString() + '.gml');
+                return 'Gesture_' + thisEvent.enumb.toString() + '.gml';
         }
-        console.log(
-            'NonGML file indexed by YYP? Serious error. \n' +
-                'This event: ' +
-                thisEvent.eventtype +
-                '/' +
-                thisEvent.enumb +
-                '\n' +
-                'This directory: ' +
-                dirPath
-        );
+        console.log('NonGML file indexed by YYP? Serious error. \n' + 'This event: ' + thisEvent.eventtype + '/' + thisEvent.enumb + '\n');
         return '';
     }
 
@@ -1034,7 +1024,7 @@ export class FileSystem {
                         return 'Async - Audio Recording';
                     case EventNumber.AsyncCloud:
                         return 'Async - Cloud';
-                    
+
                     case EventNumber.AsyncDialog:
                         return 'Async - Dialog';
                     case EventNumber.AsyncHTTP:
@@ -1149,13 +1139,13 @@ export class FileSystem {
 
             case 'Destroy':
                 return {
-                    eventNumb: EventNumber.Create,
+                    eventNumb: EventNumber.Destroy,
                     eventType: EventType.Destroy
                 };
 
             case 'Cleanup':
                 return {
-                    eventNumb: EventNumber.Create,
+                    eventNumb: EventNumber.Cleanup,
                     eventType: EventType.CleanUp
                 };
 

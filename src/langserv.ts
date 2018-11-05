@@ -43,9 +43,7 @@ export class LangServ {
     constructor(public connection: IConnection) {
         this.connection = connection;
         this.originalOpenDocuments = [];
-        this.gmlGrammar = grammar(
-            fse.readFileSync(path.join(__dirname, path.normalize('../lib/gmlGrammar.ohm')), 'utf-8')
-        );
+        this.gmlGrammar = grammar(fse.readFileSync(path.join(__dirname, path.normalize('../lib/gmlGrammar.ohm')), 'utf-8'));
         this.__dirName = path.normalize(__dirname);
 
         // Create our tools:
@@ -74,10 +72,7 @@ export class LangServ {
         let ourManual: GMLDocs.DocFile | null;
         let cacheManual = false;
         try {
-            const encodedText = fse.readFileSync(
-                path.join(this.__dirName, path.normalize('../lib/gmlDocs.json')),
-                'utf8'
-            );
+            const encodedText = fse.readFileSync(path.join(this.__dirName, path.normalize('../lib/gmlDocs.json')), 'utf8');
             ourManual = JSON.parse(encodedText);
         } catch (err) {
             const docImporter = new DocumentationImporter(this, this.reference);
@@ -92,10 +87,7 @@ export class LangServ {
 
             // Cache the Manual:
             if (cacheManual) {
-                fse.writeFileSync(
-                    path.join(this.__dirName, path.normalize('../lib/gmlDocs.json')),
-                    JSON.stringify(ourManual, null, 4)
-                );
+                fse.writeFileSync(path.join(this.__dirName, path.normalize('../lib/gmlDocs.json')), JSON.stringify(ourManual, null, 4));
             }
 
             this.connection.window.showInformationMessage('Manual succesfully loaded.');
@@ -227,6 +219,7 @@ export class LangServ {
 
         const docInfo = await this.fsManager.addDocument(uri, thisDiagnostic.getInput());
         if (!docInfo) return;
+
         const finalDiagnosticPackage = await this.lint(thisDiagnostic, SemanticsOption.All, docInfo);
         // Send Final Diagnostics
         this.connection.sendDiagnostics(DiagnosticsPackage.create(uri, finalDiagnosticPackage));
@@ -261,12 +254,7 @@ export class LangServ {
         return initDiagnostics.concat(semDiagnostics);
     }
 
-    public async runSemantics(
-        thisDiagnostic: DiagnosticHandler,
-        lintPackage: LintPackage,
-        bit: SemanticsOption,
-        docInfo: DocumentFolder
-    ) {
+    public async runSemantics(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, bit: SemanticsOption, docInfo: DocumentFolder) {
         let diagnosticArray: Diagnostic[] = [];
 
         // Semantic Lint
@@ -289,11 +277,7 @@ export class LangServ {
         return thisDiagnostic.popSemanticDiagnostics();
     }
 
-    public async semanticLint(
-        thisDiagnostic: DiagnosticHandler,
-        lintPackage: LintPackage,
-        diagnosticArray: Diagnostic[]
-    ) {
+    public async semanticLint(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, diagnosticArray: Diagnostic[]) {
         // Clear our Script References
         this.reference.scriptRemoveAllReferencesAtURI(thisDiagnostic.getURI);
         this.reference.functionRemoveAllReferencesAtURI(thisDiagnostic.getURI);
@@ -306,11 +290,7 @@ export class LangServ {
         }
     }
 
-    public async semanticVariableIndex(
-        thisDiagnostic: DiagnosticHandler,
-        lintPackage: LintPackage,
-        docInfo: DocumentFolder
-    ) {
+    public async semanticVariableIndex(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, docInfo: DocumentFolder) {
         const ourURI = thisDiagnostic.getURI;
         const theseMatchResults = lintPackage.getMatchResults();
         if (!theseMatchResults) return;
@@ -325,10 +305,9 @@ export class LangServ {
         // Type Safety and Match Results
         const matchResults = lintPackage.getMatchResults();
         if (!matchResults) return;
-        const ourJSDOC = await thisDiagnostic.runSemanticJSDOC(matchResults, docInfo.name);
         const ourScriptPack = this.reference.scriptGetPackage(docInfo.name);
         if (!ourScriptPack) return;
-
+        const ourJSDOC = await thisDiagnostic.runSemanticJSDOC(matchResults, docInfo.name);
         this.reference.scriptAddJSDOC(ourScriptPack, ourJSDOC);
     }
     //#endregion
@@ -389,9 +368,7 @@ export class LangServ {
 
         // Make sure our YYP is accurate still
         if ((await this.fsManager.validateYYP()) === false) {
-            this.connection.window.showErrorMessage(
-                'Internal YYP is no longer valid. If issue persists, log an issue on the Github page.'
-            );
+            this.connection.window.showErrorMessage('Internal YYP is no longer valid. If issue persists, log an issue on the Github page.');
         }
 
         // Delete it from the FS and change the YYP
@@ -407,8 +384,8 @@ export class LangServ {
         return true;
     }
 
-    public async addEvents(events: ResourcePackage) {
-        return await this.fsManager.
+    public async addEvents(events: ResourcePackage): Promise<ClientViewNode|null> {
+        return await this.fsManager.resourceAddEvents(events);
     }
 
     public beginCompile(type: 'test' | 'zip' | 'installer', yyc: boolean, output?: string) {
@@ -472,9 +449,7 @@ export class LangServ {
 
         // Make sure our YYP is accurate still
         if ((await this.fsManager.validateYYP()) === false) {
-            this.connection.window.showErrorMessage(
-                'Internal YYP is no longer valid. If issue persists, log an issue on the Github page.'
-            );
+            this.connection.window.showErrorMessage('Internal YYP is no longer valid. If issue persists, log an issue on the Github page.');
             return false;
         }
         return true;
