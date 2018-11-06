@@ -7,7 +7,7 @@ import { Reference, BasicResourceType } from './reference';
 import * as uuidv4 from 'uuid/v4';
 import URI from 'vscode-uri/lib/umd';
 import * as chokidar from 'chokidar';
-import { ResourceNames, IScript, DocumentFolders, GMLFolder, DocumentFolder, EventInfo, GMResourcePlus, IVars } from './declarations';
+import { ResourceNames, IScript, DocumentFolders, GMLFolder, DocumentFolder, EventInfo, GMResourcePlus } from './declarations';
 import * as rubber from 'gamemaker-rubber';
 import { Resource, EventType, EventNumber, YYP, YYPResource } from 'yyp-typings';
 import { ClientViewNode, ResourcePackage } from './sharedTypes';
@@ -217,7 +217,7 @@ export class FileSystem {
                     id: ourNode.id + ':' + thisEvent.id,
                     modelName: 'GMEvent',
                     name: this.convertEventEnumToName(thisEvent),
-                    filterType: ourNode.modelName
+                    filterType: 'GMEvent'
                 });
             }
             return returnView;
@@ -724,6 +724,7 @@ export class FileSystem {
             });
             if (ourResourceIndex === -1) return false;
             this.projectYYP.resources.splice(ourResourceIndex, 1);
+            delete this.projectResources[viewUUID]
 
             await this.saveYYP();
 
@@ -805,13 +806,62 @@ export class FileSystem {
         };
     }
 
-    public async resourceObjectDelete(objPackage: IVars, viewUUID: string): Promise<boolean> {
+    public resourceObjectGetEventURIsFromObjectID(objID: string): string[] | null {
         // Kill without YYP
-        if (!this.projectYYP) return false;
+        if (!this.projectYYP) return null;
 
-        // Find our Object
+        // Find our Object Events
+        const thisObjectYYFile = this.projectResources[objID];
+        if (thisObjectYYFile === undefined || thisObjectYYFile.modelName !== 'GMObject') return null;
 
-        return false;
+        const returnURIs: string[] = [];
+        // Get our Events:
+        for (const thisEvent of thisObjectYYFile.eventList) {
+            const thisURI = URI.file(
+                path.join(this.projectDirectory, 'objects', thisObjectYYFile.name, this.convertEventEnumToFPath(thisEvent))
+            );
+            returnURIs.push(thisURI.toString());
+        }
+
+        return returnURIs;
+    }
+
+    public async resourceObjectDelete(viewUUID: string): Promise<string|null> {
+        try {
+            // Kill without YYP
+            if (!this.projectYYP) return null;
+
+            // Find our Object Events
+            const thisObjectYYFile = this.projectResources[viewUUID];
+            if (thisObjectYYFile === undefined || thisObjectYYFile.modelName !== 'GMObject') return null;
+
+            // Delete the objects folder
+            await fse.remove(path.join(this.projectDirectory, 'objects', thisObjectYYFile.name));
+
+            // Edit the YYP
+            const ourResourceIndex = this.projectYYP.resources.findIndex(thisResource => {
+                return thisResource.Key === viewUUID;
+            });
+            if (ourResourceIndex === -1) return null;
+            this.projectYYP.resources.splice(ourResourceIndex, 1);
+
+            await this.saveYYP();
+
+            // Kill our document folders:
+            for (const thisEvent of thisObjectYYFile.eventList) {
+                const thisURI = URI.file(
+                    path.join(this.projectDirectory, 'objects', thisObjectYYFile.name, this.convertEventEnumToFPath(thisEvent))
+                );
+                await this.removeDocumentFolder(thisURI.toString());
+            }
+
+            // Remove the resource
+            delete this.projectResources[viewUUID];
+
+            return thisObjectYYFile.name;
+        } catch (e) {
+            return null;
+        }
     }
 
     public async resourceAddEvents(eventPackage: ResourcePackage): Promise<ClientViewNode | null> {
@@ -850,6 +900,37 @@ export class FileSystem {
                 name: this.convertEventEnumToName(newEvent),
                 filterType: 'GMObject'
             };
+        }
+
+        return null;
+    }
+
+    public async resourceEventDelete(objID: string, eventID: string): Promise<string | null> {
+        // Kill without YYP
+        if (!this.projectYYP) return null;
+
+        // Find our Object Events
+        const thisObjectYYFile = this.projectResources[objID];
+        if (thisObjectYYFile === undefined || thisObjectYYFile.modelName !== 'GMObject') return null;
+
+        // Find our new Event:
+        for (let i = 0; i < thisObjectYYFile.eventList.length; i++) {
+            const thisEvent = thisObjectYYFile.eventList[i];
+            if (thisEvent.id === eventID) {
+                const thisURI = URI.file(
+                    path.join(this.projectDirectory, 'objects', thisObjectYYFile.name, this.convertEventEnumToFPath(thisEvent))
+                ).toString();
+                await this.removeDocumentFolder(thisURI);
+
+                // Update internal model
+                thisObjectYYFile.eventList.splice(i, 1);
+
+                // Write model out
+                const yyFpath = path.join(this.projectDirectory, 'objects', thisObjectYYFile.name, thisObjectYYFile.name + '.yy');
+                await fse.writeFile(yyFpath, JSON.stringify(thisObjectYYFile, null, 4));
+
+                return thisURI;
+            }
         }
 
         return null;

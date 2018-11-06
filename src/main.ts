@@ -191,6 +191,15 @@ connection.onRequest(new RequestType<ResourcePackage, boolean, void, void>('dele
     return await ls.deleteObject(objectPack);
 });
 
+connection.onRequest(new RequestType<ResourcePackage, boolean, void, void>('deleteEventAtUUID'), async eventPack => {
+    if (ls.isServerReady() == false) {
+        console.log("ERROR: Attempting to Delete before server was ready.");
+        return false;
+    }
+
+    return await ls.deleteEvent(eventPack);
+});
+
 //#endregion
 
 //#region Type Services:

@@ -257,6 +257,9 @@ export class LangServ {
     public async runSemantics(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, bit: SemanticsOption, docInfo: DocumentFolder) {
         let diagnosticArray: Diagnostic[] = [];
 
+        // Clear out all our Clearables
+        await this.reference.URIRecordClearAtURI(thisDiagnostic.getURI);
+
         // Semantic Lint
         if ((bit & SemanticsOption.Function) == SemanticsOption.Function) {
             await this.semanticLint(thisDiagnostic, lintPackage, diagnosticArray);
@@ -278,11 +281,6 @@ export class LangServ {
     }
 
     public async semanticLint(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, diagnosticArray: Diagnostic[]) {
-        // Clear our Script References
-        this.reference.scriptRemoveAllReferencesAtURI(thisDiagnostic.getURI);
-        this.reference.functionRemoveAllReferencesAtURI(thisDiagnostic.getURI);
-        this.reference.extensionRemoveAllReferencesAtURI(thisDiagnostic.getURI);
-
         // Run Semantics on Existing MatchResults.
         const theseMatchResults = lintPackage.getMatchResults();
         if (theseMatchResults) {
@@ -291,12 +289,8 @@ export class LangServ {
     }
 
     public async semanticVariableIndex(thisDiagnostic: DiagnosticHandler, lintPackage: LintPackage, docInfo: DocumentFolder) {
-        const ourURI = thisDiagnostic.getURI;
         const theseMatchResults = lintPackage.getMatchResults();
         if (!theseMatchResults) return;
-
-        // Clear out all our Clearables
-        await this.reference.URIRecordClearAtURI(ourURI);
 
         thisDiagnostic.runSemanticIndexVariableOperation(theseMatchResults, docInfo);
     }
@@ -356,19 +350,38 @@ export class LangServ {
     }
 
     public async deleteObject(objPackage: ResourcePackage) {
-        // Get the Package
-        const objectPackage = this.reference.objectGetPackage(objPackage.resourceName);
-        if (objectPackage === undefined) return false;
-
         // Make Sure our YYP is accurate
-        if (await this.fsManager.validateYYP(this.connection) === false) return false;
+        if ((await this.fsManager.validateYYP(this.connection)) === false) return false;
 
-        // Delete it from the FS and change the YYP
-        const success = await this.fsManager.resourceObjectDelete(objectPackage, objPackage.viewUUID);
-        if (!success) return false;
+        // Get info from the FS
+        const eventURIs = this.fsManager.resourceObjectGetEventURIsFromObjectID(objPackage.viewUUID);
+
+        const successName = await this.fsManager.resourceObjectDelete(objPackage.viewUUID);
+        if (!successName) return false;
 
         // Delete the Reference Library:
-        this.reference.objectDelete(objPackage.viewUUID);
+        this.reference.objectDeleteObject(successName);
+        if (eventURIs) {
+            for (const thisEvent of eventURIs) {
+                this.reference.URIRecordDeleteAtURI(thisEvent);
+            }
+        }
+
+        // Clear the View
+        await this.fsManager.viewsDeleteViewAtNode(objPackage.viewUUID);
+
+        return true;
+    }
+
+    public async deleteEvent(eventPack: ResourcePackage) {
+        // Make Sure our YYP is accurate
+        if ((await this.fsManager.validateYYP(this.connection)) === false) return false;
+
+        // Handle FS here:
+        const eventURI = await this.fsManager.resourceEventDelete(eventPack.viewUUID, eventPack.resourceName);
+
+        // Reference Clear
+        if (eventURI) this.reference.URIRecordDeleteAtURI(eventURI);
 
         return true;
     }
@@ -380,12 +393,12 @@ export class LangServ {
     }
 
     public async deleteScript(clientScriptPack: ResourcePackage): Promise<boolean> {
+        // Make sure our YYP is accurate still
+        if ((await this.fsManager.validateYYP(this.connection)) === false) return false;
+        
         // Get the package
         const scriptPack = this.reference.scriptGetPackage(clientScriptPack.resourceName);
         if (!scriptPack) return false;
-
-        // Make sure our YYP is accurate still
-        if (await this.fsManager.validateYYP(this.connection) === false) return false;
 
         // Delete it from the FS and change the YYP
         const success = await this.fsManager.resourceScriptDelete(scriptPack, clientScriptPack.viewUUID);
@@ -400,20 +413,13 @@ export class LangServ {
         return true;
     }
 
-    public async addEvents(events: ResourcePackage): Promise<ClientViewNode|null> {
+    public async addEvents(events: ResourcePackage): Promise<ClientViewNode | null> {
         return await this.fsManager.resourceAddEvents(events);
     }
 
     public beginCompile(type: 'test' | 'zip' | 'installer', yyc: boolean, output?: string) {
         return this.fsManager.compile(type, yyc, output);
     }
-
-    // TODO Actually put force re-index into this project. It needs to be there!
-    // public async forceReIndex() {
-    //     this.connection.window.showWarningMessage('Reindexing...Type services may be limited until index is complete.');
-    //     this.reference.clearAllData();
-    //     await this.fsManager.clearAllData();
-    // }
 
     //#endregion
 
@@ -464,7 +470,7 @@ export class LangServ {
         }
 
         // Make sure our YYP is accurate still
-        if (await this.fsManager.validateYYP(this.connection) === false) return false;
+        if ((await this.fsManager.validateYYP(this.connection)) === false) return false;
 
         return true;
     }

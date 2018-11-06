@@ -46,7 +46,6 @@ export declare type BasicResourceType =
 export class Reference {
     private lsp: LangServ;
     private objects: IObjects;
-    private objectList: string[];
     private callables: ICallables;
     private gmlDocs: GMLDocs.DocFile | undefined;
     private functionList: string[];
@@ -58,7 +57,6 @@ export class Reference {
 
     constructor(lsp: LangServ) {
         this.objects = {};
-        this.objectList = [];
         this.callables = {
             scripts: {},
             functions: {},
@@ -146,7 +144,6 @@ export class Reference {
             if (cache.object.hasOwnProperty(thisObjectName)) {
                 const thisObj = cache.object[thisObjectName];
                 this.objects[thisObjectName] = thisObj;
-                this.objectList.push(thisObjectName);
             }
         }
 
@@ -406,7 +403,17 @@ export class Reference {
         await this.instClearAllInstAtURI(thisURI);
         await this.localClearAtllLocsAtURI(thisURI);
         await this.implicitClearImplicitAtURI(thisURI);
+        await this.scriptRemoveAllReferencesAtURI(thisURI);
+        await this.functionRemoveAllReferencesAtURI(thisURI);
+        await this.extensionRemoveAllReferencesAtURI(thisURI);
     }
+
+    public async URIRecordDeleteAtURI(thisURI: string) {
+        await this.URIRecordClearAtURI(thisURI);
+
+        delete this.URIRecord[thisURI];
+    }
+
     //#endregion
 
     //#region Local Variables
@@ -566,6 +573,9 @@ export class Reference {
         // Delete the Script itself
         delete this.callables.scripts[thisName];
 
+        // Delete the Resource
+        this.deleteResource(thisName);
+
         // Iterate on the URIRecords. Deleting a script is rare, so this
         // can be a big operation.
         for (const thisRecordName in this.URIRecord) {
@@ -584,6 +594,8 @@ export class Reference {
                 thisRecord.scripts = cleanArray(thisRecord.scripts);
             }
         }
+
+        // Find and delete the script in the project resources
     }
 
     /**
@@ -607,7 +619,7 @@ export class Reference {
      * Removes all references to a script unsafely (run scriptExists first) at
      * a given URI.
      */
-    public scriptRemoveAllReferencesAtURI(thisURI: string) {
+    public async scriptRemoveAllReferencesAtURI(thisURI: string) {
         if (!this.URIRecord[thisURI]) this.URIcreateURIDictEntry(thisURI);
 
         for (const thisScriptIndex of this.URIRecord[thisURI].scripts) {
@@ -835,7 +847,7 @@ export class Reference {
 
     //#region Objects
     public objectGetList() {
-        return this.objectList;
+        return Object.keys(this.objects);
     }
 
     public objectAddObject(objName: string): boolean {
@@ -843,9 +855,50 @@ export class Reference {
         if (this.objectExists(objName)) return false;
 
         this.objects[objName] = {};
-        this.objectList.push(objName);
 
         return true;
+    }
+
+    public objectDeleteObject(objName: string) {
+        // Delete the Object itself
+        delete this.objects[objName];
+
+        this.deleteResource(objName);
+
+        // Iterate on the URIRecords. Deleting an object is rare, so this
+        // can be a big operation.
+        for (const thisRecordName in this.URIRecord) {
+            if (this.URIRecord.hasOwnProperty(thisRecordName)) {
+                const thisRecord = this.URIRecord[thisRecordName];
+
+                // Inst Variables:
+                let altered = false;
+                for (let i = 0; i < thisRecord.instanceVariables.length; i++) {
+                    const thisInst = thisRecord.instanceVariables[i];
+
+                    if (thisInst.object === objName) {
+                        delete thisRecord.instanceVariables[i];
+                        altered = true;
+                    }
+                }
+
+                // Clean the Array and Return it
+                if (altered) thisRecord.instanceVariables = cleanArray(thisRecord.scripts);
+
+                // Implicits:
+                altered = false;
+                for (let i = 0; i < thisRecord.implicitThisAtPosition.length; i++) {
+                    const thisImplicit = thisRecord.implicitThisAtPosition[i];
+
+                    if (thisImplicit.objName == objName) {
+                        delete thisRecord.implicitThisAtPosition[i];
+                        altered = true;
+                    }
+                }
+
+                if (altered) thisRecord.instanceVariables = cleanArray(thisRecord.instanceVariables);
+            }
+        }
     }
 
     /**
