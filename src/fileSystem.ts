@@ -669,6 +669,7 @@ export class FileSystem {
         // Add as a YYP resource:
         const rPath = path.join('scripts', scriptName, scriptName + '.yy');
         this.projectYYP.resources.push(this.createYYPResourceEntry(newScript.id, rPath, newScript.modelName));
+        this.projectResources[newScript.id] = newScript;
 
         // Update Views:
         await this.viewsInsertViewsAtNode(createAtNode, [newScript]);
