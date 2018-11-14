@@ -724,7 +724,7 @@ export class FileSystem {
             });
             if (ourResourceIndex === -1) return false;
             this.projectYYP.resources.splice(ourResourceIndex, 1);
-            delete this.projectResources[viewUUID]
+            delete this.projectResources[viewUUID];
 
             await this.saveYYP();
 
@@ -826,7 +826,7 @@ export class FileSystem {
         return returnURIs;
     }
 
-    public async resourceObjectDelete(viewUUID: string): Promise<string|null> {
+    public async resourceObjectDelete(viewUUID: string): Promise<string | null> {
         try {
             // Kill without YYP
             if (!this.projectYYP) return null;
@@ -952,8 +952,60 @@ export class FileSystem {
         } else return null;
     }
 
+    public async resourceFolderCreate(folderPack: ResourcePackage): Promise<boolean> {
+        // Silly YYP thing
+        // TODO: Get rid of this YYP nonsense.
+        if (!this.projectYYP) return false;
+
+        const ourParentView = this.projectResources[folderPack.viewUUID];
+        if (!ourParentView || (ourParentView && ourParentView.modelName != 'GMFolder')) {
+            console.log('Could not locate the parent of this folder. Please log an issue on the Github.');
+            return false;
+        }
+
+        // Create our New Folder
+        const ourFolderYY = this.folderCreate(folderPack.resourceName, ourParentView.filterType);
+
+        // Add a new file:
+        try {
+            const fpath = path.join(this.projectDirectory, 'views', ourFolderYY.id + '.yy');
+            await fse.ensureFile(fpath);
+            await fse.writeFile(fpath, JSON.stringify(ourFolderYY, null, 4), 'utf8');
+        } catch (e) {
+            console.log("Error in creating folder. Please log an issue on the Github page.")
+            return false;
+        }
+
+        // Edit the YYP here:
+        this.createYYPResourceEntry(ourFolderYY.id, path.join('views', ourFolderYY.id + '.yy'), 'GMFolder');
+
+        // Insert the YY file
+        this.projectResources[ourFolderYY.id] = ourFolderYY;
+        await this.viewsInsertViewsAtNode(ourParentView.id, [ourFolderYY]);
+
+        // Save the YYP
+        await this.saveYYP();
+
+        return true;
+    }
+
+    private folderCreate(folderName: string, filterType: string): Resource.GMFolder {
+        const thisUUID = uuidv4();
+        return {
+            children: [],
+            filterType: filterType,
+            folderName: folderName,
+            id: thisUUID,
+            isDefaultView: false,
+            localisedFolderName: '',
+            modelName: 'GMFolder',
+            mvc: '1.1',
+            name: thisUUID
+        };
+    }
+
     public async saveYYP() {
-        await fse.writeFile(this.projectYYPPath, JSON.stringify(this.projectYYP), 'utf8');
+        await fse.writeFile(this.projectYYPPath, JSON.stringify(this.projectYYP, null, 4), 'utf8');
     }
 
     public async validateYYP(connection: IConnection): Promise<boolean> {
@@ -985,43 +1037,6 @@ export class FileSystem {
             }
         };
     }
-
-    // public async createView(fName: string, parentUUID?: string) {
-    //     parentUUID = parentUUID || this.views[this.defaultView].id;
-
-    //     // Get our Parent so we can get a FilterType:
-    //     const thisParentNode = this.searchViewsForUUID(parentUUID);
-    //     if (!thisParentNode || thisParentNode.modelName != 'GMLFolder') return null;
-    //     const newFilterType = thisParentNode.filterType == 'root' ? '' : thisParentNode.filterType;
-
-    //     // Get our ID:
-    //     const ourUUID = uuidv4();
-
-    //     // Create *this* view first:
-    //     const ourNewView: Resource.GMFolder = {
-    //         children: [],
-    //         filterType: newFilterType,
-    //         folderName: fName,
-    //         id: ourUUID,
-    //         isDefaultView: false,
-    //         localisedFolderName: '',
-    //         mvc: '1.1',
-    //         modelName: 'GMFolder',
-    //         name: ourUUID
-    //     };
-
-    //     // Create view file:
-    //     const fp = path.join(this.projectDirectory, 'views', ourNewView.id + '.yy');
-    //     try {
-    //         await fse.writeFile(fp, JSON.stringify(ourNewView, null, 4));
-    //     } catch (err) {
-    //         console.log("View '" + ourNewView.folderName + "' not created.");
-    //         console.log(err);
-    //         return null;
-    //     }
-
-    //     return ourNewView;
-    // }
 
     private convertEventEnumToFPath(thisEvent: Resource.ObjectEvent): string {
         switch (thisEvent.eventtype) {

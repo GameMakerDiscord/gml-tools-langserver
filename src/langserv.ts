@@ -342,6 +342,15 @@ export class LangServ {
         this.connection.sendNotification('refresh');
     }
 
+    public async createFolder(folderPackage: ResourcePackage) {
+        // Make sure our YYP is accurate still
+        if ((await this.fsManager.validateYYP(this.connection)) === false) return false;
+
+        // Send it off to the filesystem manager (no reference needed here):
+        return await this.fsManager.resourceFolderCreate(folderPackage);
+
+    }
+
     public async createObject(objectPackage: ResourcePackage) {
         if (await this.genericResourcePreCheck(objectPackage.resourceName)) {
             // If we made it here, send to the FS for the rest.

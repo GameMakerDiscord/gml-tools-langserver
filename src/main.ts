@@ -193,11 +193,20 @@ connection.onRequest(new RequestType<ResourcePackage, boolean, void, void>('dele
 
 connection.onRequest(new RequestType<ResourcePackage, boolean, void, void>('deleteEventAtUUID'), async eventPack => {
     if (ls.isServerReady() == false) {
-        console.log("ERROR: Attempting to Delete before server was ready.");
+        console.log('ERROR: Attempting to Delete before server was ready.');
         return false;
     }
 
     return await ls.deleteEvent(eventPack);
+});
+
+connection.onRequest(new RequestType<ResourcePackage, boolean, void, void>('createFolder'), async folderPack => {
+    if (ls.isServerReady() == false) {
+        console.log('ERROR: Attempting to Create Folder before Server was ready.');
+        return false;
+    }
+
+    return await ls.createFolder(folderPack);
 });
 
 //#endregion
