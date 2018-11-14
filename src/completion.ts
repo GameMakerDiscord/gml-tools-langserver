@@ -11,7 +11,7 @@ import {
     MarkupKind
 } from 'vscode-languageserver';
 import { getWordAtPositionFS } from './utils';
-import { OtherResources } from './declarations';
+import { OtherResources, JSDOC } from './declarations';
 
 export class GMLCompletionProvider {
     private completionList: CompletionList;
@@ -65,10 +65,7 @@ export class GMLCompletionProvider {
         const rx = new RegExp('^' + thisWord);
 
         // Find our Implicit
-        const thisImplicitName = await this.reference.implicitGetCurrentImplicitEntry(
-            params.textDocument.uri,
-            params.position
-        );
+        const thisImplicitName = await this.reference.implicitGetCurrentImplicitEntry(params.textDocument.uri, params.position);
 
         // Iterate on the Instance Variables:
         if (thisImplicitName) {
@@ -80,8 +77,7 @@ export class GMLCompletionProvider {
                     const orig = this.reference.instGetOriginLocation(thisImplicitName, thisItem);
                     if (
                         orig &&
-                        (orig.range.start.line !== thisRange.start.line &&
-                            orig.range.start.character !== thisRange.start.character)
+                        (orig.range.start.line !== thisRange.start.line && orig.range.start.character !== thisRange.start.character)
                     ) {
                         workingArray.push({
                             label: thisItem,
@@ -104,8 +100,7 @@ export class GMLCompletionProvider {
                     const orig = this.reference.localGetOrigin(params.textDocument.uri, thisItem);
                     if (
                         orig &&
-                        (orig.range.start.line !== thisRange.start.line &&
-                            orig.range.start.character !== thisRange.start.character)
+                        (orig.range.start.line !== thisRange.start.line && orig.range.start.character !== thisRange.start.character)
                     ) {
                         workingArray.push({
                             label: thisItem,
@@ -124,7 +119,7 @@ export class GMLCompletionProvider {
         const functionList = this.reference.functionGetAllFunctionNames();
         for (const item of functionList) {
             if (item && rx.test(item) === true) {
-                const total = workingArray.push({
+                workingArray.push({
                     label: item,
                     kind: CompletionItemKind.Function,
                     textEdit: {
@@ -132,8 +127,6 @@ export class GMLCompletionProvider {
                         range: thisRange
                     }
                 });
-
-                if (total > 10) break;
             }
         }
 
@@ -156,7 +149,7 @@ export class GMLCompletionProvider {
         const extensionList = this.reference.extensionGetAllExtensionNames();
         for (const thisItem of extensionList) {
             if (thisItem && rx.test(thisItem) === true) {
-                const total = workingArray.push({
+                workingArray.push({
                     label: thisItem,
                     kind: CompletionItemKind.Function,
                     textEdit: {
@@ -164,8 +157,6 @@ export class GMLCompletionProvider {
                         range: thisRange
                     }
                 });
-
-                if (total > 10) break;
             }
         }
 
@@ -254,7 +245,6 @@ export class GMLCompletionProvider {
         const getAll = ourWords[1] == undefined;
         const rx = new RegExp('^' + ourWords[1]);
 
-
         // Idiotic Macros
         if (this.reference.macroExists(ourWords[0])) {
             const macroVal = this.reference.macroGetMacroValue(ourWords[0]);
@@ -280,15 +270,15 @@ export class GMLCompletionProvider {
         const enumMembers = this.reference.enumGetMemberNames(ourWords[0]);
         if (enumMembers) {
             for (const enumMember of enumMembers) {
-                    if (rx.test(enumMember) || getAll) {
-                        workingArray.push({
-                            label: enumMember,
-                            kind: CompletionItemKind.EnumMember,
-                            textEdit: {
-                                newText: enumMember,
-                                range: Range.create(params.position, params.position)
-                            }
-                        });
+                if (rx.test(enumMember) || getAll) {
+                    workingArray.push({
+                        label: enumMember,
+                        kind: CompletionItemKind.EnumMember,
+                        textEdit: {
+                            newText: enumMember,
+                            range: Range.create(params.position, params.position)
+                        }
+                    });
                 }
             }
         }
@@ -313,16 +303,23 @@ export class GMLCompletionProvider {
         }
     }
 
-    private resolveFunction(thisItem: CompletionItem) {
+    private resolveFunction(thisItem: CompletionItem): CompletionItem {
+        // Script
         const scriptPack = this.reference.scriptGetPackage(thisItem.label);
-        if (!scriptPack) return thisItem;
-        const jsdoc = scriptPack.JSDOC;
-        if (!jsdoc) return thisItem;
+        if (scriptPack) return this.resolveFunctionJSDOC(thisItem, scriptPack.JSDOC);
 
-        let documentation: MarkupContent = {
-            kind: MarkupKind.Markdown,
-            value: ''
-        };
+        // Functions
+        const funcPack = this.reference.functionGetPackage(thisItem.label);
+        if (funcPack) return this.resolveFunctionJSDOC(thisItem, funcPack.JSDOC);
+
+        const extPack = this.reference.extensionGetPackage(thisItem.label);
+        if (extPack) return this.resolveFunctionJSDOC(thisItem, extPack.JSDOC);
+
+        return thisItem;
+    }
+
+    private resolveFunctionJSDOC(thisItem: CompletionItem, jsdoc: JSDOC) {
+        let documentation: MarkupContent = { kind: MarkupKind.Markdown, value: '' };
 
         // Details
         let type = jsdoc.isScript ? '(script)' : '(function)';

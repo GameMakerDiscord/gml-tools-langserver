@@ -44,9 +44,6 @@ connection.onInitialize(params => {
 
             executeCommandProvider: {
                 commands: [
-                    'GMLTools.createObject',
-                    'GMLTools.createScript',
-                    'GMLTools.addEvents',
                     'GMLTools.compileTestVM',
                     'GMLTools.compileTestYYC',
                     'GMLTools.compileExport',
@@ -73,31 +70,6 @@ const CREATE_SCRIPT = new RequestType0<string | null, void, void>('createScript'
 
 connection.onExecuteCommand(async params => {
     switch (params.command) {
-        case 'GMLTools.createObject':
-            const ourSprites = ls.reference.getAllResourceOfType('GMSprite');
-            ourSprites.push('No Sprite');
-            const objInfo = await connection.sendRequest(CREATE_OBJECT, { sprites: ourSprites });
-
-            // Actually Create the Object
-            if (objInfo) {
-                // ls.createObject(objInfo);
-            }
-            break;
-
-        case 'GMLTools.createScript':
-            const myScript = await connection.sendRequest(CREATE_SCRIPT);
-
-            // Actually Create the Script
-            if (myScript) {
-                // ls.createScript(myScript);
-            }
-            break;
-
-        case 'GMLTools.addEvents':
-            // const ourEvents: any = await connection.sendRequest(ADD_EVENTS);
-            // ls.addEvents(ourEvents);
-            break;
-
         case 'GMLTools.compileTestVM':
             ls.beginCompile('test', false);
             break;

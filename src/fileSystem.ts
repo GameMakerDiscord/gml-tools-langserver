@@ -977,7 +977,7 @@ export class FileSystem {
         }
 
         // Edit the YYP here:
-        this.createYYPResourceEntry(ourFolderYY.id, path.join('views', ourFolderYY.id + '.yy'), 'GMFolder');
+        this.projectYYP.resources.push(this.createYYPResourceEntry(ourFolderYY.id, path.join('views', ourFolderYY.id + '.yy'), 'GMFolder'));
 
         // Insert the YY file
         this.projectResources[ourFolderYY.id] = ourFolderYY;
