@@ -7,12 +7,10 @@ import {
     CompletionList,
     TextDocumentSyncKind,
     DidChangeConfigurationNotification,
-    RequestType,
-    RequestType0
+    RequestType
 } from 'vscode-languageserver/lib/main';
 import { LangServ } from './langserv';
 import { ClientViewNode, ResourcePackage } from './sharedTypes';
-import { CreateObjPackage } from './declarations';
 
 // Create a connection for the server. The connection uses Node's IPC as a transport
 let connection: IConnection = createConnection(new IPCMessageReader(process), new IPCMessageWriter(process));
@@ -64,9 +62,6 @@ connection.onInitialized(async () => {
 });
 
 //#region Commands
-const CREATE_OBJECT = new RequestType<{ sprites: string[] }, CreateObjPackage | null, void, void>('createObject');
-const CREATE_SCRIPT = new RequestType0<string | null, void, void>('createScript');
-// const ADD_EVENTS = new RequestType0<EventsPackage | null, void, void>('addEvents');
 
 connection.onExecuteCommand(async params => {
     switch (params.command) {

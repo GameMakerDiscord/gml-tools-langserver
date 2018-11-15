@@ -1540,6 +1540,7 @@ export class FileSystem {
                 switch (thisAddedResource.Value.resourceType) {
                     case 'GMScript':
                         const scriptName = path.basename(thisAddedResource.Value.resourcePath, '.yy');
+                        if (this.reference.scriptGetPackage(scriptName) != undefined) continue;
                         const gmlPath = path.join(this.projectDirectory, 'scripts', scriptName, scriptName + '.gml');
 
                         await this.resourceScriptAddToInternalModel(scriptName, gmlPath, yyFile);
@@ -1602,7 +1603,7 @@ export class FileSystem {
         });
         viewWatch.on('change', async (fname: string) => {
             const thisView: Resource.GMFolder = JSON.parse(await fse.readFile(fname, 'utf8'));
-            this.projectResources[thisView.id] = thisView;
+              this.projectResources[thisView.id] = thisView;
         });
     }
 
