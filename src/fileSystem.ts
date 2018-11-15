@@ -660,7 +660,7 @@ export class FileSystem {
         const ourGMLPath = path.join(ourDirectoryPath, scriptName + '.gml');
         await fse.writeFile(ourGMLPath, '');
         const ourYYPath = path.join(ourDirectoryPath, scriptName + '.yy');
-        await fse.writeFile(ourYYPath, JSON.stringify(newScript), 'utf8');
+        await fse.writeFile(ourYYPath, JSON.stringify(newScript, null, 4), 'utf8');
 
         // Add to the script order:
         if (this.projectYYP.script_order) {
@@ -669,7 +669,6 @@ export class FileSystem {
         // Add as a YYP resource:
         const rPath = path.join('scripts', scriptName, scriptName + '.yy');
         this.projectYYP.resources.push(this.createYYPResourceEntry(newScript.id, rPath, newScript.modelName));
-        this.projectResources[newScript.id] = newScript;
 
         // Update Views:
         await this.viewsInsertViewsAtNode(createAtNode, [newScript]);
@@ -684,6 +683,7 @@ export class FileSystem {
 
         // Protect us
         this.currentlyCreatingResources = false;
+        console.log('Script creation finished!');
 
         return {
             id: ourViewNode.id,
@@ -973,7 +973,7 @@ export class FileSystem {
             await fse.ensureFile(fpath);
             await fse.writeFile(fpath, JSON.stringify(ourFolderYY, null, 4), 'utf8');
         } catch (e) {
-            console.log("Error in creating folder. Please log an issue on the Github page.")
+            console.log('Error in creating folder. Please log an issue on the Github page.');
             return false;
         }
 
@@ -1446,15 +1446,17 @@ export class FileSystem {
     //#region Watcher
     private async installProjectYYPWatcher() {
         // Objects are gonne be SO FUN
-        // const objectWatcher = chokidar.watch('script/**/*.yy');
+        let timerIsRunning = false;
+        let viewFile: undefined | string;
 
-        // YYP Stuff
-        const yypWatch = chokidar.watch(this.projectYYPPath, {
-            awaitWriteFinish: true,
-            atomic: 1000,
-            ignoreInitial: true
-        });
-        yypWatch.on('change', async (event: string, fname: string) => {
+        const executeWatchFunctions = async () => {
+            if (viewFile) {
+                console.log('View File Did the thing!');
+                const thisView: Resource.GMFolder = JSON.parse(await fse.readFile(viewFile, 'utf8'));
+                this.projectResources[thisView.id] = thisView;
+                viewFile = undefined;
+            }
+
             const newYYP: YYP = JSON.parse(await fse.readFile(this.projectYYPPath, 'utf8'));
             // If we don't have a YYP or we're currently creating resources, dump this.
             if (!this.projectYYP || this.currentlyCreatingResources) {
@@ -1575,8 +1577,23 @@ export class FileSystem {
             }
 
             // Reparse our Views
+            console.log('YYP Watcher finished!');
             this.views[this.defaultView] = await this.walkViewTree(this.rootViews[this.defaultView]);
             this.lsp.updateViews();
+            timerIsRunning = false;
+        };
+
+        // YYP Stuff
+        const yypWatch = chokidar.watch(this.projectYYPPath, {
+            awaitWriteFinish: true,
+            atomic: 1000,
+            ignoreInitial: true
+        });
+        yypWatch.on('change', async (event: string, fname: string) => {
+            if (timerIsRunning == false) {
+                setTimeout(executeWatchFunctions);
+                timerIsRunning = true;
+            }
         });
 
         // Object Watcher
@@ -1598,12 +1615,15 @@ export class FileSystem {
         // View Watch
         const viewWatch = chokidar.watch(path.join(this.projectDirectory, 'views'), {
             awaitWriteFinish: true,
-            atomic: 1000,
+            atomic: 800,
             ignoreInitial: true
         });
         viewWatch.on('change', async (fname: string) => {
-            const thisView: Resource.GMFolder = JSON.parse(await fse.readFile(fname, 'utf8'));
-              this.projectResources[thisView.id] = thisView;
+            if (timerIsRunning == false) {
+                setTimeout(executeWatchFunctions, 1000);
+                timerIsRunning = true;
+            }
+            viewFile = fname;
         });
     }
 
