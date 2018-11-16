@@ -269,17 +269,14 @@ gml {
 
     PostExpression
         =   PostIncrement
-        |   ComplexExpression
+        |   MemberExpression
     PostIncrement
         =   ~literal MemberExpression incrementers
     
-    ComplexExpression
-        =   FunctionCall<empty>
-        |   MemberExpression
-
     MemberExpression
         =   MembDataLiteral
         |   MembObjectVarRef
+        |   FunctionCall<empty>
         |   PrimaryExpression
         |   ArrayLiteral
     MembDataLiteral = ~literal ~ParentExpression MemberExpression AccessorCall
