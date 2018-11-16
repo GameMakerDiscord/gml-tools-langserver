@@ -319,7 +319,7 @@ export class InitialAndShutdown {
                 this.initialGMLParse(ourURI, thisFile.fullText, thisFile.hash);
             }
         }
-
+        
         // ! Step Five: Figure out our Silly View Situation
         // Iterate on our Roots:
         for (const thisRoot of this.rootViews) {

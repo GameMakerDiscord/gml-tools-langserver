@@ -1591,7 +1591,7 @@ export class FileSystem {
         });
         yypWatch.on('change', async (event: string, fname: string) => {
             if (timerIsRunning == false) {
-                setTimeout(executeWatchFunctions);
+                setTimeout(executeWatchFunctions, 1000);
                 timerIsRunning = true;
             }
         });

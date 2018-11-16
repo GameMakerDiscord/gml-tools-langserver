@@ -116,6 +116,9 @@ export class LangServ {
 
         // Assign our settings, per setting:
         this.gmlHoverProvider.numberOfSentences = this.userSettings.numberOfDocumentationSentences;
+
+        // Update our View
+        await this.updateViews();
     }
 
     public async findNewSettings(): Promise<{ [prop: string]: string }> {
