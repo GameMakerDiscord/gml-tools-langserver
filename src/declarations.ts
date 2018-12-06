@@ -215,7 +215,8 @@ export interface IObjects {
 }
 
 export interface IVars {
-    [variableName: string]: IVariable;
+    referenceLocation: Location[];
+    varList: { [variableName: string]: IVariable; }
 }
 
 export interface GenericResourceModel {

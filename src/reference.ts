@@ -71,7 +71,10 @@ export class Reference {
         this.lsp = lsp;
 
         // Add our "global" object to the objects:
-        this.objects['global'] = {};
+        this.objects['global'] = {
+            referenceLocation: [],
+            varList: {}
+        };
     }
 
     //#region Init
@@ -279,17 +282,17 @@ export class Reference {
                 // Each Variable... le sigh
                 for (const thisVarName in thisObject) {
                     if (thisObject.hasOwnProperty(thisVarName)) {
-                        const thisVar = thisObject[thisVarName];
+                        const thisVar = thisObject.varList[thisVarName];
                         thisVar.referenceLocations.map(async (thisLocation: Location | null, i) => {
                             if (thisLocation && this.URIRecord[thisLocation.uri] === undefined) {
                                 // Splice out the Record from this Var:
-                                delete this.objects[thisObjectName][thisVarName].referenceLocations[i];
+                                delete this.objects[thisObjectName].varList[thisVarName].referenceLocations[i];
 
                                 if (i === thisVar.origin.indexOfOrigin) {
                                     const newOrigin = await this.instAssignNewOrigin(thisVar.referenceLocations, thisObjectName);
                                     if (newOrigin === null) {
                                         // Delete the variable entirely -- we've lost all reference to it.
-                                        delete this.objects[thisObjectName][thisVarName];
+                                        delete this.objects[thisObjectName].varList[thisVarName];
                                     } else {
                                         thisVar.origin = newOrigin;
                                     }
@@ -359,6 +362,8 @@ export class Reference {
 
     public resourceExists(name: string): boolean {
         const resourceExists = this.projectResources.find(thisResource => {
+            // Objects should never be in "resources". Ugh, GML. garbage language.
+            if (thisResource.type == 'GMObject') return false;
             return thisResource.name === name;
         });
 
@@ -850,11 +855,15 @@ export class Reference {
         return Object.keys(this.objects);
     }
 
-    public objectAddObject(objName: string): boolean {
+    public objectAddObject(objName: string, objLocation?: Location): boolean {
         if (this.scriptExists(objName)) return false;
         if (this.objectExists(objName)) return false;
 
-        this.objects[objName] = {};
+        this.objects[objName] = {
+            varList: {},
+            referenceLocation: []
+        };
+        if (objLocation) this.objects[objName].referenceLocation.push(objLocation);
 
         return true;
     }
@@ -901,6 +910,13 @@ export class Reference {
         }
     }
 
+    public objAddReference(objName: string, objRange: Range, objURI: string) {
+        const thisObject = this.objectGetPackage(objName);
+        if (!thisObject) return;
+
+        thisObject.referenceLocation.push(Location.create(objURI, objRange));
+    }
+
     /**
      * Adds all of the variables in the array to the object
      * property of `reference`. Used for typing services.
@@ -916,7 +932,7 @@ export class Reference {
         // Create Variable location if necessary
         if (this.objects[thisVar.object].hasOwnProperty(thisVar.name) === false) {
             // Extend/Update our internal model
-            this.objects[thisVar.object][thisVar.name] = {
+            this.objects[thisVar.object].varList[thisVar.name] = {
                 origin: {
                     indexOfOrigin: 0,
                     isSelf: thisVar.isSelf,
@@ -954,11 +970,12 @@ export class Reference {
             }
 
             // Push what we have to the stack no matter what:
-            const ourIndex = this.objects[thisVar.object][thisVar.name].referenceLocations.push(Location.create(uri, thisVar.range)) - 1;
+            const ourIndex =
+                this.objects[thisVar.object].varList[thisVar.name].referenceLocations.push(Location.create(uri, thisVar.range)) - 1;
 
             // Override Origin
             if (overrideOrigin) {
-                this.objects[thisVar.object][thisVar.name].origin = {
+                this.objects[thisVar.object].varList[thisVar.name].origin = {
                     indexOfOrigin: ourIndex,
                     isSelf: thisVar.isSelf,
                     varRank: thisVar.supremacy
@@ -977,15 +994,15 @@ export class Reference {
 
     public instExists(objName: string, instName: string): boolean {
         try {
-            return this.objects[objName][instName] !== undefined;
+            return this.objects[objName].varList[instName] !== undefined;
         } catch (e) {
             return false;
         }
     }
 
     private instGetOriginInst(objName: string, varName: string): IOriginVar | null {
-        if (this.objects[objName] && this.objects[objName][varName]) {
-            return this.objects[objName][varName].origin;
+        if (this.objects[objName] && this.objects[objName].varList[varName]) {
+            return this.objects[objName].varList[varName].origin;
         }
 
         return null;
@@ -997,19 +1014,19 @@ export class Reference {
         if (ourPreviousVariables) {
             for (const thisOldVar of ourPreviousVariables) {
                 // Get our Variable Info:
-                const thisVarEntry = this.objects[thisOldVar.object][thisOldVar.name];
+                const thisVarEntry = this.objects[thisOldVar.object].varList[thisOldVar.name];
                 if (!thisVarEntry) {
                     continue;
                 }
 
                 // Splice out the Record from this Var:
-                delete this.objects[thisOldVar.object][thisOldVar.name].referenceLocations[thisOldVar.index];
+                delete this.objects[thisOldVar.object].varList[thisOldVar.name].referenceLocations[thisOldVar.index];
 
                 if (thisOldVar.index === thisVarEntry.origin.indexOfOrigin) {
                     const newOrigin = await this.instAssignNewOrigin(thisVarEntry.referenceLocations, thisOldVar.object);
                     if (newOrigin === null) {
                         // Delete the variable entirely -- we've lost all reference to it.
-                        delete this.objects[thisOldVar.object][thisOldVar.name];
+                        delete this.objects[thisOldVar.object].varList[thisOldVar.name];
                     } else {
                         thisVarEntry.origin = newOrigin;
                     }
@@ -1051,10 +1068,10 @@ export class Reference {
                         thisURIInfo.eventInfo.eventNumb === EventNumber.StepBegin
                             ? VariableRank.BegStep
                             : thisURIInfo.eventInfo.eventNumb === EventNumber.StepNormal
-                                ? VariableRank.Step
-                                : thisURIInfo.eventInfo.eventNumb === EventNumber.StepEnd
-                                    ? VariableRank.EndStep
-                                    : VariableRank.Other;
+                            ? VariableRank.Step
+                            : thisURIInfo.eventInfo.eventNumb === EventNumber.StepEnd
+                            ? VariableRank.EndStep
+                            : VariableRank.Other;
                     if (bestCandidate.varRank < thisRank) continue;
                 } else {
                     thisRank = VariableRank.Other;
@@ -1115,8 +1132,8 @@ export class Reference {
     private instGetVariablePackage(objName: string, variableName: string) {
         const thisObjVariables = this.objects[objName];
 
-        if (thisObjVariables && thisObjVariables[variableName]) {
-            return thisObjVariables[variableName];
+        if (thisObjVariables && thisObjVariables.varList[variableName]) {
+            return thisObjVariables.varList[variableName];
         }
 
         return null;

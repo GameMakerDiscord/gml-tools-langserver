@@ -275,18 +275,9 @@ export class DiagnosticHandler {
                             // argument is present.
                             if (providedArguments.length > currentFunc.maxParams) {
                                 const eMessage =
-                                    'Expected ' +
-                                    currentFunc.maxParams +
-                                    ' arguments, but got ' +
-                                    providedArguments.length +
-                                    '.';
+                                    'Expected ' + currentFunc.maxParams + ' arguments, but got ' + providedArguments.length + '.';
                                 this.semanticDiagnostics.push(
-                                    this.getFunctionDiagnostic(
-                                        this.currentFullTextDocument,
-                                        list,
-                                        currentFunc,
-                                        eMessage
-                                    )
+                                    this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
                                 );
                             }
 
@@ -315,17 +306,11 @@ export class DiagnosticHandler {
                             // Check how many nonEmptyArgs we have, and if it's enough (we don't check
                             // for ">" because the first check should have caught it):
                             if (nonEmptyArgs < currentFunc.minParams) {
-                                const eMessage =
-                                    'Expected ' + currentFunc.minParams + ' arguments, but got ' + nonEmptyArgs + '.';
+                                const eMessage = 'Expected ' + currentFunc.minParams + ' arguments, but got ' + nonEmptyArgs + '.';
 
                                 // Create our Diagnostic:
                                 this.semanticDiagnostics.push(
-                                    this.getFunctionDiagnostic(
-                                        this.currentFullTextDocument,
-                                        list,
-                                        currentFunc,
-                                        eMessage
-                                    )
+                                    this.getFunctionDiagnostic(this.currentFullTextDocument, list, currentFunc, eMessage)
                                 );
                             }
 
@@ -338,12 +323,7 @@ export class DiagnosticHandler {
                                 if (thisArgIsEmpty) {
                                     if (i == 0) {
                                         this.semanticDiagnostics.push(
-                                            this.getFunctionDiagnostic(
-                                                this.currentFullTextDocument,
-                                                iterArray[0],
-                                                currentFunc,
-                                                eMessage
-                                            )
+                                            this.getFunctionDiagnostic(this.currentFullTextDocument, iterArray[0], currentFunc, eMessage)
                                         );
                                     } else {
                                         this.semanticDiagnostics.push(
@@ -409,6 +389,12 @@ export class DiagnosticHandler {
                             // Set to new Stuff
                             this.currentObjectName = objName;
                             this.isSelf = false;
+                            this.currentObjectRange = this.getRangeAtNode(this.currentFullTextDocument, thisObject);
+
+                            // truly this double check is pain
+                            if (this.reference.objectExists(objName)) {
+                                this.reference.objAddReference(this.currentObjectName, this.currentObjectRange, this.uri);
+                            }
 
                             // Do the variable thing
                             thisVariable.indexVariables();
@@ -447,6 +433,11 @@ export class DiagnosticHandler {
                             this.isSelf = false;
                             this.currentObjectRange = this.getRangeAtNode(this.currentFullTextDocument, thisObject);
 
+                            // truly this double check is pain
+                            if (this.reference.objectExists(objName)) {
+                                this.reference.objAddReference(this.currentObjectName, this.currentObjectRange, this.uri);
+                            }
+
                             // Do the variable thing
                             thisVariable.indexVariables();
 
@@ -461,22 +452,27 @@ export class DiagnosticHandler {
                 WithStatement: (_, thisObject: Node, Statement: Node) => {
                     // Figure out our Object Name:
                     let objName = thisObject.child(0).sourceString;
+                    let objIndex = thisObject.child(0).source.startIdx;
                     if (objName.charAt(0) == '(' && objName.charAt(objName.length - 1) == ')') {
+                        objIndex += 1;
                         objName = objName.slice(1, objName.length - 1);
                     }
 
                     // The Ariak check
                     const macroVal = this.reference.macroGetMacroValue(objName);
                     if (macroVal) {
-                        this.reference.macroAddReference(
-                            objName,
-                            this.uri,
-                            this.getRangeAtNode(this.currentFullTextDocument, thisObject)
-                        );
+                        this.reference.macroAddReference(objName, this.uri, this.getRangeAtNode(this.currentFullTextDocument, thisObject));
                         objName = macroVal;
                     }
 
                     if (this.reference.objectExists(objName) && this.currentObjectName != objName) {
+                        // Save this Object
+                        const objPosStart = getPositionFromIndex(this.currentFullTextDocument, objIndex + this.semanticIndex);
+                        let objPosEnd = objPosStart;
+                        objPosEnd.character += objName.length;
+
+                        this.reference.objAddReference(objName, Range.create(objPosStart, objPosEnd), this.uri);
+
                         // Save our Current Var Parsing State
                         const oldObj = this.currentObjectName;
                         const oldSelf = this.isSelf;
@@ -516,11 +512,7 @@ export class DiagnosticHandler {
                         this.localQuickCheck.push('*.' + varName);
 
                         // Push it to reference:
-                        this.reference.localCreateLocal(
-                            varName,
-                            this.uri,
-                            this.getRangeAtNode(this.currentFullTextDocument, variable)
-                        );
+                        this.reference.localCreateLocal(varName, this.uri, this.getRangeAtNode(this.currentFullTextDocument, variable));
                     }
                 },
 
@@ -565,16 +557,10 @@ export class DiagnosticHandler {
                 PureMacro: (macroWord: Node, _) => {
                     if (this.reference.macroExists(macroWord.sourceString) == false) {
                         // Get Start Position
-                        const startPos = getPositionFromIndex(
-                            this.currentFullTextDocument,
-                            macroWord.source.startIdx + this.semanticIndex
-                        );
+                        const startPos = getPositionFromIndex(this.currentFullTextDocument, macroWord.source.startIdx + this.semanticIndex);
 
                         // Get End Position (add one for colon)
-                        const endPos = getPositionFromIndex(
-                            this.currentFullTextDocument,
-                            macroWord.source.endIdx + this.semanticIndex
-                        );
+                        const endPos = getPositionFromIndex(this.currentFullTextDocument, macroWord.source.endIdx + this.semanticIndex);
 
                         // Create return Diagnostic
                         this.semanticDiagnostics.push({
@@ -632,15 +618,9 @@ export class DiagnosticHandler {
                 },
 
                 DefineStatement: (defineWord: Node, funcName: Node) => {
-                    const startPos = getPositionFromIndex(
-                        this.currentFullTextDocument,
-                        defineWord.source.startIdx + this.semanticIndex
-                    );
+                    const startPos = getPositionFromIndex(this.currentFullTextDocument, defineWord.source.startIdx + this.semanticIndex);
 
-                    const endPos = getPositionFromIndex(
-                        this.currentFullTextDocument,
-                        funcName.source.endIdx + this.semanticIndex
-                    );
+                    const endPos = getPositionFromIndex(this.currentFullTextDocument, funcName.source.endIdx + this.semanticIndex);
 
                     this.semanticDiagnostics.push({
                         severity: DiagnosticSeverity.Warning,
@@ -709,16 +689,7 @@ export class DiagnosticHandler {
                     this.jsdocGenerated.returns = desc.sourceString;
                 },
 
-                jsdocGMS1: (
-                    slash: Node,
-                    _0,
-                    jsdocGMS1funcName: Node,
-                    _1,
-                    _2,
-                    paramList: Node,
-                    _3,
-                    jsdocGMS1desc: Node
-                ) => {
+                jsdocGMS1: (slash: Node, _0, jsdocGMS1funcName: Node, _1, _2, paramList: Node, _3, jsdocGMS1desc: Node) => {
                     if (slash.source.startIdx != 0) {
                         return;
                     }
@@ -796,19 +767,13 @@ export class DiagnosticHandler {
         const varName = variable.sourceString;
 
         if (this.localQuickCheck.includes('*.' + varName)) {
-            this.reference.localPushLocalReference(
-                varName,
-                this.uri,
-                this.getRangeAtNode(this.currentFullTextDocument, variable)
-            );
+            this.reference.localPushLocalReference(varName, this.uri, this.getRangeAtNode(this.currentFullTextDocument, variable));
         } else if (this.reference.macroExists(varName)) {
-            this.reference.macroAddReference(
-                varName,
-                this.uri,
-                this.getRangeAtNode(this.currentFullTextDocument, variable)
-            );
+            this.reference.macroAddReference(varName, this.uri, this.getRangeAtNode(this.currentFullTextDocument, variable));
         } else if (this.reference.resourceExists(varName)) {
             // We're a resource, and we don't know what to do with these yet!
+        } else if (this.reference.objectExists(varName)) {
+            this.reference.objAddReference(varName, this.getRangeAtNode(this.currentFullTextDocument, variable), this.uri);
         } else if (this.reference.enumMemberExists(this.currentObjectName, varName)) {
             // We're an enumMember
             // objectName is the enum name
@@ -909,18 +874,10 @@ export class DiagnosticHandler {
              * We cut upwards here, trying to find the last safe position, using our last last safe
              * position as our first point, trying to find an appropriate last point.
              */
-            let possibleSafeEndPosition = regexLastIndexOf(
-                fullTextDoc,
-                backwardLookup,
-                currentFailure + sliceIndex + 1
-            );
+            let possibleSafeEndPosition = regexLastIndexOf(fullTextDoc, backwardLookup, currentFailure + sliceIndex + 1);
             let attemptWalkBack = possibleSafeEndPosition - sliceIndex + 1 <= 0 ? false : true;
             if (attemptWalkBack) {
-                this.matcher.replaceInputRange(
-                    possibleSafeEndPosition - sliceIndex,
-                    this.matcher.getInput().length,
-                    ''
-                );
+                this.matcher.replaceInputRange(possibleSafeEndPosition - sliceIndex, this.matcher.getInput().length, '');
 
                 let successFoundAbove = true;
                 while (this.match() == false) {
@@ -931,15 +888,10 @@ export class DiagnosticHandler {
                         successFoundAbove = false;
                         break;
                     }
-                    this.matcher.replaceInputRange(
-                        possibleSafeEndPosition + 1 - sliceIndex,
-                        oldEndPos - sliceIndex,
-                        ''
-                    );
+                    this.matcher.replaceInputRange(possibleSafeEndPosition + 1 - sliceIndex, oldEndPos - sliceIndex, '');
                 }
                 // If we found success in the above matchResults, then we push it along:
-                if (successFoundAbove)
-                    this.pushToSalvagedMatchResults(sliceIndex, possibleSafeEndPosition, salvagedMatchResults);
+                if (successFoundAbove) this.pushToSalvagedMatchResults(sliceIndex, possibleSafeEndPosition, salvagedMatchResults);
                 //#endregion
             }
 
@@ -968,11 +920,7 @@ export class DiagnosticHandler {
      * Packages the succesful match and sends it to the
      * supplied array. Simply put into a method for organization.
      */
-    private pushToSalvagedMatchResults(
-        sliceIndex: number,
-        possibleSafeEndPosition: number,
-        salvagedMatchResults: MatchResultsPackage[]
-    ) {
+    private pushToSalvagedMatchResults(sliceIndex: number, possibleSafeEndPosition: number, salvagedMatchResults: MatchResultsPackage[]) {
         // Add to the array:
         let indexPosition: IndexRange = {
             startIndex: sliceIndex,
@@ -1037,12 +985,7 @@ export class DiagnosticHandler {
         };
     }
 
-    private getFunctionDiagnostic(
-        fullTextDocument: string,
-        node: Node,
-        currentFunc: GMLFunctionStack,
-        errorMessage: string
-    ): Diagnostic {
+    private getFunctionDiagnostic(fullTextDocument: string, node: Node, currentFunc: GMLFunctionStack, errorMessage: string): Diagnostic {
         // Combine the function interval and the argument interval
         const functionInterval = node.source.coverageWith(currentFunc.interval, node.source);
 
