@@ -150,7 +150,7 @@ export function replaceAllRegex(str: string, find: RegExp, replace: string): str
     return str.replace(new RegExp(find, 'g'), replace);
 }
 
-export class timeUtil {
+export class TimeUtil {
     private fastTime: [number, number];
 
     constructor() {

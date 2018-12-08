@@ -2,7 +2,7 @@ import { grammar, Grammar } from 'ohm-js';
 import * as fse from 'fs-extra';
 import * as path from 'path';
 import { GMLHoverProvider } from './hover';
-import { timeUtil } from './utils';
+import { TimeUtil } from './utils';
 import {
     IConnection,
     Diagnostic,
@@ -19,7 +19,7 @@ import { DiagnosticHandler, DiagnosticsPackage, LintPackage } from './diagnostic
 import { Reference } from './reference';
 import { GMLDefinitionProvider } from './definition';
 import { GMLSignatureProvider } from './signature';
-import { GMLCompletionProvider } from './completion';
+import { GMLCompletionProvider, Magical } from './completion';
 import { SemanticsOption, LanguageService, GMLDocs, GMLToolsSettings, DocumentFolder } from './declarations';
 import { DocumentationImporter } from './documentationImporter';
 import { InitialAndShutdown } from './startAndShutdown';
@@ -35,7 +35,7 @@ export class LangServ {
     public gmlCompletionProvider: GMLCompletionProvider;
     public reference: Reference;
     public initialStartup: InitialAndShutdown;
-    public timer: timeUtil;
+    public timer: TimeUtil;
     public userSettings: GMLToolsSettings.Config;
     private originalOpenDocuments: DidOpenTextDocumentParams[];
     readonly __dirName: string;
@@ -56,7 +56,7 @@ export class LangServ {
         this.gmlDefinitionProvider = new GMLDefinitionProvider(this.reference, this);
         this.gmlSignatureProvider = new GMLSignatureProvider(this.reference, this.fsManager);
         this.gmlCompletionProvider = new GMLCompletionProvider(this.reference, this.fsManager);
-        this.timer = new timeUtil();
+        this.timer = new TimeUtil();
 
         // Basic User Settings
         this.userSettings = {
@@ -351,7 +351,6 @@ export class LangServ {
 
         // Send it off to the filesystem manager (no reference needed here):
         return await this.fsManager.resourceFolderCreate(folderPackage);
-
     }
 
     public async createObject(objectPackage: ResourcePackage) {
@@ -407,7 +406,7 @@ export class LangServ {
     public async deleteScript(clientScriptPack: ResourcePackage): Promise<boolean> {
         // Make sure our YYP is accurate still
         if ((await this.fsManager.validateYYP(this.connection)) === false) return false;
-        
+
         // Get the package
         const scriptPack = this.reference.scriptGetPackage(clientScriptPack.resourceName);
         if (!scriptPack) return false;
