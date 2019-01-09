@@ -10,7 +10,7 @@ import {
     MarkupContent,
     MarkupKind
 } from 'vscode-languageserver';
-import { getWordAtPositionFS, TimeUtil } from './utils';
+import { getWordAtPositionFS } from './utils';
 import { OtherResources, JSDOC } from './declarations';
 
 export class GMLCompletionProvider {
@@ -353,63 +353,4 @@ export class GMLCompletionProvider {
         }
         return thisItem;
     }
-}
-
-export class Magical {
-    public myTimer = new TimeUtil();
-
-    public tophersMagicMethod(originalNum: number, originalDenom: number): (number[])[] {
-        this.myTimer.setTimeFast();
-        const GD: number[] = this.reduce(originalNum, originalDenom);
-
-        let thisNum = originalNum;
-        let thisDenom = originalDenom;
-
-        let i = 2;
-        const ret: (number[])[] = [];
-
-        while (thisNum != GD[0] && thisDenom != GD[1]) {
-            thisNum = originalNum / i;
-            thisDenom = originalDenom / i;
-
-            if (thisNum % 1 === 0 && thisDenom % 1 === 0) {
-                ret.push([thisNum, thisDenom]);
-            }
-            i++;
-        }
-
-        for (const thisTuple of ret) {
-            const maxMultiple = Math.floor(originalNum / thisTuple[Frac.Numerator]) + 1;
-
-            for (let i = 1; i < maxMultiple; i++) {
-                const thisMultiple = [thisTuple[Frac.Numerator] * i, thisTuple[Frac.Denominator] * i];
-                if (
-                    ret.find((value: number[]) => {
-                        return (
-                            thisMultiple[Frac.Numerator] == value[Frac.Numerator] &&
-                            thisMultiple[Frac.Denominator] == value[Frac.Denominator]
-                        );
-                    }) == undefined
-                ) {
-                    ret.push(thisMultiple);
-                }
-            }
-        }
-
-        console.log(this.myTimer.timeDifferenceNowNice());
-        return ret;
-    }
-
-    reduce(numerator: number, denominator: number) {
-        var gcd = function gcd(a: number, b: number): number {
-            return b ? gcd(b, a % b) : a;
-        };
-        var thisGCD = gcd(numerator, denominator);
-        return [numerator / thisGCD, denominator / thisGCD];
-    }
-}
-
-enum Frac {
-    Numerator,
-    Denominator
 }

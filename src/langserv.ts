@@ -19,7 +19,7 @@ import { DiagnosticHandler, DiagnosticsPackage, LintPackage } from './diagnostic
 import { Reference } from './reference';
 import { GMLDefinitionProvider } from './definition';
 import { GMLSignatureProvider } from './signature';
-import { GMLCompletionProvider, Magical } from './completion';
+import { GMLCompletionProvider } from './completion';
 import { SemanticsOption, LanguageService, GMLDocs, GMLToolsSettings, DocumentFolder } from './declarations';
 import { DocumentationImporter } from './documentationImporter';
 import { InitialAndShutdown } from './startAndShutdown';
