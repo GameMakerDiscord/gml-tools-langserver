@@ -1,5 +1,5 @@
 import { Range, Location, Position } from 'vscode-languageserver/lib/main';
-import { GMLVarParse } from './diagnostic';
+import { GMLVarParse } from '../diagnostic';
 import {
     GMLDocs,
     LanguageService,
@@ -11,18 +11,19 @@ import {
     IOriginVar,
     VariableRank,
     IEnumMembers,
-    IScript,
+    IScriptEvent,
     ICallables,
     IFunction,
     IExtension,
     JSDOC,
     IVars
-} from './declarations';
-import { LangServ } from './langserv';
+} from '../declarations';
+import { LangServ } from '../langserv';
 import { EventType, EventNumber } from 'yyp-typings';
-import { cleanArray, cleanArrayLength } from './utils';
-import { ProjectCache } from './startAndShutdown';
-import { FileSystem } from './fileSystem';
+import { cleanArray, cleanArrayLength } from '../utils';
+import { ProjectCache } from '../startAndShutdown';
+import { FileSystem } from '../fileSystem';
+import { Callables } from './callables';
 
 export interface GenericResourceDescription {
     name: string;
@@ -44,34 +45,31 @@ export declare type BasicResourceType =
     | 'GMIncludedFile';
 
 export class Reference {
+    // Containers
+    public callables: Callables;
+
     private lsp: LangServ;
     private objects: IObjects;
-    private callables: ICallables;
     private gmlDocs: GMLDocs.DocFile | undefined;
-    private functionList: string[];
     private enums: { [uri: string]: IEnum };
     private macros: { [name: string]: IMacro };
     private projectResources: GenericResourceDescription[];
     private URIRecord: { [thisUri: string]: IURIRecord };
-    private extensionRecord: ProjectCache.IExtensionRecord;
 
     constructor(lsp: LangServ) {
         this.objects = {};
-        this.callables = {
-            scripts: {},
-            functions: {},
-            extensions: {}
-        };
-        this.functionList = [];
         this.enums = {};
         this.macros = {};
         this.projectResources = [];
         this.URIRecord = {};
-        this.extensionRecord = {};
         this.lsp = lsp;
+        this.callables = new Callables(this, this.URIRecord);
 
         // Add our "global" object to the objects:
-        this.objects['global'] = {};
+        this.objects['global'] = {
+            members: {},
+            referenceURIs: []
+        };
     }
 
     //#region Init
@@ -90,11 +88,11 @@ export class Reference {
                 link: thisFunction.link
             };
             // Add to the Reference Chart
-            this.functionAddFunction(thisFunction.name, jsdoc, thisFunction.doNotAutoComplete);
+            this.callables.functionAddFunction(thisFunction.name, jsdoc, thisFunction.doNotAutoComplete);
 
             // Add to our list
             if (thisFunction.doNotAutoComplete === false) {
-                this.functionList.push(thisFunction.name);
+                this.callables.functionList.push(thisFunction.name);
             }
         }
     }
@@ -113,23 +111,22 @@ export class Reference {
             };
 
             // Scripts
-            const thisScript = this.scriptGetPackage(thisCallable.name);
-            if (thisScript) this.scriptAddJSDOC(thisScript, ourJSDOC);
+            const thisScript = this.callables.scripts[thisCallable.name];
+            if (thisScript) this.callables.scripts[thisCallable.name].JSDOC = ourJSDOC;
 
             // Functions
-            const thisFunction = this.functionGetPackage(thisCallable.name);
-            if (thisFunction) this.functionOverwriteJSON(thisFunction, ourJSDOC);
+            const thisFunction = this.callables.functionGetPackage(thisCallable.name);
+            if (thisFunction) this.callables.functionOverwriteJSON(thisFunction, ourJSDOC);
 
             // Extensions
-            const thisExtension = this.extensionGetPackage(thisCallable.name);
-            if (thisExtension) this.extensionOverwriteJSON(thisExtension, ourJSDOC);
+            const thisExtension = this.callables.extensionGetPackage(thisCallable.name);
+            if (thisExtension) this.callables.extensionOverwriteJSON(thisExtension, ourJSDOC);
         }
     }
 
     public docsClearSecondaryDocs() {
         // for (const thisFunctionName of this.gmlDocOverrides) {
         //     if (thisFunctionName.originalEntry) {
-        //         this.scriptsAndFunctions[thisFunctionName.name] = thisFunctionName.originalEntry;
         //     } else {
         //         this.scriptDelete(thisFunctionName.name);
         //     }
@@ -279,17 +276,17 @@ export class Reference {
                 // Each Variable... le sigh
                 for (const thisVarName in thisObject) {
                     if (thisObject.hasOwnProperty(thisVarName)) {
-                        const thisVar = thisObject[thisVarName];
-                        thisVar.referenceLocations.map(async (thisLocation: Location | null, i) => {
+                        const thisVar = thisObject.members[thisVarName];
+                        thisVar.referenceLocations.map(async (thisLocation: Location | null, i: number) => {
                             if (thisLocation && this.URIRecord[thisLocation.uri] === undefined) {
                                 // Splice out the Record from this Var:
-                                delete this.objects[thisObjectName][thisVarName].referenceLocations[i];
+                                delete this.objects[thisObjectName].members[thisVarName].referenceLocations[i];
 
                                 if (i === thisVar.origin.indexOfOrigin) {
                                     const newOrigin = await this.instAssignNewOrigin(thisVar.referenceLocations, thisObjectName);
                                     if (newOrigin === null) {
                                         // Delete the variable entirely -- we've lost all reference to it.
-                                        delete this.objects[thisObjectName][thisVarName];
+                                        delete this.objects[thisObjectName].members[thisVarName];
                                     } else {
                                         thisVar.origin = newOrigin;
                                     }
@@ -315,7 +312,7 @@ export class Reference {
         }
 
         if (resourceType == 'GMScript') {
-            this.scriptAddScript(resourceName, '', {
+            this.callables.scriptAddScript(resourceName, '', {
                 description: '',
                 isScript: true,
                 minParameters: 0,
@@ -367,12 +364,13 @@ export class Reference {
         } else return false;
     }
 
+
     public URIcreateURIDictEntry(thisURI: string) {
         this.URIRecord[thisURI] = {
             localVariables: {},
-            foldingRanges: [],
             macros: [],
-            instanceVariables: [],
+            events: [],
+            instanceVariablesRecords: [],
             scripts: [],
             extensions: [],
             functions: [],
@@ -403,9 +401,9 @@ export class Reference {
         await this.instClearAllInstAtURI(thisURI);
         await this.localClearAtllLocsAtURI(thisURI);
         await this.implicitClearImplicitAtURI(thisURI);
-        await this.scriptRemoveAllReferencesAtURI(thisURI);
-        await this.functionRemoveAllReferencesAtURI(thisURI);
-        await this.extensionRemoveAllReferencesAtURI(thisURI);
+        await this.callables.scriptRemoveAllReferencesAtURI(thisURI);
+        await this.callables.functionRemoveAllReferencesAtURI(thisURI);
+        await this.callables.extensionRemoveAllReferencesAtURI(thisURI);
     }
 
     public async URIRecordDeleteAtURI(thisURI: string) {
@@ -511,288 +509,6 @@ export class Reference {
 
     //#endregion
 
-    //#region Callables
-
-    //#region Scripts
-    public scriptAddScript(thisName: string, thisURI: string, jsdoc: JSDOC) {
-        // TODO Remove this check if it never procs.
-        if (this.scriptExists(thisName)) {
-            console.log(`Attempting to add ${thisName}, which is already a script.`);
-            return;
-        }
-
-        this.callables.scripts[thisName] = {
-            JSDOC: jsdoc,
-            uri: thisURI,
-            referenceLocations: []
-        };
-    }
-
-    public scriptSetURI(thisName: string, thisURI: string) {
-        const thisScript = this.scriptGetPackage(thisName);
-        if (thisScript) thisScript.uri = thisURI;
-    }
-
-    public scriptAddJSDOC(scriptPack: IScript, jsdoc: JSDOC) {
-        scriptPack.JSDOC = jsdoc;
-    }
-
-    public scriptGetAllScriptNames() {
-        return Object.getOwnPropertyNames(this.callables.scripts);
-    }
-
-    /**
-     * Checks if a script or function exists. Note we don't check
-     * the script list here because that list is for autocomplete.
-     * @param thisName The name of the Script or Function to check.
-     */
-    public scriptExists(thisName: string): Boolean {
-        return this.callables.scripts.hasOwnProperty(thisName);
-    }
-
-    /**
-     * Returns the JSDOC of a script or function. Note: it
-     * does not check if the script or function exists first.
-     * Always call `scriptExists` first.
-     * @param thisName The name of the Script or Function to check.
-     */
-    public scriptGetPackage(thisName: string): IScript | undefined {
-        return this.callables.scripts[thisName];
-    }
-
-    /**
-     * Deletes a script entirely from the internal model, including
-     * any references to it. It is **not safe** to use without checking
-     * that the script exists first.
-     * @param thisName This is the script to the delete.
-     */
-    public scriptDelete(thisName: string) {
-        // Clean the URI
-        this.URIRecordClearAtURI(this.callables.scripts[thisName].uri);
-
-        // Delete the Script itself
-        delete this.callables.scripts[thisName];
-
-        // Delete the Resource
-        this.deleteResource(thisName);
-
-        // Iterate on the URIRecords. Deleting a script is rare, so this
-        // can be a big operation.
-        for (const thisRecordName in this.URIRecord) {
-            if (this.URIRecord.hasOwnProperty(thisRecordName)) {
-                const thisRecord = this.URIRecord[thisRecordName];
-
-                for (let i = 0; i < thisRecord.scripts.length; i++) {
-                    const thisScriptRecord = thisRecord.scripts[i];
-
-                    if (thisScriptRecord.name === thisName) {
-                        delete thisRecord.scripts[i];
-                    }
-                }
-
-                // Clean the Array and Return it
-                thisRecord.scripts = cleanArray(thisRecord.scripts);
-            }
-        }
-
-        // Find and delete the script in the project resources
-    }
-
-    /**
-     * Adds a script reference unsafely (must run scriptExists first) and
-     * adds to the URI record for the script.
-     */
-    public scriptAddReference(thisName: string, thisURI: string, thisRange: Range) {
-        // Add to the script object
-        const i = this.callables.scripts[thisName].referenceLocations.push(Location.create(thisURI, thisRange)) - 1;
-
-        // Create the Record Object if it doesn't exist
-        if (!this.URIRecord[thisURI]) this.URIcreateURIDictEntry(thisURI);
-
-        this.URIRecord[thisURI].scripts.push({
-            index: i,
-            name: thisName
-        });
-    }
-
-    /**
-     * Removes all references to a script unsafely (run scriptExists first) at
-     * a given URI.
-     */
-    public async scriptRemoveAllReferencesAtURI(thisURI: string) {
-        if (!this.URIRecord[thisURI]) this.URIcreateURIDictEntry(thisURI);
-
-        for (const thisScriptIndex of this.URIRecord[thisURI].scripts) {
-            // Get our Script Pack
-            const scriptPack = this.scriptGetPackage(thisScriptIndex.name);
-            if (!scriptPack) return;
-
-            // Splice out the old location:
-            delete scriptPack.referenceLocations[thisScriptIndex.index];
-        }
-
-        // Clear our Record of Indexes since those indexes have been removed:
-        this.URIRecord[thisURI].scripts = [];
-    }
-    /**
-     * Retrieves all references for a given script.
-     * @param thisScriptName The name of the script to get all reference to.
-     */
-    public scriptGetAllReferences(thisScriptName: string): Location[] | null {
-        const scriptPack = this.scriptGetPackage(thisScriptName);
-        if (!scriptPack) return null;
-
-        return cleanArray(scriptPack.referenceLocations);
-    }
-    //#endregion
-
-    //#region GM Functions
-    public functionAddFunction(thisName: string, thisJSDOC: JSDOC, doNotAutoComplete: boolean) {
-        this.callables.functions[thisName] = {
-            JSDOC: thisJSDOC,
-            doNotAutoComplete: doNotAutoComplete,
-            referenceLocations: []
-        };
-    }
-
-    public functionGetPackage(thisName: string): IFunction | undefined {
-        return this.callables.functions[thisName];
-    }
-
-    public functionOverwriteJSON(thisPack: IFunction, thisJSDOC: JSDOC) {
-        thisPack.JSDOC = thisJSDOC;
-    }
-
-    public functionGetAllFunctionNames() {
-        return this.functionList;
-    }
-
-    public functionAddReference(thisName: string, thisURI: string, thisRange: Range) {
-        const ourFunction = this.functionGetPackage(thisName);
-        if (!ourFunction) return;
-
-        ourFunction.referenceLocations.push(Location.create(thisURI, thisRange));
-    }
-
-    public functionRemoveAllReferencesAtURI(thisURI: string) {
-        const thisURIRecord = this.URIgetURIRecord(thisURI);
-
-        for (const thisFunctionRecord of thisURIRecord.functions) {
-            // Get our Script Pack
-            const ourFunctionPack = this.functionGetPackage(thisFunctionRecord.name);
-            if (!ourFunctionPack) return;
-
-            // Splice out the old location:
-            delete ourFunctionPack.referenceLocations[thisFunctionRecord.index];
-        }
-
-        // Clear our Record of Indexes since those indexes have been removed:
-        this.URIRecord[thisURI].functions = [];
-    }
-
-    public functionGetAllReferences(thisName: string): Location[] | null {
-        const ourFunctionPack = this.functionGetPackage(thisName);
-        if (!ourFunctionPack) return null;
-
-        return cleanArray(ourFunctionPack.referenceLocations);
-    }
-
-    //#region Extensions
-    public extensionAddExtension(
-        thisName: string,
-        thisJSDOC: JSDOC,
-        doNotAutoComplete: boolean,
-        originLoc: Location,
-        extensionName: string,
-        extensionFileName: string,
-        referenceLocations?: Location[]
-    ) {
-        if (referenceLocations === undefined) {
-            referenceLocations = [];
-        }
-
-        this.callables.extensions[thisName] = {
-            doNotAutoComplete: doNotAutoComplete,
-            JSDOC: thisJSDOC,
-            referenceLocations: referenceLocations,
-            originLocation: originLoc
-        };
-
-        // Add to our Record
-        if (!this.extensionRecord[extensionName]) {
-            this.extensionRecord[extensionName] = {};
-        }
-        if (!this.extensionRecord[extensionName][extensionFileName]) {
-            this.extensionRecord[extensionName][extensionFileName] = {
-                hash: '',
-                contributedFunctions: []
-            };
-        }
-        this.extensionRecord[extensionName][extensionFileName].contributedFunctions.push(thisName);
-    }
-
-    public extensionRecordSetHash(extensionName: string, extensionFileName: string, hash: string) {
-        // Add to our Record
-        if (!this.extensionRecord[extensionName]) {
-            this.extensionRecord[extensionName] = {};
-        }
-        if (!this.extensionRecord[extensionName][extensionFileName]) {
-            this.extensionRecord[extensionName][extensionFileName] = {
-                hash: '',
-                contributedFunctions: []
-            };
-        }
-        this.extensionRecord[extensionName][extensionFileName].hash = hash;
-    }
-
-    public extensionGetPackage(thisName: string): IExtension | undefined {
-        return this.callables.extensions[thisName];
-    }
-
-    public extensionOverwriteJSON(thisPack: IExtension, thisJSDOC: JSDOC) {
-        thisPack.JSDOC = thisJSDOC;
-    }
-
-    public extensionGetAllExtensionNames() {
-        return Object.getOwnPropertyNames(this.callables.extensions);
-    }
-
-    public extensionAddReference(thisName: string, thisURI: string, thisRange: Range) {
-        const ourExtension = this.extensionGetPackage(thisName);
-        if (!ourExtension) return;
-
-        ourExtension.referenceLocations.push(Location.create(thisURI, thisRange));
-    }
-
-    public extensionRemoveAllReferencesAtURI(thisURI: string) {
-        const thisURIRecord = this.URIgetURIRecord(thisURI);
-
-        for (const thisExtensionRecord of thisURIRecord.extensions) {
-            // Get our Script Pack
-            const ourExtensionPack = this.extensionGetPackage(thisExtensionRecord.name);
-            if (!ourExtensionPack) return;
-
-            // Splice out the old location:
-            delete ourExtensionPack.referenceLocations[thisExtensionRecord.index];
-        }
-
-        // Clear our Record of Indexes since those indexes have been removed:
-        this.URIRecord[thisURI].extensions = [];
-    }
-
-    public extensionGetAllReferences(thisName: string): Location[] | null {
-        const ourExtensionPack = this.extensionGetPackage(thisName);
-        if (!ourExtensionPack) return null;
-
-        return cleanArray(ourExtensionPack.referenceLocations);
-    }
-
-    //#endregion
-
-    //#endregion
-
-    //#endregion
-
     //#region ImplicitThis
     public implicitAddImplicitEntry(objName: string, uri: string, pos: Position) {
         this.URIRecord[uri].implicitThisAtPosition.push({
@@ -851,10 +567,13 @@ export class Reference {
     }
 
     public objectAddObject(objName: string): boolean {
-        if (this.scriptExists(objName)) return false;
+        if (this.callables.scriptExists(objName)) return false;
         if (this.objectExists(objName)) return false;
 
-        this.objects[objName] = {};
+        this.objects[objName] = {
+            members: {},
+            referenceURIs: []
+        };
 
         return true;
     }
@@ -873,17 +592,17 @@ export class Reference {
 
                 // Inst Variables:
                 let altered = false;
-                for (let i = 0; i < thisRecord.instanceVariables.length; i++) {
-                    const thisInst = thisRecord.instanceVariables[i];
+                for (let i = 0; i < thisRecord.instanceVariablesRecords.length; i++) {
+                    const thisInst = thisRecord.instanceVariablesRecords[i];
 
                     if (thisInst.object === objName) {
-                        delete thisRecord.instanceVariables[i];
+                        delete thisRecord.instanceVariablesRecords[i];
                         altered = true;
                     }
                 }
 
                 // Clean the Array and Return it
-                if (altered) thisRecord.instanceVariables = cleanArray(thisRecord.scripts);
+                if (altered) thisRecord.instanceVariablesRecords = cleanArray(thisRecord.scripts);
 
                 // Implicits:
                 altered = false;
@@ -896,9 +615,57 @@ export class Reference {
                     }
                 }
 
-                if (altered) thisRecord.instanceVariables = cleanArray(thisRecord.instanceVariables);
+                if (altered) thisRecord.instanceVariablesRecords = cleanArray(thisRecord.instanceVariablesRecords);
             }
         }
+    }
+
+    public objectAddParse(objName: string, uri: string, gmlParse: GMLVarParse) {
+        const record = this.URIgetURIRecord(uri);
+
+        // Add the Reference URI
+        this.objects[objName].referenceURIs.push(record);
+
+        // Now add to the members:
+        for (const inst of record.instanceVariableParse) {
+            this.instAddInstToObject(inst, uri);
+        }
+    }
+
+    public objectRemoveURI(objName: string, uri: string) {
+        const record = this.URIgetURIRecord(uri);
+
+        // Remove the Reference URI
+        let uriIndex: null | number = null;
+        for (let i = 0; i < this.objects[objName].referenceURIs.length; i++) {
+            const element = this.objects[objName].referenceURIs[i];
+
+            if (element.hash == record.hash) {
+                uriIndex = i;
+                break;
+            }
+        }
+        if (uriIndex == null) return;
+
+        // Remove the URI References!
+        this.instClearAllInstAtURI(uri);
+        this.objects[objName].referenceURIs.splice(uriIndex, 1);
+    }
+
+    public objectExists(objName: string) {
+        return this.objectGetPackage(objName) !== undefined;
+    }
+
+    public objectGetPackage(objName: string): IVars | undefined {
+        return this.objects[objName].members;
+    }
+
+    public objectGetAllInsts(objName: string): string[] {
+        if (this.objects.hasOwnProperty(objName) == false) {
+            return [];
+        }
+
+        return Object.getOwnPropertyNames(this.objects[objName].members);
     }
 
     /**
@@ -907,7 +674,7 @@ export class Reference {
      * @param var Object to add/check.
      * @param vars The variable array to add. If none, pass empty array.
      */
-    public instAddInstToObject(thisVar: GMLVarParse, uri: string) {
+    private instAddInstToObject(thisVar: GMLVarParse, uri: string) {
         // Exit if we don't have an object!
         if (this.objects.hasOwnProperty(thisVar.object) == false) {
             return;
@@ -916,7 +683,7 @@ export class Reference {
         // Create Variable location if necessary
         if (this.objects[thisVar.object].hasOwnProperty(thisVar.name) === false) {
             // Extend/Update our internal model
-            this.objects[thisVar.object][thisVar.name] = {
+            this.objects[thisVar.object].members[thisVar.name] = {
                 origin: {
                     indexOfOrigin: 0,
                     isSelf: thisVar.isSelf,
@@ -926,7 +693,7 @@ export class Reference {
             };
 
             // Create a Record of this Object
-            this.URIRecord[uri].instanceVariables.push({
+            this.URIRecord[uri].instanceVariablesRecords.push({
                 object: thisVar.object,
                 name: thisVar.name,
                 index: 0,
@@ -954,11 +721,12 @@ export class Reference {
             }
 
             // Push what we have to the stack no matter what:
-            const ourIndex = this.objects[thisVar.object][thisVar.name].referenceLocations.push(Location.create(uri, thisVar.range)) - 1;
+            const ourIndex =
+                this.objects[thisVar.object].members[thisVar.name].referenceLocations.push(Location.create(uri, thisVar.range)) - 1;
 
             // Override Origin
             if (overrideOrigin) {
-                this.objects[thisVar.object][thisVar.name].origin = {
+                this.objects[thisVar.object].members[thisVar.name].origin = {
                     indexOfOrigin: ourIndex,
                     isSelf: thisVar.isSelf,
                     varRank: thisVar.supremacy
@@ -966,7 +734,7 @@ export class Reference {
             }
 
             // Create our Record
-            this.URIRecord[uri].instanceVariables.push({
+            this.URIRecord[uri].instanceVariablesRecords.push({
                 object: thisVar.object,
                 name: thisVar.name,
                 index: ourIndex,
@@ -975,48 +743,51 @@ export class Reference {
         }
     }
 
-    public instExists(objName: string, instName: string): boolean {
+    private instExists(objName: string, instName: string): boolean {
         try {
-            return this.objects[objName][instName] !== undefined;
+            return this.objects[objName].members[instName] !== undefined;
         } catch (e) {
             return false;
         }
     }
 
     private instGetOriginInst(objName: string, varName: string): IOriginVar | null {
-        if (this.objects[objName] && this.objects[objName][varName]) {
-            return this.objects[objName][varName].origin;
+        // TODO: do work here for scripts with multiple objects inheriting! We don't want to provide anything if there are multiple,
+        // TODO: indivisible, different origins, like in `move_and_collide` scripts.
+        // TODO: do work here for objects with multiple inheritences. We want the origin here!
+        if (this.objects[objName] && this.objects[objName].members[varName]) {
+            return this.objects[objName].members[varName].origin;
         }
 
         return null;
     }
 
-    public async instClearAllInstAtURI(uri: string) {
-        const ourPreviousVariables = this.URIRecord[uri].instanceVariables;
+    private async instClearAllInstAtURI(uri: string) {
+        const ourPreviousVariables = this.URIRecord[uri].instanceVariablesRecords;
 
         if (ourPreviousVariables) {
             for (const thisOldVar of ourPreviousVariables) {
                 // Get our Variable Info:
-                const thisVarEntry = this.objects[thisOldVar.object][thisOldVar.name];
+                const thisVarEntry = this.objects[thisOldVar.object].members[thisOldVar.name];
                 if (!thisVarEntry) {
                     continue;
                 }
 
                 // Splice out the Record from this Var:
-                delete this.objects[thisOldVar.object][thisOldVar.name].referenceLocations[thisOldVar.index];
+                delete this.objects[thisOldVar.object].members[thisOldVar.name].referenceLocations[thisOldVar.index];
 
                 if (thisOldVar.index === thisVarEntry.origin.indexOfOrigin) {
                     const newOrigin = await this.instAssignNewOrigin(thisVarEntry.referenceLocations, thisOldVar.object);
                     if (newOrigin === null) {
                         // Delete the variable entirely -- we've lost all reference to it.
-                        delete this.objects[thisOldVar.object][thisOldVar.name];
+                        delete this.objects[thisOldVar.object].members[thisOldVar.name];
                     } else {
                         thisVarEntry.origin = newOrigin;
                     }
                 }
             }
 
-            this.URIRecord[uri].instanceVariables = [];
+            this.URIRecord[uri].instanceVariablesRecords = [];
         }
     }
 
@@ -1051,10 +822,10 @@ export class Reference {
                         thisURIInfo.eventInfo.eventNumb === EventNumber.StepBegin
                             ? VariableRank.BegStep
                             : thisURIInfo.eventInfo.eventNumb === EventNumber.StepNormal
-                                ? VariableRank.Step
-                                : thisURIInfo.eventInfo.eventNumb === EventNumber.StepEnd
-                                    ? VariableRank.EndStep
-                                    : VariableRank.Other;
+                            ? VariableRank.Step
+                            : thisURIInfo.eventInfo.eventNumb === EventNumber.StepEnd
+                            ? VariableRank.EndStep
+                            : VariableRank.Other;
                     if (bestCandidate.varRank < thisRank) continue;
                 } else {
                     thisRank = VariableRank.Other;
@@ -1092,12 +863,7 @@ export class Reference {
         return null;
     }
 
-    /** Returns all variables set/declared at the URI. Note: because of GML syntax,
-     * a variable can have multiple set/declaration lines. */
-    public getAllVariablesAtURI(uri: string) {
-        return this.URIRecord[uri].instanceVariables;
-    }
-
+    // TODO totally rework this. It doesn't know/care about object -- it needs the URI.
     public instGetAllVariableReferences(objName: string, varName: string) {
         const varPackage = this.instGetVariablePackage(objName, varName);
         if (!varPackage) return null;
@@ -1105,6 +871,7 @@ export class Reference {
         return cleanArray(varPackage.referenceLocations);
     }
 
+    // TODO Rework this too, just above.
     public instGetOriginLocation(objName: string, varName: string) {
         const varPackage = this.instGetVariablePackage(objName, varName);
         if (varPackage === null) return null;
@@ -1115,27 +882,11 @@ export class Reference {
     private instGetVariablePackage(objName: string, variableName: string) {
         const thisObjVariables = this.objects[objName];
 
-        if (thisObjVariables && thisObjVariables[variableName]) {
-            return thisObjVariables[variableName];
+        if (thisObjVariables && thisObjVariables.members[variableName]) {
+            return thisObjVariables.members[variableName];
         }
 
         return null;
-    }
-
-    public objectExists(objName: string) {
-        return this.objectGetPackage(objName) !== undefined;
-    }
-
-    public objectGetPackage(objName: string): IVars | undefined {
-        return this.objects[objName];
-    }
-
-    public instGetAllInsts(objName: string): string[] {
-        if (this.objects.hasOwnProperty(objName) == false) {
-            return [];
-        }
-
-        return Object.getOwnPropertyNames(this.objects[objName]);
     }
 
     //#endregion
@@ -1615,7 +1366,7 @@ export class Reference {
                     extensions: this.callables.extensions,
                     scripts: this.callables.scripts
                 },
-                extensionRecord: this.extensionRecord
+                extensionRecord: this.callables.extensionRecord
             },
             URIRecords: this.URIRecord
         };

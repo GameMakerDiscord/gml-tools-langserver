@@ -1,4 +1,4 @@
-import { Reference } from './reference';
+import { Reference } from './Reference/reference';
 import { Location, TextDocumentPositionParams, Range, ReferenceParams } from 'vscode-languageserver/lib/main';
 import { getWordAtPositionFS } from './utils';
 import { ws } from './hover';

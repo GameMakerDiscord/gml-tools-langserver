@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fse from 'fs-extra';
 import * as AdmZip from 'adm-zip';
 import { LangServ } from './langserv';
-import { Reference } from './reference';
+import { Reference } from './Reference/reference';
 import * as Ajv from 'ajv';
 import * as cheerio from 'cheerio';
 import { normalizeEoLSequences } from './utils';

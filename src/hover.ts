@@ -1,6 +1,6 @@
 import { TextDocumentPositionParams, Hover, MarkedString } from 'vscode-languageserver/lib/main';
 import { getWordAtPositionFS } from './utils';
-import { Reference } from './reference';
+import { Reference } from './Reference/reference';
 import { FileSystem } from './fileSystem';
 import { JSDOC } from './declarations';
 

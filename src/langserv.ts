@@ -16,7 +16,7 @@ import {
     ReferenceParams
 } from 'vscode-languageserver/lib/main';
 import { DiagnosticHandler, DiagnosticsPackage, LintPackage } from './diagnostic';
-import { Reference } from './reference';
+import { Reference } from './Reference/reference';
 import { GMLDefinitionProvider } from './definition';
 import { GMLSignatureProvider } from './signature';
 import { GMLCompletionProvider } from './completion';

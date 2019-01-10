@@ -1,4 +1,4 @@
-import { Reference, BasicResourceType } from './reference';
+import { Reference, BasicResourceType } from './Reference/reference';
 import { WorkspaceFolder, Location, Range } from 'vscode-languageserver';
 import URI from 'vscode-uri';
 import * as fse from 'fs-extra';
@@ -11,7 +11,7 @@ import {
     IEnum,
     IMacro,
     SemanticsOption,
-    IScript,
+    IScriptEvent,
     IExtension,
     GMLFolder,
     DocumentFolders,
@@ -44,7 +44,7 @@ export namespace ProjectCache {
     }
 
     export interface CachedCallables {
-        scripts: { [key: string]: IScript };
+        scripts: { [key: string]: IScriptEvent };
         extensions: { [key: string]: IExtension };
     }
 

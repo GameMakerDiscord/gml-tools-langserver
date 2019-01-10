@@ -1,4 +1,4 @@
-import { Reference } from './reference';
+import { Reference } from './Reference/reference';
 import { TextDocumentPositionParams, SignatureHelp, ParameterInformation } from 'vscode-languageserver/lib/main';
 import { getIndexFromPosition, getWordAtIndex, normalizeEoLSequences } from './utils';
 import { Token, SignatureWalkState, TokenNames, JSDOC } from './declarations';

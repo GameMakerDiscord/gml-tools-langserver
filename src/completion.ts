@@ -1,4 +1,4 @@
-import { Reference } from './reference';
+import { Reference } from './Reference/reference';
 import { FileSystem } from './fileSystem';
 import {
     CompletionItem,
@@ -69,7 +69,7 @@ export class GMLCompletionProvider {
 
         // Iterate on the Instance Variables:
         if (thisImplicitName) {
-            const variableList = this.reference.instGetAllInsts(thisImplicitName);
+            const variableList = this.reference.objectGetAllInsts(thisImplicitName);
 
             // Send our Insts out:
             for (const thisItem of variableList) {
@@ -252,7 +252,7 @@ export class GMLCompletionProvider {
         }
 
         // Variables
-        const variableList = this.reference.instGetAllInsts(ourWords[0]);
+        const variableList = this.reference.objectGetAllInsts(ourWords[0]);
         for (const thisVar of variableList) {
             if (rx.test(thisVar) || getAll) {
                 workingArray.push({

@@ -3,11 +3,11 @@ import * as path from 'path';
 import { Grammar } from 'ohm-js';
 import { DiagnosticHandler } from './diagnostic';
 import { LangServ } from './langserv';
-import { Reference, BasicResourceType } from './reference';
+import { Reference, BasicResourceType } from './Reference/reference';
 import * as uuidv4 from 'uuid/v4';
 import URI from 'vscode-uri/lib/umd';
 import * as chokidar from 'chokidar';
-import { ResourceNames, IScript, DocumentFolders, GMLFolder, DocumentFolder, EventInfo, GMResourcePlus } from './declarations';
+import { ResourceNames, IScriptEvent, DocumentFolders, GMLFolder, DocumentFolder, EventInfo, GMResourcePlus } from './declarations';
 import * as rubber from 'gamemaker-rubber';
 import { Resource, EventType, EventNumber, YYP, YYPResource } from 'yyp-typings';
 import { ClientViewNode, ResourcePackage } from './sharedTypes';
@@ -706,7 +706,7 @@ export class FileSystem {
         this.reference.URISetHash(URIstring, this.emptySHA1Hash);
     }
 
-    public async resourceScriptDelete(scriptPack: IScript, viewUUID: string) {
+    public async resourceScriptDelete(scriptPack: IScriptEvent, viewUUID: string) {
         try {
             // Early exist
             if (!this.projectYYP) return;

@@ -1,7 +1,7 @@
 import { CompletionItemKind, FoldingRange, Location, Position } from 'vscode-languageserver';
 import { Resource, EventType, EventNumber } from 'yyp-typings';
-import { BasicResourceType } from './reference';
-import { DiagnosticHandler } from './diagnostic';
+import { BasicResourceType } from './Reference/reference';
+import { DiagnosticHandler, GMLVarParse } from './diagnostic';
 
 export const enum SpecialDocTypes {
     Constant = '#',
@@ -187,7 +187,8 @@ export declare type ResourceNames =
 
 // Reference
 export interface ICallables {
-    scripts: { [key: string]: IScript };
+    scripts: { [key: string]: IScriptEvent };
+    events: { [key: string]: IScriptEvent };
     functions: { [key: string]: IFunction };
     extensions: { [key: string]: IExtension };
 }
@@ -197,8 +198,9 @@ export interface ICallable {
     referenceLocations: Location[];
 }
 
-export interface IScript extends ICallable {
+export interface IScriptEvent extends ICallable {
     uri: string;
+    members: IVars;
 }
 
 export interface IFunction extends ICallable {
@@ -211,7 +213,12 @@ export interface IExtension extends ICallable {
 }
 
 export interface IObjects {
-    [objectName: string]: IVars;
+    [objectName: string]: IObject;
+}
+
+export interface IObject {
+    referenceURIs: IURIRecord[];
+    members: IVars;
 }
 
 export interface IVars {
@@ -220,7 +227,7 @@ export interface IVars {
 
 export interface GenericResourceModel {
     origin: GenericOriginInformation;
-    referenceLocations: Array<Location>;
+    referenceLocations: Location[];
 }
 
 export interface GenericOriginInformation {
@@ -288,13 +295,17 @@ export interface EnumMemberRecord extends URIRecord {
     name: string;
 }
 
+export interface IURIRecords {
+    [thisUri: string]: IURIRecord;
+}
+
 export interface IURIRecord {
     localVariables: { [name: string]: GenericResourceModel };
-    instanceVariables: InstVarRecord[];
+    instanceVariablesRecords: InstVarRecord[];
+    events: URIRecord[];
     scripts: URIRecord[];
     functions: URIRecord[];
     extensions: URIRecord[];
-    foldingRanges: FoldingRange[];
     macros: URIRecord[];
     enums: URIRecord[];
     enumMembers: EnumMemberRecord[];
@@ -309,9 +320,8 @@ export interface ThisPositionRecord {
 
 export interface GMLDocOverrides {
     name: string;
-    originalEntry?: IScript;
+    originalEntry?: IScriptEvent;
 }
-
 
 //#region FS
 
