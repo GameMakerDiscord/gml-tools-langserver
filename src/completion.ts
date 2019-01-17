@@ -116,7 +116,7 @@ export class GMLCompletionProvider {
         }
 
         // Functions
-        const functionList = this.reference.functionGetAllFunctionNames();
+        const functionList = this.reference.callables.functionGetAllFunctionNames();
         for (const item of functionList) {
             if (item && rx.test(item) === true) {
                 workingArray.push({
@@ -131,7 +131,7 @@ export class GMLCompletionProvider {
         }
 
         // Scripts
-        const scriptList = this.reference.scriptGetAllScriptNames();
+        const scriptList = this.reference.callables.scriptGetAllScriptNames();
         for (const thisItem of scriptList) {
             if (thisItem && rx.test(thisItem) === true) {
                 workingArray.push({
@@ -146,7 +146,7 @@ export class GMLCompletionProvider {
         }
 
         // Extensions
-        const extensionList = this.reference.extensionGetAllExtensionNames();
+        const extensionList = this.reference.callables.extensionGetAllExtensionNames();
         for (const thisItem of extensionList) {
             if (thisItem && rx.test(thisItem) === true) {
                 workingArray.push({
@@ -305,14 +305,14 @@ export class GMLCompletionProvider {
 
     private resolveFunction(thisItem: CompletionItem): CompletionItem {
         // Script
-        const scriptPack = this.reference.scriptGetPackage(thisItem.label);
+        const scriptPack = this.reference.callables.scripts[thisItem.label];
         if (scriptPack) return this.resolveFunctionJSDOC(thisItem, scriptPack.JSDOC);
 
         // Functions
-        const funcPack = this.reference.functionGetPackage(thisItem.label);
+        const funcPack = this.reference.callables.functions[thisItem.label];
         if (funcPack) return this.resolveFunctionJSDOC(thisItem, funcPack.JSDOC);
 
-        const extPack = this.reference.extensionGetPackage(thisItem.label);
+        const extPack = this.reference.callables.extensions[thisItem.label];
         if (extPack) return this.resolveFunctionJSDOC(thisItem, extPack.JSDOC);
 
         return thisItem;

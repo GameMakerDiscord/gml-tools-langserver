@@ -187,29 +187,44 @@ export declare type ResourceNames =
 
 // Reference
 export interface ICallables {
-    scripts: { [key: string]: IScriptEvent };
-    events: { [key: string]: IScriptEvent };
+    scripts: { [key: string]: IScript };
+    events: { [key: string]: IScript };
     functions: { [key: string]: IFunction };
     extensions: { [key: string]: IExtension };
 }
 
 export interface ICallable {
-    JSDOC: JSDOC;
     referenceLocations: Location[];
+    members: { [variableName: string]: GMLVarParse };
+    name: string;
+    callableType: callableType;
 }
 
-export interface IScriptEvent extends ICallable {
+export type callableType = 'script' | 'function' | 'extension' | 'event';
+
+export interface IScript extends ICallable {
     uri: string;
-    members: IVars;
+    JSDOC: JSDOC;
+    callableType: 'script';
 }
 
 export interface IFunction extends ICallable {
     doNotAutoComplete: boolean;
+    JSDOC: JSDOC;
+    callableType: 'function';
 }
 
 export interface IExtension extends ICallable {
     doNotAutoComplete: boolean;
     originLocation: Location;
+    JSDOC: JSDOC;
+    callableType: 'extension';
+}
+
+export interface IEvent extends ICallable {
+    object: IObject;
+    uri: string;
+    callableType: 'event';
 }
 
 export interface IObjects {
@@ -320,7 +335,7 @@ export interface ThisPositionRecord {
 
 export interface GMLDocOverrides {
     name: string;
-    originalEntry?: IScriptEvent;
+    originalEntry?: IScript;
 }
 
 //#region FS

@@ -1,16 +1,18 @@
-import { IScriptEvent, JSDOC, IFunction, IExtension, IURIRecords, IObject, IURIRecord } from '../declarations';
+import { JSDOC, IFunction, IExtension, IURIRecords, IURIRecord, ICallable, IScript, IEvent } from '../declarations';
 import { cleanArray } from '../utils';
 import { Reference } from './reference';
 import { Location, Range } from 'vscode-languageserver';
 import { ProjectCache } from '../startAndShutdown';
 import { GMLEvent } from './Reference Types/gmlEvent';
 import { GMLScript } from './Reference Types/gmlScript';
+import { GMLFunction } from './Reference Types/gmlFunction';
+import { GMLExtension } from './Reference Types/gmlExtension';
 
 export class Callables {
-    public scripts: { [key: string]: IScriptEvent } = {};
-    public functions: { [key: string]: IFunction } = {};
-    public extensions: { [key: string]: IExtension } = {};
-    public events: { [key: string]: GMLEvent } = {};
+    public scripts: { [key: string]: GMLScript | undefined } = {};
+    public functions: { [key: string]: GMLFunction | undefined } = {};
+    public extensions: { [key: string]: GMLExtension | undefined } = {};
+    public events: { [key: string]: GMLEvent | undefined } = {};
     public functionList: string[] = [];
     public extensionRecord: ProjectCache.IExtensionRecord = {};
 
@@ -20,6 +22,22 @@ export class Callables {
     constructor(ref: Reference, uriRecord: IURIRecords) {
         this.reference = ref;
         this.URIRecord = uriRecord;
+    }
+
+    public getCallableHandle(callableName: string): GMLScript | GMLFunction | GMLExtension | GMLEvent | undefined {
+        const script = this.scripts[callableName];
+        if (script !== undefined) return script;
+
+        const functions = this.functions[callableName];
+        if (functions !== undefined) return functions;
+
+        const extensions = this.extensions[callableName];
+        if (extensions !== undefined) return extensions;
+
+        const events = this.events[callableName];
+        if (events !== undefined) return events;
+
+        return undefined;
     }
 
     //#region Scripts
@@ -47,8 +65,9 @@ export class Callables {
      * @param thisName This is the script to the delete.
      */
     public scriptDelete(thisName: string) {
-        // Clean the URI
-        this.reference.URIRecordClearAtURI(this.scripts[thisName].uri);
+        const scriptPack = this.scripts[thisName];
+        if (scriptPack === undefined) return;
+        this.reference.URIRecordClearAtURI(scriptPack.uri);
 
         // Delete the Script itself
         delete this.scripts[thisName];
@@ -162,16 +181,8 @@ export class Callables {
     //#endregion
 
     //#region Functions
-    public functionAddFunction(thisName: string, thisJSDOC: JSDOC, doNotAutoComplete: boolean) {
-        this.functions[thisName] = {
-            JSDOC: thisJSDOC,
-            doNotAutoComplete: doNotAutoComplete,
-            referenceLocations: []
-        };
-    }
-
-    public functionGetPackage(thisName: string): IFunction | undefined {
-        return this.functions[thisName];
+    public functionAddFunction(name: string, thisJSDOC: JSDOC, doNotAutoComplete: boolean) {
+        this.functions[name] = new GMLFunction(thisJSDOC, this, name, doNotAutoComplete);
     }
 
     public functionOverwriteJSON(thisPack: IFunction, thisJSDOC: JSDOC) {
@@ -182,11 +193,11 @@ export class Callables {
         return this.functionList;
     }
 
-    public functionAddReference(thisName: string, thisURI: string, thisRange: Range) {
-        const ourFunction = this.functionGetPackage(thisName);
+    public functionAddReference(name: string, uri: string, range: Range) {
+        const ourFunction: IFunction | undefined = this.functions[name];
         if (!ourFunction) return;
 
-        ourFunction.referenceLocations.push(Location.create(thisURI, thisRange));
+        ourFunction.referenceLocations.push(Location.create(uri, range));
     }
 
     public functionRemoveAllReferencesAtURI(thisURI: string) {
@@ -194,11 +205,11 @@ export class Callables {
 
         for (const thisFunctionRecord of thisURIRecord.functions) {
             // Get our Script Pack
-            const ourFunctionPack = this.functionGetPackage(thisFunctionRecord.name);
-            if (!ourFunctionPack) return;
+            const ourFunction: IFunction | undefined = this.functions[name];
+            if (!ourFunction) return;
 
             // Splice out the old location:
-            delete ourFunctionPack.referenceLocations[thisFunctionRecord.index];
+            delete ourFunction.referenceLocations[thisFunctionRecord.index];
         }
 
         // Clear our Record of Indexes since those indexes have been removed:
@@ -206,10 +217,10 @@ export class Callables {
     }
 
     public functionGetAllReferences(thisName: string): Location[] | null {
-        const ourFunctionPack = this.functionGetPackage(thisName);
-        if (!ourFunctionPack) return null;
+        const ourFunction: IFunction | undefined = this.functions[name];
+        if (!ourFunction) return null;
 
-        return cleanArray(ourFunctionPack.referenceLocations);
+        return cleanArray(ourFunction.referenceLocations);
     }
     //#endregion
 
@@ -227,12 +238,7 @@ export class Callables {
             referenceLocations = [];
         }
 
-        this.extensions[thisName] = {
-            doNotAutoComplete: doNotAutoComplete,
-            JSDOC: thisJSDOC,
-            referenceLocations: referenceLocations,
-            originLocation: originLoc
-        };
+        this.extensions[thisName] = new GMLExtension(thisJSDOC, thisName, originLoc, doNotAutoComplete, this);
 
         // Add to our Record
         if (!this.extensionRecord[extensionName]) {
@@ -261,10 +267,6 @@ export class Callables {
         this.extensionRecord[extensionName][extensionFileName].hash = hash;
     }
 
-    public extensionGetPackage(thisName: string): IExtension | undefined {
-        return this.extensions[thisName];
-    }
-
     public extensionOverwriteJSON(thisPack: IExtension, thisJSDOC: JSDOC) {
         thisPack.JSDOC = thisJSDOC;
     }
@@ -273,20 +275,13 @@ export class Callables {
         return Object.getOwnPropertyNames(this.extensions);
     }
 
-    public extensionAddReference(thisName: string, thisURI: string, thisRange: Range) {
-        const ourExtension = this.extensionGetPackage(thisName);
-        if (!ourExtension) return;
-
-        ourExtension.referenceLocations.push(Location.create(thisURI, thisRange));
-    }
-
     public extensionRemoveAllReferencesAtURI(thisURI: string) {
         const thisURIRecord = this.reference.URIgetURIRecord(thisURI);
 
         for (const thisExtensionRecord of thisURIRecord.extensions) {
             // Get our Script Pack
-            const ourExtensionPack = this.extensionGetPackage(thisExtensionRecord.name);
-            if (!ourExtensionPack) return;
+            const ourExtensionPack = this.extensions[thisExtensionRecord.name];
+            if (ourExtensionPack === undefined) return;
 
             // Splice out the old location:
             delete ourExtensionPack.referenceLocations[thisExtensionRecord.index];
@@ -297,8 +292,8 @@ export class Callables {
     }
 
     public extensionGetAllReferences(thisName: string): Location[] | null {
-        const ourExtensionPack = this.extensionGetPackage(thisName);
-        if (!ourExtensionPack) return null;
+        const ourExtensionPack = this.extensions[thisName];
+        if (ourExtensionPack === undefined) return null;
 
         return cleanArray(ourExtensionPack.referenceLocations);
     }

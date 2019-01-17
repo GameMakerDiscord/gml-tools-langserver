@@ -11,7 +11,7 @@ import {
     IEnum,
     IMacro,
     SemanticsOption,
-    IScriptEvent,
+    IScript,
     IExtension,
     GMLFolder,
     DocumentFolders,
@@ -44,7 +44,7 @@ export namespace ProjectCache {
     }
 
     export interface CachedCallables {
-        scripts: { [key: string]: IScriptEvent };
+        scripts: { [key: string]: IScript };
         extensions: { [key: string]: IExtension };
     }
 

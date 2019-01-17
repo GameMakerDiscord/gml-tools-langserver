@@ -104,22 +104,14 @@ export class GMLSignatureProvider {
         if (!thisWord) return null;
 
         // Scripts
-        const scriptPack = this.reference.scriptGetPackage(thisWord);
-        if (scriptPack) return this.signaturePrepareJSDOC(scriptPack.JSDOC, ourCommas);
-
-        // Functions
-        const funcPack = this.reference.functionGetPackage(thisWord);
-        if (funcPack) return this.signaturePrepareJSDOC(funcPack.JSDOC, ourCommas);
-
-        // Extensions
-        const extPack = this.reference.extensionGetPackage(thisWord);
-        if (extPack) return this.signaturePrepareJSDOC(extPack.JSDOC, ourCommas);
-
-        return {
+        const callable = this.reference.callables.getCallableHandle(thisWord);
+        if (callable === undefined || callable.callableType == "event") return {
             signatures: [],
             activeParameter: null,
             activeSignature: null
-        };
+        }
+
+        return this.signaturePrepareJSDOC(callable.JSDOC, ourCommas);
     }
 
     private signaturePrepareJSDOC(thisJSDOC: JSDOC, activteParameter: number): SignatureHelp {

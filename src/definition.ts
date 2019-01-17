@@ -52,20 +52,20 @@ export class GMLDefinitionProvider {
         }
 
         // Scripts
-        const scriptPack = this.reference.scriptGetPackage(thisWord);
-        if (scriptPack && scriptPack.JSDOC && scriptPack.JSDOC.isScript && scriptPack.uri) {
+        const scriptPack = this.reference.callables.scripts[thisWord];
+        if (scriptPack !== undefined && scriptPack.JSDOC && scriptPack.JSDOC.isScript && scriptPack.uri) {
             return Location.create(scriptPack.uri, Range.create(0, 0, 0, 0));
         }
 
         // Functions?
-        const funcPack = this.reference.functionGetPackage(thisWord);
+        const funcPack = this.reference.callables.functions[thisWord];
         if (funcPack && funcPack.JSDOC.link) {
             return Location.create(URI.parse(funcPack.JSDOC.link).toString(), Range.create(0, 0, 0, 0));
         }
 
         // Extensions
-        const extPack = this.reference.extensionGetPackage(thisWord);
-        if (extPack) {
+        const extPack = this.reference.callables.extensions[thisWord];
+        if (extPack !== undefined) {
             return extPack.originLocation;
         }
 
@@ -129,15 +129,15 @@ export class GMLDefinitionProvider {
         // }
 
         // Scripts
-        const theseScriptReferences = this.reference.scriptGetAllReferences(thisWord);
+        const theseScriptReferences = this.reference.callables.scriptGetAllReferences(thisWord);
         if (theseScriptReferences) return theseScriptReferences;
 
         // Functions
-        const theseFuncRefs = this.reference.functionGetAllReferences(thisWord);
+        const theseFuncRefs = this.reference.callables.functionGetAllReferences(thisWord);
         if (theseFuncRefs) return theseFuncRefs;
 
         // Extensions
-        const theseExts = this.reference.extensionGetAllReferences(thisWord);
+        const theseExts = this.reference.callables.extensionGetAllReferences(thisWord);
         if (theseExts) return theseExts;
 
         // Enums

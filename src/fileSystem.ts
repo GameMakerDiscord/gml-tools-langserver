@@ -7,7 +7,7 @@ import { Reference, BasicResourceType } from './Reference/reference';
 import * as uuidv4 from 'uuid/v4';
 import URI from 'vscode-uri/lib/umd';
 import * as chokidar from 'chokidar';
-import { ResourceNames, IScriptEvent, DocumentFolders, GMLFolder, DocumentFolder, EventInfo, GMResourcePlus } from './declarations';
+import { ResourceNames, IScript, DocumentFolders, GMLFolder, DocumentFolder, EventInfo, GMResourcePlus } from './declarations';
 import * as rubber from 'gamemaker-rubber';
 import { Resource, EventType, EventNumber, YYP, YYPResource } from 'yyp-typings';
 import { ClientViewNode, ResourcePackage } from './sharedTypes';
@@ -15,6 +15,7 @@ import * as Ajv from 'ajv';
 import { InitialStartupHandOffPackage, ProjectCache } from './startAndShutdown';
 import * as crypto from 'crypto';
 import { IConnection } from 'vscode-languageserver';
+import { GMLEvent } from './Reference/Reference Types/gmlEvent';
 
 /**
  * The FileSystem class is our document manager. It handles
@@ -531,18 +532,27 @@ export class FileSystem {
     //#endregion
 
     //#region Diagnostic Handler Methods
-    private createDiagnosticHandler(fileURI: string) {
-        return new DiagnosticHandler(this.grammar, fileURI, this.reference);
-    }
 
     public async getDiagnosticHandler(uri: string): Promise<DiagnosticHandler> {
-        const thisDiag = this.documents[uri].diagnosticHandler;
+        const docFolder = this.documents[uri];
+        const thisDiag = docFolder.diagnosticHandler;
+        if (thisDiag !== null) return thisDiag;
+        let diagnosticHandler: DiagnosticHandler | undefined;
 
-        if (!thisDiag) {
-            const thisDiagnosticHandle = this.createDiagnosticHandler(uri);
-            this.documents[uri].diagnosticHandler = thisDiagnosticHandle;
-            return thisDiagnosticHandle;
-        } else return thisDiag;
+        switch (docFolder.type) {
+            case "GMObject":
+                
+                this.reference.callables.events[uri] = new GMLEvent(uri, d)
+                diagnosticHandler = new DiagnosticHandler(this.grammar, uri, this.reference.callables.events)
+                break;
+
+            default:
+                break;
+        }
+
+        const thisDiagnosticHandle = new DiagnosticHandler(this.grammar, uri, this.reference);
+        this.documents[uri].diagnosticHandler = thisDiagnosticHandle;
+        return thisDiagnosticHandle;
     }
     //#endregion
 
@@ -564,9 +574,6 @@ export class FileSystem {
     //     this.documents[uri] = thisDocFolder;
     // }
 
-    public async getDocumentFolder(uri: string): Promise<DocumentFolder | undefined> {
-        return this.documents[uri];
-    }
 
     public async addDocument(uri: string, file: string): Promise<DocumentFolder | null> {
         const thisFileFolder = this.documents[uri];
@@ -620,7 +627,7 @@ export class FileSystem {
         this.openedDocuments.splice(indexNumber, 1);
 
         // Hash the document
-        const thisDocInfo = await this.getDocumentFolder(thisURI);
+        const thisDocInfo = this.documents[thisURI];
         if (!thisDocInfo) {
             console.log(`Document folder does not exist for ${thisURI}`);
             return;
@@ -696,8 +703,7 @@ export class FileSystem {
 
     private async resourceScriptAddToInternalModel(scriptName: string, gmlFilePath: string, thisYYFile: Resource.Script) {
         const URIstring = URI.file(gmlFilePath).toString();
-        this.reference.addResource(scriptName, 'GMScript');
-        this.reference.scriptSetURI(scriptName, URIstring);
+        this.reference.addResource(scriptName, 'GMScript', URIstring);
         await this.documentCreateDocumentFolder(gmlFilePath, scriptName, 'GMScript');
 
         this.projectResources[thisYYFile.id] = thisYYFile;
@@ -706,7 +712,7 @@ export class FileSystem {
         this.reference.URISetHash(URIstring, this.emptySHA1Hash);
     }
 
-    public async resourceScriptDelete(scriptPack: IScriptEvent, viewUUID: string) {
+    public async resourceScriptDelete(scriptPack: IScript, viewUUID: string) {
         try {
             // Early exist
             if (!this.projectYYP) return;
@@ -1502,7 +1508,7 @@ export class FileSystem {
                 switch (thisSubtractedResource.Value.resourceType) {
                     case 'GMScript':
                         const name = path.basename(thisSubtractedResource.Value.resourcePath, '.yy');
-                        this.reference.scriptDelete(name);
+                        this.reference.callables.scriptDelete(name);
                         break;
 
                     case 'GMObject':
@@ -1542,7 +1548,7 @@ export class FileSystem {
                 switch (thisAddedResource.Value.resourceType) {
                     case 'GMScript':
                         const scriptName = path.basename(thisAddedResource.Value.resourcePath, '.yy');
-                        if (this.reference.scriptGetPackage(scriptName) != undefined) continue;
+                        if (this.reference.callables.scripts[scriptName] !== undefined) continue;
                         const gmlPath = path.join(this.projectDirectory, 'scripts', scriptName, scriptName + '.gml');
 
                         await this.resourceScriptAddToInternalModel(scriptName, gmlPath, yyFile);

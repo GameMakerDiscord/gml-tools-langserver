@@ -11,10 +11,6 @@ import {
     IOriginVar,
     VariableRank,
     IEnumMembers,
-    IScriptEvent,
-    ICallables,
-    IFunction,
-    IExtension,
     JSDOC,
     IVars
 } from '../declarations';
@@ -24,6 +20,7 @@ import { cleanArray, cleanArrayLength } from '../utils';
 import { ProjectCache } from '../startAndShutdown';
 import { FileSystem } from '../fileSystem';
 import { Callables } from './callables';
+import { GMLScript } from './Reference Types/gmlScript';
 
 export interface GenericResourceDescription {
     name: string;
@@ -112,14 +109,14 @@ export class Reference {
 
             // Scripts
             const thisScript = this.callables.scripts[thisCallable.name];
-            if (thisScript) this.callables.scripts[thisCallable.name].JSDOC = ourJSDOC;
+            if (thisScript) thisScript.JSDOC = ourJSDOC;
 
             // Functions
-            const thisFunction = this.callables.functionGetPackage(thisCallable.name);
+            const thisFunction = this.callables.functions[thisCallable.name];
             if (thisFunction) this.callables.functionOverwriteJSON(thisFunction, ourJSDOC);
 
             // Extensions
-            const thisExtension = this.callables.extensionGetPackage(thisCallable.name);
+            const thisExtension = this.callables.extensions[thisCallable.name];
             if (thisExtension) this.callables.extensionOverwriteJSON(thisExtension, ourJSDOC);
         }
     }
@@ -148,7 +145,7 @@ export class Reference {
         for (const thisScriptName in cache.callables.scripts) {
             if (cache.callables.scripts.hasOwnProperty(thisScriptName)) {
                 const thisScript = cache.callables.scripts[thisScriptName];
-                this.callables.scripts[thisScriptName] = thisScript;
+                this.callables.scripts[thisScriptName] = new GMLScript(thisScript.JSDOC, thisScript.uri, this.callables, thisScript.name);
             }
         }
 
@@ -261,6 +258,7 @@ export class Reference {
         for (const thisScriptName in this.callables.scripts) {
             if (this.callables.scripts.hasOwnProperty(thisScriptName)) {
                 const thisScript = this.callables.scripts[thisScriptName];
+                if (thisScript === undefined) continue;
                 if (thisScript.uri && this.URIRecord[thisScript.uri] === undefined) {
                     // Delete the script and clear it from the list
                     delete this.callables.scripts[thisScriptName];
@@ -301,7 +299,7 @@ export class Reference {
     //#endregion
 
     //#region All Resources
-    public addResource(resourceName: string, resourceType: BasicResourceType) {
+    public addResource(resourceName: string, resourceType: BasicResourceType, uri?: string) {
         this.projectResources.push({
             name: resourceName,
             type: resourceType
@@ -312,7 +310,7 @@ export class Reference {
         }
 
         if (resourceType == 'GMScript') {
-            this.callables.scriptAddScript(resourceName, '', {
+            this.callables.scriptAddScript(resourceName, uri === undefined ? '' : uri, {
                 description: '',
                 isScript: true,
                 minParameters: 0,
@@ -363,7 +361,6 @@ export class Reference {
             return true;
         } else return false;
     }
-
 
     public URIcreateURIDictEntry(thisURI: string) {
         this.URIRecord[thisURI] = {
@@ -627,9 +624,7 @@ export class Reference {
         this.objects[objName].referenceURIs.push(record);
 
         // Now add to the members:
-        for (const inst of record.instanceVariableParse) {
-            this.instAddInstToObject(inst, uri);
-        }
+        this.instAddInstToObject(gmlParse, uri);
     }
 
     public objectRemoveURI(objName: string, uri: string) {
@@ -740,14 +735,6 @@ export class Reference {
                 index: ourIndex,
                 isOrigin: overrideOrigin
             });
-        }
-    }
-
-    private instExists(objName: string, instName: string): boolean {
-        try {
-            return this.objects[objName].members[instName] !== undefined;
-        } catch (e) {
-            return false;
         }
     }
 

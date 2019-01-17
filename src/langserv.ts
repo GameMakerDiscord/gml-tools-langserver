@@ -302,10 +302,10 @@ export class LangServ {
         // Type Safety and Match Results
         const matchResults = lintPackage.getMatchResults();
         if (!matchResults) return;
-        const ourScriptPack = this.reference.scriptGetPackage(docInfo.name);
+        const ourScriptPack = this.reference.callables.scripts[docInfo.name];
         if (!ourScriptPack) return;
         const ourJSDOC = await thisDiagnostic.runSemanticJSDOC(matchResults, docInfo.name);
-        this.reference.scriptAddJSDOC(ourScriptPack, ourJSDOC);
+        ourScriptPack.JSDOC = ourJSDOC;
     }
     //#endregion
 
@@ -408,15 +408,15 @@ export class LangServ {
         if ((await this.fsManager.validateYYP(this.connection)) === false) return false;
 
         // Get the package
-        const scriptPack = this.reference.scriptGetPackage(clientScriptPack.resourceName);
+        const scriptPack = this.reference.callables.scripts[clientScriptPack.resourceName];
         if (!scriptPack) return false;
 
         // Delete it from the FS and change the YYP
         const success = await this.fsManager.resourceScriptDelete(scriptPack, clientScriptPack.viewUUID);
-        if (!success) return false;
+        if (success === undefined) return false;
 
         // Delete the Reference library
-        this.reference.scriptDelete(clientScriptPack.resourceName);
+        this.reference.callables.scriptDelete(clientScriptPack.resourceName);
 
         // Clear the View
         await this.fsManager.viewsDeleteViewAtNode(clientScriptPack.viewUUID);

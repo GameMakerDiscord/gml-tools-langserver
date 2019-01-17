@@ -9,7 +9,7 @@ import {
     regexLastIndexOf
 } from './utils';
 import { Reference } from './Reference/reference';
-import { Token, VariableRank, IScript, IFunction, IExtension, JSDOC, JSDOCParameter, DocumentFolder } from './declarations';
+import { Token, VariableRank, JSDOC, JSDOCParameter, DocumentFolder, IFunction, IExtension, ICallable } from './declarations';
 import { EventType, EventNumber } from 'yyp-typings';
 
 export enum EIterArray {
@@ -149,17 +149,19 @@ export class DiagnosticHandler {
     private isSelf: boolean;
     private currentEnumeration: number;
     private currentEnumName: string | null;
+    private callableHandle: ICallable;
 
     // Constructor:
-    constructor(grammar: Grammar, uri: string, reference: Reference) {
+    constructor(grammar: Grammar, uri: string, callableHandle: ICallable, reference: Reference) {
+        this.uri = uri;
+        this.reference = reference;
+        this.callableHandle = callableHandle;
+
         this.functionStack = [];
         this.currentEnumeration = 0;
         this.currentEnumName = null;
         this.semanticDiagnostics = [];
-        this.uri = uri;
         this.matchResult = null;
-        this.reference = reference;
-
         this.matcher = grammar.matcher();
         this.semanticIndex = 0;
         this.currentFullTextDocument = '';
@@ -188,45 +190,61 @@ export class DiagnosticHandler {
                 // Identify functions and get argument counts
                 funcIdentifier: (funcId: Node) => {
                     // Check if the function exists:
-                    const funcName = funcId.sourceString;
-
-                    // Go through all our Function categories
-                    let thisPack: undefined | IScript | IFunction | IExtension;
+                    const callableName = funcId.sourceString;
                     const ourRange = Range.create(
                         getPositionFromIndex(this.currentFullTextDocument, this.semanticIndex + funcId.source.startIdx),
                         getPositionFromIndex(this.currentFullTextDocument, this.semanticIndex + funcId.source.endIdx)
                     );
 
-                    // Are we a script?
-                    thisPack = this.reference.scriptGetPackage(funcName);
-                    if (thisPack) this.reference.scriptAddReference(funcName, this.uri, ourRange);
-
-                    if (thisPack === undefined) {
-                        thisPack = this.reference.functionGetPackage(funcName);
-                        if (thisPack) this.reference.functionAddReference(funcName, this.uri, ourRange);
-                    }
-                    if (thisPack === undefined) {
-                        thisPack = this.reference.extensionGetPackage(funcName);
-                        if (thisPack) this.reference.extensionAddReference(funcName, this.uri, ourRange);
-                    }
-
-                    // We found something!
-                    if (thisPack !== undefined) {
+                    const callable = this.reference.callables.getCallableHandle(callableName);
+                    let JSDOC: JSDOC | undefined;
+                    if (callable === undefined) {
                         this.functionStack.push({
-                            name: funcName,
-                            exists: true,
-                            interval: funcId.source,
-                            isScript: thisPack.JSDOC.isScript,
-                            maxParams: thisPack.JSDOC.maxParameters,
-                            minParams: thisPack.JSDOC.minParameters
-                        });
-                    } else {
-                        this.functionStack.push({
-                            name: funcName,
+                            name: callableName,
                             interval: funcId.source,
                             isScript: false,
                             exists: false
                         });
+                    } else {
+                        switch (callable.callableType) {
+                            case 'script':
+                                callable.addReference(this.uri, ourRange);
+                                JSDOC = callable.JSDOC;
+                                break;
+
+                            case 'function':
+                                callable.addReference(this.uri, ourRange);
+                                JSDOC = callable.JSDOC;
+                                break;
+
+                            case 'extension':
+                                callable.addReference(this.uri, ourRange);
+                                JSDOC = callable.JSDOC;
+                                break;
+
+                            case 'event':
+                                // lol idk
+                                break;
+                        }
+
+                        // We found something!
+                        if (JSDOC != undefined) {
+                            this.functionStack.push({
+                                name: callableName,
+                                exists: true,
+                                interval: funcId.source,
+                                isScript: JSDOC.isScript,
+                                maxParams: JSDOC.maxParameters,
+                                minParams: JSDOC.minParameters
+                            });
+                        } else {
+                            this.functionStack.push({
+                                name: callableName,
+                                interval: funcId.source,
+                                isScript: false,
+                                exists: false
+                            });
+                        }
                     }
                 },
 
@@ -510,16 +528,13 @@ export class DiagnosticHandler {
                 },
 
                 globalVariable: (globVariable: Node) => {
-                    this.reference.instAddInstToObject(
-                        {
-                            name: globVariable.sourceString,
-                            range: this.getRangeAtNode(this.currentFullTextDocument, globVariable),
-                            object: 'global',
-                            supremacy: this.currentRank,
-                            isSelf: false
-                        },
-                        this.uri
-                    );
+                    this.callableHandle.members[globVariable.sourceString] = {
+                        name: globVariable.sourceString,
+                        range: this.getRangeAtNode(this.currentFullTextDocument, globVariable),
+                        object: 'global',
+                        supremacy: this.currentRank,
+                        isSelf: false
+                    };
                 },
 
                 MacroDeclaration: (hashtag: Node, macroName: Node, macroValue: Node) => {
@@ -767,16 +782,13 @@ export class DiagnosticHandler {
             this.reference.enumPushEnumReference(this.currentObjectName, this.uri, this.currentObjectRange);
         } else {
             // Therefore, we are an instance variable after *all* that, yeah?
-            this.reference.instAddInstToObject(
-                {
-                    name: varName,
-                    range: this.getRangeAtNode(this.currentFullTextDocument, variable),
-                    object: this.currentObjectName,
-                    supremacy: this.currentRank,
-                    isSelf: this.isSelf
-                },
-                this.uri
-            );
+            this.callableHandle.members[varName] = {
+                name: varName,
+                range: this.getRangeAtNode(this.currentFullTextDocument, variable),
+                object: this.currentObjectName,
+                supremacy: this.currentRank,
+                isSelf: this.isSelf
+            };
         }
     }
 
